@@ -12,7 +12,8 @@ namespace InteractiveLeads.Api.Middleware
     /// </summary>
     public class TenantAccessValidationMiddleware
     {
-        private const string CrossTenantPathSegment = "CrossTenant";
+        /// <summary>Admin API: global roles (SysAdmin/Support) manage tenants by passing tenantId in URL; no tenant context required.</summary>
+        private const string AdminPathPrefix = "/api/v1/Admin";
 
         private readonly RequestDelegate _next;
 
@@ -30,8 +31,8 @@ namespace InteractiveLeads.Api.Middleware
         /// </summary>
         public async Task InvokeAsync(HttpContext context)
         {
-            // Skip cross-tenant routes (they validate tenant access in ExecuteInTenantContextAsync)
-            if (context.Request.Path.StartsWithSegments("/api/v1/CrossTenant", StringComparison.OrdinalIgnoreCase))
+            // Skip Admin routes (global roles; tenant is specified in URL and validated in handlers)
+            if (context.Request.Path.StartsWithSegments(AdminPathPrefix, StringComparison.OrdinalIgnoreCase))
             {
                 await _next(context);
                 return;
