@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="InteractiveLeads.Api/InteractiveLeads.Api.csproj" />
+    <Project Path="InteractiveLeads.Application/InteractiveLeads.Application.csproj" />
+    <Project Path="InteractiveLeads.Domain/InteractiveLeads.Domain.csproj" />
+    <Project Path="InteractiveLeads.Infrastructure/InteractiveLeads.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+</Solution>

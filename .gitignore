@@ -1,0 +1,57 @@
+# =========================
+# .NET / Backend
+# =========================
+**/bin/
+**/obj/
+**/appsettings.Development.json
+**/*.user
+**/*.suo
+**/*.vs/
+*.db
+*.log
+
+# =========================
+# Angular Frontend
+# =========================
+angular/node_modules/
+angular/dist/
+angular/.angular/
+angular/e2e/test-output/
+angular/tmp/
+angular/out-tsc/
+angular/coverage/
+angular/.vscode/
+angular/*.log
+angular/.angular-cli.json
+angular/.ng/
+angular/.env
+
+# Node modules and dependency files
+/node_modules/
+/package-lock.json
+/yarn.lock
+
+# TypeScript cache
+*.tsbuildinfo
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+*.suo
+*.user
+*.sln.docstates
+
+# =========================
+# Sistema
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Docker / Env
+# =========================
+*.env
+docker/*.env
+docker-compose.override.yml
