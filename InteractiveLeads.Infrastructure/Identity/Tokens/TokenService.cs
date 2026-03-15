@@ -1,12 +1,13 @@
 using Finbuckle.MultiTenant.Abstractions;
 using InteractiveLeads.Application;
 using InteractiveLeads.Application.Exceptions;
+using InteractiveLeads.Application.Feature.Identity.Impersonation;
 using InteractiveLeads.Application.Feature.Identity.Tokens;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using InteractiveLeads.Infrastructure.Configuration;
 using InteractiveLeads.Infrastructure.Constants;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
+using InteractiveLeads.Infrastructure.Tenancy.Strategies;
 using InteractiveLeads.Infrastructure.Identity.Models;
 using InteractiveLeads.Infrastructure.Context.Application;
 using Microsoft.AspNetCore.Identity;
@@ -26,20 +27,17 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
         private readonly IMultiTenantContextAccessor<InteractiveTenantInfo> _multiTenantContextAccessor;
         private readonly ApplicationDbContext _context;
         private readonly JwtSettings _jwtSettings;
-        private readonly SysAdminSeedSettings _sysAdminSeed;
 
         public TokenService(
             UserManager<ApplicationUser> userManager,
             IMultiTenantContextAccessor<InteractiveTenantInfo> multiTenantContextAccessor,
             ApplicationDbContext context,
-            IOptions<JwtSettings> jwtSettings,
-            IOptions<SysAdminSeedSettings> sysAdminSeed)
+            IOptions<JwtSettings> jwtSettings)
         {
             _userManager = userManager;
             _multiTenantContextAccessor = multiTenantContextAccessor;
             _context = context;
             _jwtSettings = jwtSettings.Value;
-            _sysAdminSeed = sysAdminSeed.Value;
         }
 
         public async Task<SingleResponse<TokenResponse>> LoginAsync(TokenRequest request, CancellationToken ct = default)
@@ -53,7 +51,10 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
                 throw new UnauthorizedException(result);
             }
 
-            if (!_multiTenantContextAccessor.MultiTenantContext.TenantInfo.IsActive)
+            var tenantInfo = _multiTenantContextAccessor.MultiTenantContext.TenantInfo;
+            bool isGlobalContext = tenantInfo.Id == null;
+
+            if (!isGlobalContext && !tenantInfo.IsActive)
             {
                 result.AddErrorMessage("Tenant subscription is not active. Contact administrator.", "tenant.subscription_not_active");
                 throw new UnauthorizedException(result);
@@ -66,21 +67,31 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
                 throw new UnauthorizedException(result);
             }
 
-            var tenantId = _multiTenantContextAccessor.MultiTenantContext.TenantInfo.Id;
+            var tenantId = tenantInfo.Id;
             var userRoles = await _userManager.GetRolesAsync(userInDb);
             var hasGlobalRole = userRoles.Any(r => RoleConstants.CrossTenantRoles.Contains(r));
             var hasOnlyTenantRoles = userRoles.All(r => RoleConstants.TenantRoles.Contains(r));
 
-            if (hasOnlyTenantRoles && userInDb.TenantId != tenantId)
+            if (isGlobalContext)
             {
-                result.AddErrorMessage("Incorrect username or password", "auth.invalid_credentials");
-                throw new UnauthorizedException(result);
+                if (!hasGlobalRole || userInDb.TenantId != null)
+                {
+                    result.AddErrorMessage("Incorrect username or password", "auth.invalid_credentials");
+                    throw new UnauthorizedException(result);
+                }
             }
-
-            if (hasGlobalRole && tenantId != _sysAdminSeed.RootId)
+            else
             {
-                result.AddErrorMessage("Incorrect username or password", "auth.invalid_credentials");
-                throw new UnauthorizedException(result);
+                if (hasOnlyTenantRoles && userInDb.TenantId != tenantId)
+                {
+                    result.AddErrorMessage("Incorrect username or password", "auth.invalid_credentials");
+                    throw new UnauthorizedException(result);
+                }
+                if (hasGlobalRole)
+                {
+                    result.AddErrorMessage("Incorrect username or password", "auth.invalid_credentials");
+                    throw new UnauthorizedException(result);
+                }
             }
 
             if (!userInDb.IsActive)
@@ -89,13 +100,10 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
                 throw new UnauthorizedException(result);
             }
 
-            if (!string.Equals(_multiTenantContextAccessor.MultiTenantContext.TenantInfo.Id, _sysAdminSeed.RootId, StringComparison.Ordinal))
+            if (!isGlobalContext && tenantInfo.ExpirationDate < DateTime.UtcNow)
             {
-                if (_multiTenantContextAccessor.MultiTenantContext.TenantInfo.ExpirationDate < DateTime.UtcNow)
-                {
-                    result.AddErrorMessage("Subscription has expired. Contact administrator.", "auth.subscription_expired");
-                    throw new UnauthorizedException(result);
-                }
+                result.AddErrorMessage("Subscription has expired. Contact administrator.", "auth.subscription_expired");
+                throw new UnauthorizedException(result);
             }
             #endregion
 
@@ -246,10 +254,11 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
             var claims = new List<Claim>
             {
                 new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new(ClaimTypes.Email, user.Email!),
+                new(ClaimTypes.Email, user.Email ?? string.Empty),
                 new(ClaimTypes.Name, user.FirstName),
                 new(ClaimTypes.Surname, user.LastName),
                 new(ClaimTypes.MobilePhone, user.PhoneNumber ?? string.Empty),
+                new(JwtTenantFallbackStrategy.TenantIdClaimType, user.TenantId ?? string.Empty),
             };
             claims.AddRange(roleClaims);
             return claims;
@@ -346,6 +355,56 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
 
             response.AddSuccessMessage("Device logout successful", "auth.device_logout_successful");
             return response;
+        }
+
+        /// <inheritdoc />
+        public async Task<SingleResponse<TokenResponse>> GenerateTokenForImpersonationAsync(UserLookupResult targetUser, Guid impersonatedByUserId, CancellationToken ct = default)
+        {
+            var claims = BuildClaimsForImpersonation(targetUser, impersonatedByUserId);
+            var newJwt = GenerateEncryptedToken(GenerateSigningCredentials(), claims);
+
+            var refreshTokenValue = GenerateRefreshToken();
+            var hashedRefreshToken = HashRefreshToken(refreshTokenValue);
+            var refreshToken = new RefreshToken
+            {
+                Id = Guid.NewGuid(),
+                UserId = targetUser.Id,
+                Token = hashedRefreshToken,
+                ExpirationTime = DateTime.UtcNow.AddDays(_jwtSettings.RefreshExpiresInDays),
+                IsRevoked = false,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            _context.RefreshTokens.Add(refreshToken);
+            await _context.SaveChangesAsync(ct);
+            await CleanExpiredRefreshTokensAsync(targetUser.Id);
+
+            var tokenResponse = new TokenResponse
+            {
+                Jwt = newJwt,
+                RefreshToken = refreshTokenValue,
+                RefreshTokenExpirationDate = refreshToken.ExpirationTime
+            };
+            var response = new SingleResponse<TokenResponse>(tokenResponse);
+            response.AddSuccessMessage("Impersonation token issued.", "auth.impersonation_successful");
+            return response;
+        }
+
+        private static List<Claim> BuildClaimsForImpersonation(UserLookupResult targetUser, Guid impersonatedByUserId)
+        {
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, targetUser.Id.ToString()),
+                new(ClaimTypes.Email, targetUser.Email ?? string.Empty),
+                new(ClaimTypes.Name, targetUser.FirstName),
+                new(ClaimTypes.Surname, targetUser.LastName),
+                new(ClaimTypes.MobilePhone, targetUser.PhoneNumber ?? string.Empty),
+                new(JwtTenantFallbackStrategy.TenantIdClaimType, targetUser.TenantId ?? string.Empty),
+                new(JwtTenantFallbackStrategy.ImpersonatedByClaimType, impersonatedByUserId.ToString())
+            };
+            foreach (var role in targetUser.Roles)
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            return claims;
         }
     }
 }

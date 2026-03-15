@@ -1,4 +1,6 @@
-﻿using InteractiveLeads.Api.Controllers.Base;
+using InteractiveLeads.Api.Controllers.Base;
+using InteractiveLeads.Application.Feature.Identity.Impersonation;
+using InteractiveLeads.Application.Feature.Identity.Impersonation.Commands;
 using InteractiveLeads.Application.Feature.Identity.Tokens;
 using InteractiveLeads.Application.Feature.Identity.Tokens.Commands;
 using InteractiveLeads.Application.Feature.Identity.Tokens.Queries;
@@ -99,6 +101,20 @@ namespace InteractiveLeads.Api.Controllers
                 UserId = userId, 
                 RefreshToken = logoutDeviceRequest.RefreshToken 
             });
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Impersonate another user (SysAdmin/Support only). Returns a new JWT and refresh token for the target user; the JWT includes an impersonated_by claim for audit.
+        /// </summary>
+        /// <param name="request">The impersonation request containing the target user id.</param>
+        /// <returns>Returns Ok with new JWT tokens for the target user.</returns>
+        [HttpPost("impersonate")]
+        [Authorize(Roles = "SysAdmin,Support")]
+        [OpenApiOperation("Impersonate a user (SysAdmin/Support only); returns tokens for the target user")]
+        public async Task<IActionResult> ImpersonateAsync([FromBody] ImpersonateRequest request)
+        {
+            var response = await Sender.Send(new ImpersonateCommand { Request = request });
             return Ok(response);
         }
     }

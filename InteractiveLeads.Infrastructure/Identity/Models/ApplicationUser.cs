@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 
 namespace InteractiveLeads.Infrastructure.Identity.Models
 {
@@ -26,10 +26,9 @@ namespace InteractiveLeads.Infrastructure.Identity.Models
         
         /// <summary>
         /// Gets or sets the tenant ID to which this user belongs.
-        /// This establishes the multi-tenant relationship for the user.
-        /// Note: This is a reference to the tenant ID in the shared database.
+        /// Null for global users (SysAdmin, Support); required for tenant users (Owner, Manager, Agent).
         /// </summary>
-        public string TenantId { get; set; } = string.Empty;
+        public string? TenantId { get; set; }
         
         /// <summary>
         /// Gets or sets the date and time when the user was created.

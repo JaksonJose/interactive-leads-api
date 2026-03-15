@@ -69,16 +69,14 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
                 && request.UserRoles.Any(ur => !ur.IsAssigned && ur.Name == RoleConstants.SysAdmin))
             {
                 var adminUsersCount = (await _userManager.GetUsersInRoleAsync(RoleConstants.SysAdmin)).Count;
-                if (string.Equals(userInDb.Email, _sysAdminSeed.Email, StringComparison.OrdinalIgnoreCase))
+                bool isGlobalSysAdmin = userInDb.TenantId == null && string.Equals(userInDb.Email, _sysAdminSeed.Email, StringComparison.OrdinalIgnoreCase);
+                if (isGlobalSysAdmin)
                 {
-                    if (_tenantContextAccessor.MultiTenantContext.TenantInfo?.Id == _sysAdminSeed.RootId)
-                    {
-                        var conflictResponse = new ResultResponse();
-                        conflictResponse.AddErrorMessage("Not allowed to remove Admin role for a Root Tenant User.", "user.admin_role_removal_not_allowed");
-                        throw new ConflictException(conflictResponse);
-                    }
+                    var conflictResponse = new ResultResponse();
+                    conflictResponse.AddErrorMessage("Not allowed to remove Admin role for the global SysAdmin user.", "user.admin_role_removal_not_allowed");
+                    throw new ConflictException(conflictResponse);
                 }
-                else if(adminUsersCount <= 2)
+                if (adminUsersCount <= 2)
                 {
                     var conflictResponse = new ResultResponse();
                     conflictResponse.AddErrorMessage("Not allowed. Tenant should have at least two Admin Users.", "user.min_admin_users_required");
@@ -220,10 +218,10 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
         {
             var userInDb = await GetUserAsync(userId);
 
-            if (string.Equals(userInDb.Email, _sysAdminSeed.Email, StringComparison.OrdinalIgnoreCase))
+            if (userInDb.TenantId == null && string.Equals(userInDb.Email, _sysAdminSeed.Email, StringComparison.OrdinalIgnoreCase))
             {
                 var conflictResponse = new ResultResponse();
-                conflictResponse.AddErrorMessage("Not allowed to remove Admin User for a Root Tenant.", "user.root_admin_deletion_not_allowed");
+                conflictResponse.AddErrorMessage("Not allowed to remove the global SysAdmin user.", "user.global_admin_deletion_not_allowed");
                 throw new ConflictException(conflictResponse);
             }
 

@@ -1,3 +1,4 @@
+using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using Finbuckle.MultiTenant.EntityFrameworkCore;
 using InteractiveLeads.Infrastructure.Identity.Models;
@@ -28,6 +29,10 @@ namespace InteractiveLeads.Infrastructure.Context.Application
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             base.OnConfiguring(optionsBuilder);
+
+            // When in global context (TenantInfo.Id is null), overwrite so entities get TenantId = null (no exception).
+            if (TenantInfo?.Id == null)
+                TenantNotSetMode = TenantNotSetMode.Overwrite;
 
             if (!string.IsNullOrWhiteSpace(TenantInfo?.ConnectionString)) 
             {

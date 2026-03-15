@@ -17,11 +17,11 @@ namespace InteractiveLeads.Infrastructure.Context.Application
                 builder.ToTable("Users", "Identity")
                        .IsMultiTenant();
 
-                // TenantId configuration
+                // TenantId configuration (nullable for global users: SysAdmin, Support)
                 builder.Property(u => u.TenantId)
                        .HasMaxLength(64)
-                       .IsRequired()
-                       .HasComment("ID of the tenant to which this user belongs");
+                       .IsRequired(false)
+                       .HasComment("ID of the tenant to which this user belongs; NULL for global users");
 
                 // Composite index for performance - ensures unique email per tenant
                 builder.HasIndex(u => new { u.TenantId, u.Email })
@@ -61,6 +61,7 @@ namespace InteractiveLeads.Infrastructure.Context.Application
                 {
                     builder.ToTable("Roles", "Identity")
                            .IsMultiTenant();
+                    builder.Property<string>("TenantId").IsRequired(false);
 
                     // Configure index for NormalizedName with unique: false for multitenancy
                     builder.HasIndex(r => r.NormalizedName)
@@ -92,8 +93,9 @@ namespace InteractiveLeads.Infrastructure.Context.Application
             {
                 public void Configure(EntityTypeBuilder<IdentityUserRole<Guid>> builder)
                 {
-                    builder.ToTable("UserRoles", "Identity")                           
+                    builder.ToTable("UserRoles", "Identity")
                            .IsMultiTenant();
+                    builder.Property<string>("TenantId").IsRequired(false);
                 }
             }
 
@@ -103,6 +105,7 @@ namespace InteractiveLeads.Infrastructure.Context.Application
                 {
                     builder.ToTable("UserClaims", "Identity")
                            .IsMultiTenant();
+                    builder.Property<string>("TenantId").IsRequired(false);
                 }
             }
 
@@ -112,6 +115,7 @@ namespace InteractiveLeads.Infrastructure.Context.Application
                 {
                     builder.ToTable("UserLogins", "Identity")
                            .IsMultiTenant();
+                    builder.Property<string>("TenantId").IsRequired(false);
                 }
             }
 
@@ -121,6 +125,7 @@ namespace InteractiveLeads.Infrastructure.Context.Application
                 {
                     builder.ToTable("UserTokens", "Identity")
                            .IsMultiTenant();
+                    builder.Property<string>("TenantId").IsRequired(false);
                 }
             }
 
@@ -130,6 +135,7 @@ namespace InteractiveLeads.Infrastructure.Context.Application
                 {
                     builder.ToTable("RefreshTokens", "Identity")
                            .IsMultiTenant();
+                    builder.Property<string>("TenantId").IsRequired(false);
 
                     builder.HasKey(rt => rt.Id);
 

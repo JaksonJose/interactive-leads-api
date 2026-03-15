@@ -48,47 +48,51 @@ namespace InteractiveLeads.Infrastructure.Context.Application
             }
         }
 
-        // Legacy methods kept for backward compatibility but now handled by RoleSeeder
+        /// <summary>
+        /// Creates global SysAdmin when in global context (TenantInfo.Id is null). No root tenant; no UserTenantMapping for global users.
+        /// </summary>
         private async Task InitializeAdminUserAsync()
         {
-            if (string.IsNullOrEmpty(_tenantInfoContextAccessor.MultiTenantContext.TenantInfo?.Email)) return;
+            var tenantInfo = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo;
+            bool isGlobalContext = tenantInfo?.Id == null;
 
-            if (await _userManager.Users.SingleOrDefaultAsync(user => user.Email == _tenantInfoContextAccessor.MultiTenantContext.TenantInfo.Email) is not ApplicationUser incomingUser)
+            if (!isGlobalContext)
+                return;
+
+            if (string.IsNullOrWhiteSpace(_sysAdminSeed.Email))
+                throw new InvalidOperationException("SysAdminSeed:Email is required in appsettings for global SysAdmin.");
+
+            var existingUser = await _userManager.Users
+                .Where(u => u.TenantId == null && u.Email == _sysAdminSeed.Email)
+                .SingleOrDefaultAsync();
+            if (existingUser != null)
             {
-                incomingUser = new ApplicationUser
-                {
-                    FirstName = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo.FirstName,
-                    LastName = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo.LastName,
-                    Email = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo.Email,
-                    UserName = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo.Email,
-                    NormalizedEmail = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo.Email.ToUpperInvariant(),
-                    NormalizedUserName = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo?.Email?.ToUpperInvariant(),
-                    TenantId = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo.Id, // ← Set user's tenant
-                    EmailConfirmed = true,
-                    PhoneNumberConfirmed = true,
-                    IsActive = true
-                };
-
-                var passwordHash = new PasswordHasher<ApplicationUser>();
-                var password = _sysAdminSeed.Password;
-                if (string.IsNullOrWhiteSpace(password))
-                    throw new InvalidOperationException("SysAdminSeed:Password is required in appsettings.");
-                incomingUser.PasswordHash = passwordHash.HashPassword(incomingUser, password);
-                await _userManager.CreateAsync(incomingUser);
-
-                // Create user-tenant mapping for optimized performance
-                await CreateUserTenantMappingAsync(incomingUser.Email, incomingUser.TenantId);
+                if (!await _userManager.IsInRoleAsync(existingUser, RoleConstants.SysAdmin))
+                    await _userManager.AddToRoleAsync(existingUser, RoleConstants.SysAdmin);
+                return;
             }
 
-            // Assign appropriate role based on tenant type
-            string roleToAssign = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo?.Id == _sysAdminSeed.RootId
-                ? RoleConstants.SysAdmin
-                : RoleConstants.Owner;
-
-            if (!await _userManager.IsInRoleAsync(incomingUser, roleToAssign))
+            var incomingUser = new ApplicationUser
             {
-                await _userManager.AddToRoleAsync(incomingUser, roleToAssign);
-            }
+                FirstName = _sysAdminSeed.FirstName ?? string.Empty,
+                LastName = _sysAdminSeed.LastName ?? string.Empty,
+                Email = _sysAdminSeed.Email.Trim(),
+                UserName = _sysAdminSeed.Email.Trim(),
+                NormalizedEmail = _sysAdminSeed.Email.Trim().ToUpperInvariant(),
+                NormalizedUserName = _sysAdminSeed.Email.Trim().ToUpperInvariant(),
+                TenantId = null,
+                EmailConfirmed = true,
+                PhoneNumberConfirmed = true,
+                IsActive = true
+            };
+
+            var passwordHash = new PasswordHasher<ApplicationUser>();
+            var password = _sysAdminSeed.Password;
+            if (string.IsNullOrWhiteSpace(password))
+                throw new InvalidOperationException("SysAdminSeed:Password is required in appsettings.");
+            incomingUser.PasswordHash = passwordHash.HashPassword(incomingUser, password);
+            await _userManager.CreateAsync(incomingUser);
+            await _userManager.AddToRoleAsync(incomingUser, RoleConstants.SysAdmin);
         }
 
         private async Task CreateUserTenantMappingAsync(string email, string tenantId)

@@ -1,7 +1,7 @@
 using Finbuckle.MultiTenant.Abstractions;
 using Finbuckle.MultiTenant.Strategies;
+using InteractiveLeads.Infrastructure.Constants;
 using InteractiveLeads.Infrastructure.Context.Tenancy;
-using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -59,15 +59,14 @@ namespace InteractiveLeads.Infrastructure.Tenancy.Strategies
                 if (string.IsNullOrWhiteSpace(email))
                     return null;
 
-                // MAXIMUM PERFORMANCE: Direct lookup in mapping table
-                // O(1) - direct lookup by unique index, scalable for millions of users
+                // Direct lookup in mapping table; no mapping => global context (SysAdmin/Support)
                 var mapping = await _tenantDbContext.UserTenantMappings
                     .Where(m => m.Email == email && m.IsActive)
                     .Select(m => m.TenantId)
-                    .AsNoTracking() // ← Optimization: no tracking for readonly query
+                    .AsNoTracking()
                     .FirstOrDefaultAsync();
 
-                return mapping;
+                return mapping ?? TenancyConstants.GlobalTenantIdentifier;
             }
             catch
             {

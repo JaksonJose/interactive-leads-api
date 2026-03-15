@@ -9,6 +9,7 @@ using InteractiveLeads.Infrastructure.Identity.Models;
 using InteractiveLeads.Infrastructure.Identity.Roles;
 using InteractiveLeads.Infrastructure.Identity.Tokens;
 using InteractiveLeads.Infrastructure.Identity;
+using InteractiveLeads.Infrastructure.Identity.Impersonation;
 using InteractiveLeads.Infrastructure.Identity.Users;
 using InteractiveLeads.Infrastructure.OpenApi;
 using InteractiveLeads.Infrastructure.Tenancy;
@@ -54,7 +55,7 @@ namespace InteractiveLeads.Infrastructure
                 .WithStrategy<UserMappingLookupStrategy>(ServiceLifetime.Scoped)
                 .WithHeaderStrategy("tenant")
                 .WithStrategy<JwtTenantFallbackStrategy>(ServiceLifetime.Scoped)
-                .WithEFCoreStore<TenantDbContext, InteractiveTenantInfo>();
+                .WithStore<GlobalTenantStoreWrapper>(ServiceLifetime.Scoped);
 
             services.AddIdentityService();
 
@@ -69,6 +70,8 @@ namespace InteractiveLeads.Infrastructure
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IRoleService, RoleService>();
             services.AddScoped<IUserService, UserService>();
+            services.AddScoped<IUserLookupService, UserLookupService>();
+            services.AddScoped<IImpersonationService, ImpersonationService>();
 
             // Register cross-tenant services
             services.AddScoped<ICrossTenantService, CrossTenantService>();

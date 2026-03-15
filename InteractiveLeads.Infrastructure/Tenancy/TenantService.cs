@@ -5,7 +5,7 @@ using InteractiveLeads.Application.Feature.Tenancy;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Models;
 using InteractiveLeads.Application.Responses;
-using InteractiveLeads.Infrastructure.Configuration;
+using InteractiveLeads.Infrastructure.Constants;
 using InteractiveLeads.Infrastructure.Context.Application;
 using InteractiveLeads.Infrastructure.Context.Tenancy;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
@@ -23,33 +23,37 @@ namespace InteractiveLeads.Infrastructure.Tenancy
         private readonly TenantDbContext _tenantDbContext;
         private readonly ApplicationDbSeeder _dbSeeder;
         private readonly IServiceProvider _serviceProvider;
-        private readonly SysAdminSeedSettings _sysAdminSeed;
 
         public TenantService(
             IMultiTenantStore<InteractiveTenantInfo> tenantStore,
             TenantDbContext tenantDbContext,
             ApplicationDbSeeder dbSeeder,
-            IServiceProvider serviceProvider,
-            IOptions<SysAdminSeedSettings> sysAdminSeed)
+            IServiceProvider serviceProvider)
         {
             _dbSeeder = dbSeeder;
             _tenantStore = tenantStore;
             _tenantDbContext = tenantDbContext;
             _serviceProvider = serviceProvider;
-            _sysAdminSeed = sysAdminSeed.Value;
         }
+
+        private static bool IsGlobalTenantId(string? id) => string.IsNullOrEmpty(id) || id == TenancyConstants.GlobalTenantIdentifier;
 
         public async Task<ResultResponse> ActivateAsync(string id, CancellationToken ct = default)
         {
-            // Block operations on root tenant
-            if (id == _sysAdminSeed.RootId)
+            if (IsGlobalTenantId(id))
             {
                 var errorResponse = new ResultResponse();
-                errorResponse.AddErrorMessage("Cannot modify root tenant", "tenant.root_modification_denied");
+                errorResponse.AddErrorMessage("Cannot modify global context", "tenant.global_modification_denied");
                 return errorResponse;
             }
 
             var tenantInDb = await _tenantStore.TryGetAsync(id);
+            if (tenantInDb == null)
+            {
+                var errorResponse = new ResultResponse();
+                errorResponse.AddErrorMessage("Tenant not found", "tenant.not_found");
+                return errorResponse;
+            }
             tenantInDb.IsActive = true;
 
             await _tenantStore.TryUpdateAsync(tenantInDb);
@@ -105,15 +109,20 @@ namespace InteractiveLeads.Infrastructure.Tenancy
 
         public async Task<ResultResponse> DeactivateAsync(string id, CancellationToken ct = default)
         {
-            // Block operations on root tenant
-            if (id == _sysAdminSeed.RootId)
+            if (IsGlobalTenantId(id))
             {
                 var errorResponse = new ResultResponse();
-                errorResponse.AddErrorMessage("Cannot modify root tenant", "tenant.root_modification_denied");
+                errorResponse.AddErrorMessage("Cannot modify global context", "tenant.global_modification_denied");
                 return errorResponse;
             }
 
             var tenantInDb = await _tenantStore.TryGetAsync(id);
+            if (tenantInDb == null)
+            {
+                var errorResponse = new ResultResponse();
+                errorResponse.AddErrorMessage("Tenant not found", "tenant.not_found");
+                return errorResponse;
+            }
             tenantInDb.IsActive = false;
 
             await _tenantStore.TryUpdateAsync(tenantInDb);
@@ -130,12 +139,9 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 pagination = new PaginationRequest();
             }
 
-            var totalTenants = await _tenantDbContext.TenantInfo
-                .Where(t => t.Identifier != _sysAdminSeed.RootId)
-                .CountAsync(ct);
+            var totalTenants = await _tenantDbContext.TenantInfo.CountAsync(ct);
 
             var paginatedTenants = await _tenantDbContext.TenantInfo
-                .Where(t => t.Identifier != _sysAdminSeed.RootId)
                 .OrderBy(t => t.Name)
                 .Skip(pagination.CalculateSkip())
                 .Take(pagination.PageSize)
@@ -150,11 +156,10 @@ namespace InteractiveLeads.Infrastructure.Tenancy
 
         public async Task<SingleResponse<TenantResponse>> GetTenantsByIdAsync(string id, CancellationToken ct)
         {
-            if (id == _sysAdminSeed.RootId)
+            if (IsGlobalTenantId(id))
             {
-                ResultResponse errorResponse = new();
-                errorResponse.AddErrorMessage("Access to root tenant is not allowed", "tenant.root_access_denied");
-
+                var errorResponse = new ResultResponse();
+                errorResponse.AddErrorMessage("Access to global context is not allowed", "tenant.global_access_denied");
                 throw new UnauthorizedException(errorResponse);
             }
 
@@ -181,11 +186,10 @@ namespace InteractiveLeads.Infrastructure.Tenancy
 
         public async Task<ResultResponse> UpdateTenantAsync(UpdateTenantRequest updateTenantRequest, CancellationToken ct = default)
         {
-            // Block operations on root tenant
-            if (updateTenantRequest.Identifier == _sysAdminSeed.RootId)
+            if (IsGlobalTenantId(updateTenantRequest.Identifier))
             {
                 var errorResponse = new ResultResponse();
-                errorResponse.AddErrorMessage("Cannot modify root tenant", "tenant.root_modification_denied");
+                errorResponse.AddErrorMessage("Cannot modify global context", "tenant.global_modification_denied");
                 return errorResponse;
             }
 

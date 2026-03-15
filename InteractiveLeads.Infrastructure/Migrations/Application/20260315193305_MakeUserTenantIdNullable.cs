@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace InteractiveLeads.Infrastructure.Migrations.Application
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class MakeUserTenantIdNullable : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -45,7 +45,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     FirstName = table.Column<string>(type: "text", nullable: false),
                     LastName = table.Column<string>(type: "text", nullable: false),
                     IsActive = table.Column<bool>(type: "boolean", nullable: false),
-                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false, comment: "ID of the tenant to which this user belongs"),
+                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true, comment: "ID of the tenant to which this user belongs; NULL for global users"),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'"),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'"),
                     CreatedBy = table.Column<Guid>(type: "uuid", nullable: true),
