@@ -1,5 +1,5 @@
-﻿
 using Finbuckle.MultiTenant.Abstractions;
+using InteractiveLeads.Infrastructure.Configuration;
 using InteractiveLeads.Infrastructure.Constants;
 using InteractiveLeads.Infrastructure.Context.Tenancy;
 using InteractiveLeads.Infrastructure.Identity.Models;
@@ -8,6 +8,7 @@ using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using System.Security.Claims;
 
 namespace InteractiveLeads.Infrastructure.Context.Application
@@ -18,7 +19,8 @@ namespace InteractiveLeads.Infrastructure.Context.Application
         UserManager<ApplicationUser> userManager,
         ApplicationDbContext applicationDbContext,
         IServiceProvider serviceProvider,
-        RoleSeeder roleSeeder)
+        RoleSeeder roleSeeder,
+        IOptions<SysAdminSeedSettings> sysAdminSeed)
     {
         private readonly IMultiTenantContextAccessor<InteractiveTenantInfo> _tenantInfoContextAccessor = tenantInfoContextAccessor;
         private readonly RoleManager<ApplicationRole> _roleManager = roleManager;
@@ -26,6 +28,7 @@ namespace InteractiveLeads.Infrastructure.Context.Application
         private readonly ApplicationDbContext _applicationDbContext = applicationDbContext;
         private readonly IServiceProvider _serviceProvider = serviceProvider;
         private readonly RoleSeeder _roleSeeder = roleSeeder;
+        private readonly SysAdminSeedSettings _sysAdminSeed = sysAdminSeed.Value;
 
         public async Task InitializeDatabaseAsync(CancellationToken cancellationToken)
         {
@@ -67,8 +70,10 @@ namespace InteractiveLeads.Infrastructure.Context.Application
                 };
 
                 var passwordHash = new PasswordHasher<ApplicationUser>();
-
-                incomingUser.PasswordHash = passwordHash.HashPassword(incomingUser, TenancyConstants.DefaultPassword);
+                var password = _sysAdminSeed.Password;
+                if (string.IsNullOrWhiteSpace(password))
+                    throw new InvalidOperationException("SysAdminSeed:Password is required in appsettings.");
+                incomingUser.PasswordHash = passwordHash.HashPassword(incomingUser, password);
                 await _userManager.CreateAsync(incomingUser);
 
                 // Create user-tenant mapping for optimized performance
@@ -76,8 +81,8 @@ namespace InteractiveLeads.Infrastructure.Context.Application
             }
 
             // Assign appropriate role based on tenant type
-            string roleToAssign = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo?.Id == TenancyConstants.Root.Id 
-                ? RoleConstants.SysAdmin 
+            string roleToAssign = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo?.Id == _sysAdminSeed.RootId
+                ? RoleConstants.SysAdmin
                 : RoleConstants.Owner;
 
             if (!await _userManager.IsInRoleAsync(incomingUser, roleToAssign))

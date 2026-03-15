@@ -1,4 +1,4 @@
-﻿using Finbuckle.MultiTenant;
+using Finbuckle.MultiTenant;
 using InteractiveLeads.Infrastructure.Identity.Models;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Microsoft.AspNetCore.Identity;
@@ -67,12 +67,6 @@ namespace InteractiveLeads.Infrastructure.Context.Application
                            .HasFilter("\"NormalizedName\" IS NOT NULL")
                            .IsUnique(false);
 
-                    // Configure relationship with role claims
-                    builder.HasMany(r => r.Claims)
-                           .WithOne()
-                           .HasForeignKey(rc => rc.RoleId)
-                           .OnDelete(DeleteBehavior.Cascade);
-
                     // Audit fields configuration
                     builder.Property(r => r.CreatedAt)
                            .ValueGeneratedOnAdd()
@@ -91,15 +85,6 @@ namespace InteractiveLeads.Infrastructure.Context.Application
 
                     builder.Property(r => r.UpdatedBy)
                            .IsRequired(false);
-                }
-            }
-
-            internal class ApplicationRoleClaimConfig : IEntityTypeConfiguration<ApplicationRoleClaim>
-            {
-                public void Configure(EntityTypeBuilder<ApplicationRoleClaim> builder)
-                {
-                    builder.ToTable("RoleClaims", "Identity")
-                           .IsMultiTenant();
                 }
             }
 

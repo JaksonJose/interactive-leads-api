@@ -9,11 +9,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace InteractiveLeads.Infrastructure.Migrations.Tenant
+namespace InteractiveLeads.Infrastructure.Migrations.Tenancy
 {
     [DbContext(typeof(TenantDbContext))]
-    [Migration("20251019204704_InitialTenantData")]
-    partial class InitialTenantData
+    [Migration("20260315173833_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

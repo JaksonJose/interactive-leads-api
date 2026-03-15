@@ -1,4 +1,3 @@
-﻿using InteractiveLeads.Infrastructure.Constants;
 using System.Security.Claims;
 
 namespace InteractiveLeads.Infrastructure.Identity
@@ -25,13 +24,6 @@ namespace InteractiveLeads.Infrastructure.Identity
         /// <param name="principal">The ClaimsPrincipal representing the current user.</param>
         /// <returns>The user ID if found, otherwise null.</returns>
         public static string? GetUserId(this ClaimsPrincipal principal) => principal.FindFirstValue(ClaimTypes.NameIdentifier);
-
-        /// <summary>
-        /// Gets the tenant identifier of the current user from their claims.
-        /// </summary>
-        /// <param name="principal">The ClaimsPrincipal representing the current user.</param>
-        /// <returns>The tenant identifier if found, otherwise null.</returns>
-        public static string? GetTenant(this ClaimsPrincipal principal) => principal.FindFirstValue(ClaimConstants.Tenant);
 
         /// <summary>
         /// Gets the first name of the current user from their claims.

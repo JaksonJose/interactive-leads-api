@@ -13,6 +13,7 @@ using InteractiveLeads.Infrastructure.Identity.Users;
 using InteractiveLeads.Infrastructure.OpenApi;
 using InteractiveLeads.Infrastructure.Tenancy;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
+using InteractiveLeads.Infrastructure.Configuration;
 using InteractiveLeads.Infrastructure.Tenancy.Strategies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -56,6 +57,8 @@ namespace InteractiveLeads.Infrastructure
                 .WithEFCoreStore<TenantDbContext, InteractiveTenantInfo>();
 
             services.AddIdentityService();
+
+            services.Configure<SysAdminSeedSettings>(config.GetSection(SysAdminSeedSettings.SectionName));
 
             services.AddTransient<ITenantDbSeeder, TenantDbSeeder>();
             services.AddTransient<ApplicationDbSeeder>();

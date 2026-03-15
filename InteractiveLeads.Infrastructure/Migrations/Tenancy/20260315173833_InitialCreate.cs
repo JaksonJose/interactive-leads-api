@@ -3,10 +3,10 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace InteractiveLeads.Infrastructure.Migrations.Tenant
+namespace InteractiveLeads.Infrastructure.Migrations.Tenancy
 {
     /// <inheritdoc />
-    public partial class InitialTenantData : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

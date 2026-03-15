@@ -1,11 +1,12 @@
-﻿using Finbuckle.MultiTenant;
+using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
-using InteractiveLeads.Infrastructure.Constants;
+using InteractiveLeads.Infrastructure.Configuration;
 using InteractiveLeads.Infrastructure.Context.Application;
 using InteractiveLeads.Infrastructure.Context.Tenancy.Interfaces;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace InteractiveLeads.Infrastructure.Context.Tenancy
 {
@@ -13,11 +14,13 @@ namespace InteractiveLeads.Infrastructure.Context.Tenancy
     {
         private readonly TenantDbContext _tenantDbContext;
         private readonly IServiceProvider _serviceProvider;
+        private readonly SysAdminSeedSettings _sysAdminSeed;
 
-        public TenantDbSeeder(TenantDbContext tenantDbContext, IServiceProvider serviceProvider)
+        public TenantDbSeeder(TenantDbContext tenantDbContext, IServiceProvider serviceProvider, IOptions<SysAdminSeedSettings> sysAdminSeed)
         {
-            _serviceProvider = serviceProvider;
             _tenantDbContext = tenantDbContext;
+            _serviceProvider = serviceProvider;
+            _sysAdminSeed = sysAdminSeed.Value;
         }
 
         public async Task InitializeDatabaseAsync(CancellationToken cancellationToken)
@@ -36,17 +39,19 @@ namespace InteractiveLeads.Infrastructure.Context.Tenancy
         {
             await _tenantDbContext.Database.MigrateAsync(cancellationToken);
 
-            if (await _tenantDbContext.TenantInfo.FindAsync([TenancyConstants.Root.Id], cancellationToken) is null) 
+            if (await _tenantDbContext.TenantInfo.FindAsync([_sysAdminSeed.RootId], cancellationToken) is null)
             {
-                // Create tenant
+                if (string.IsNullOrWhiteSpace(_sysAdminSeed.Email))
+                    throw new InvalidOperationException("SysAdminSeed:Email is required in appsettings to create the root tenant.");
+
                 var rootTenant = new InteractiveTenantInfo
                 {
-                    Id = TenancyConstants.Root.Id,
-                    Identifier = TenancyConstants.Root.Id,
-                    Name = TenancyConstants.Root.Name,
-                    Email = TenancyConstants.Root.Email,
-                    FirstName = TenancyConstants.FirstName,
-                    LastName = TenancyConstants.LastName,
+                    Id = _sysAdminSeed.RootId,
+                    Identifier = _sysAdminSeed.RootId,
+                    Name = _sysAdminSeed.RootName,
+                    Email = _sysAdminSeed.Email.Trim(),
+                    FirstName = _sysAdminSeed.FirstName?.Trim() ?? string.Empty,
+                    LastName = _sysAdminSeed.LastName?.Trim() ?? string.Empty,
                     IsActive = true,
                     ExpirationDate = DateTime.UtcNow.AddYears(1)
                 };

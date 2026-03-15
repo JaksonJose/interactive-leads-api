@@ -1,5 +1,7 @@
+using Finbuckle.MultiTenant.Abstractions;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Infrastructure.Identity;
+using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Microsoft.AspNetCore.Http;
 
 namespace InteractiveLeads.Infrastructure.Identity
@@ -9,18 +11,22 @@ namespace InteractiveLeads.Infrastructure.Identity
     /// </summary>
     /// <remarks>
     /// Provides methods to access the currently authenticated user's identity from the current HTTP context.
+    /// Tenant is resolved from the request's multi-tenant context (e.g. X-Tenant header), not from claims.
     /// </remarks>
     public class CurrentUserService : ICurrentUserService
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IMultiTenantContextAccessor<InteractiveTenantInfo> _tenantContextAccessor;
 
         /// <summary>
         /// Initializes a new instance of the CurrentUserService class.
         /// </summary>
         /// <param name="httpContextAccessor">The HTTP context accessor for accessing the current request context.</param>
-        public CurrentUserService(IHttpContextAccessor httpContextAccessor)
+        /// <param name="tenantContextAccessor">The multi-tenant context accessor for the current request's tenant.</param>
+        public CurrentUserService(IHttpContextAccessor httpContextAccessor, IMultiTenantContextAccessor<InteractiveTenantInfo> tenantContextAccessor)
         {
             _httpContextAccessor = httpContextAccessor;
+            _tenantContextAccessor = tenantContextAccessor;
         }
 
         /// <summary>
@@ -49,13 +55,12 @@ namespace InteractiveLeads.Infrastructure.Identity
         }
 
         /// <summary>
-        /// Gets the tenant identifier of the current user.
+        /// Gets the tenant identifier for the current request (from multi-tenant context, e.g. X-Tenant header).
         /// </summary>
-        /// <returns>Tenant identifier.</returns>
+        /// <returns>Tenant identifier, or empty if no tenant context.</returns>
         public string GetUserTenant()
         {
-            var user = _httpContextAccessor.HttpContext?.User;
-            return user?.GetTenant() ?? string.Empty;
+            return _tenantContextAccessor.MultiTenantContext?.TenantInfo?.Id ?? string.Empty;
         }
 
         /// <summary>

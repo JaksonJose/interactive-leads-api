@@ -1,17 +1,18 @@
-﻿using Finbuckle.MultiTenant;
+using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Tenancy;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Models;
 using InteractiveLeads.Application.Responses;
-using InteractiveLeads.Infrastructure.Constants;
+using InteractiveLeads.Infrastructure.Configuration;
 using InteractiveLeads.Infrastructure.Context.Application;
 using InteractiveLeads.Infrastructure.Context.Tenancy;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using System.Text.RegularExpressions;
 
 namespace InteractiveLeads.Infrastructure.Tenancy
@@ -22,23 +23,26 @@ namespace InteractiveLeads.Infrastructure.Tenancy
         private readonly TenantDbContext _tenantDbContext;
         private readonly ApplicationDbSeeder _dbSeeder;
         private readonly IServiceProvider _serviceProvider;
+        private readonly SysAdminSeedSettings _sysAdminSeed;
 
         public TenantService(
-            IMultiTenantStore<InteractiveTenantInfo> tenantStore, 
+            IMultiTenantStore<InteractiveTenantInfo> tenantStore,
             TenantDbContext tenantDbContext,
-            ApplicationDbSeeder dbSeeder, 
-            IServiceProvider serviceProvider)
+            ApplicationDbSeeder dbSeeder,
+            IServiceProvider serviceProvider,
+            IOptions<SysAdminSeedSettings> sysAdminSeed)
         {
             _dbSeeder = dbSeeder;
             _tenantStore = tenantStore;
             _tenantDbContext = tenantDbContext;
             _serviceProvider = serviceProvider;
+            _sysAdminSeed = sysAdminSeed.Value;
         }
 
         public async Task<ResultResponse> ActivateAsync(string id, CancellationToken ct = default)
         {
             // Block operations on root tenant
-            if (id == TenancyConstants.Root.Id)
+            if (id == _sysAdminSeed.RootId)
             {
                 var errorResponse = new ResultResponse();
                 errorResponse.AddErrorMessage("Cannot modify root tenant", "tenant.root_modification_denied");
@@ -102,7 +106,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
         public async Task<ResultResponse> DeactivateAsync(string id, CancellationToken ct = default)
         {
             // Block operations on root tenant
-            if (id == TenancyConstants.Root.Id)
+            if (id == _sysAdminSeed.RootId)
             {
                 var errorResponse = new ResultResponse();
                 errorResponse.AddErrorMessage("Cannot modify root tenant", "tenant.root_modification_denied");
@@ -127,11 +131,11 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             }
 
             var totalTenants = await _tenantDbContext.TenantInfo
-                .Where(t => t.Identifier != TenancyConstants.Root.Id)
+                .Where(t => t.Identifier != _sysAdminSeed.RootId)
                 .CountAsync(ct);
 
             var paginatedTenants = await _tenantDbContext.TenantInfo
-                .Where(t => t.Identifier != TenancyConstants.Root.Id)
+                .Where(t => t.Identifier != _sysAdminSeed.RootId)
                 .OrderBy(t => t.Name)
                 .Skip(pagination.CalculateSkip())
                 .Take(pagination.PageSize)
@@ -146,7 +150,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
 
         public async Task<SingleResponse<TenantResponse>> GetTenantsByIdAsync(string id, CancellationToken ct)
         {
-            if (id == TenancyConstants.Root.Id)
+            if (id == _sysAdminSeed.RootId)
             {
                 ResultResponse errorResponse = new();
                 errorResponse.AddErrorMessage("Access to root tenant is not allowed", "tenant.root_access_denied");
@@ -178,7 +182,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
         public async Task<ResultResponse> UpdateTenantAsync(UpdateTenantRequest updateTenantRequest, CancellationToken ct = default)
         {
             // Block operations on root tenant
-            if (updateTenantRequest.Identifier == TenancyConstants.Root.Id)
+            if (updateTenantRequest.Identifier == _sysAdminSeed.RootId)
             {
                 var errorResponse = new ResultResponse();
                 errorResponse.AddErrorMessage("Cannot modify root tenant", "tenant.root_modification_denied");

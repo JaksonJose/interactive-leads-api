@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 
 namespace InteractiveLeads.Infrastructure.Identity.Models
 {
@@ -39,11 +39,5 @@ namespace InteractiveLeads.Infrastructure.Identity.Models
         /// Can be null for system-generated updates or when user context is not available.
         /// </summary>
         public Guid? UpdatedBy { get; set; }
-
-        /// <summary>
-        /// Navigation property for role claims.
-        /// This provides access to all claims associated with this role.
-        /// </summary>
-        public virtual ICollection<ApplicationRoleClaim> Claims { get; set; } = new List<ApplicationRoleClaim>();
     }
 }

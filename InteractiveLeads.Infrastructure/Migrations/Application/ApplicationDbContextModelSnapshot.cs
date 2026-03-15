@@ -76,45 +76,6 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
-            modelBuilder.Entity("InteractiveLeads.Infrastructure.Identity.Models.ApplicationRoleClaim", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ClaimType")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ClaimValue")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Group")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("RoleId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RoleId");
-
-                    b.ToTable("RoleClaims", "Identity");
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
-                });
-
             modelBuilder.Entity("InteractiveLeads.Infrastructure.Identity.Models.ApplicationUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -393,15 +354,6 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
-            modelBuilder.Entity("InteractiveLeads.Infrastructure.Identity.Models.ApplicationRoleClaim", b =>
-                {
-                    b.HasOne("InteractiveLeads.Infrastructure.Identity.Models.ApplicationRole", null)
-                        .WithMany("Claims")
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("InteractiveLeads.Infrastructure.Identity.Models.RefreshToken", b =>
                 {
                     b.HasOne("InteractiveLeads.Infrastructure.Identity.Models.ApplicationUser", "User")
@@ -453,11 +405,6 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("InteractiveLeads.Infrastructure.Identity.Models.ApplicationRole", b =>
-                {
-                    b.Navigation("Claims");
                 });
 
             modelBuilder.Entity("InteractiveLeads.Infrastructure.Identity.Models.ApplicationUser", b =>

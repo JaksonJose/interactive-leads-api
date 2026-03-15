@@ -1,4 +1,4 @@
-﻿using Finbuckle.MultiTenant.Abstractions;
+using Finbuckle.MultiTenant.Abstractions;
 using Finbuckle.MultiTenant.EntityFrameworkCore;
 using InteractiveLeads.Infrastructure.Identity.Models;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
@@ -14,7 +14,7 @@ namespace InteractiveLeads.Infrastructure.Context.Application
         IdentityUserClaim<Guid>,
         IdentityUserRole<Guid>,
         IdentityUserLogin<Guid>,
-        ApplicationRoleClaim,
+        IdentityRoleClaim<Guid>,
         IdentityUserToken<Guid>>
     {
         private new InteractiveTenantInfo TenantInfo { get; set; }
@@ -44,6 +44,9 @@ namespace InteractiveLeads.Infrastructure.Context.Application
             base.OnModelCreating(builder);
 
             builder.ApplyConfigurationsFromAssembly(GetType().Assembly);
+
+            // Pure RBAC: do not map role claims to any table (no RoleClaims table).
+            builder.Ignore<IdentityRoleClaim<Guid>>();
         }
     }
 }

@@ -3,6 +3,7 @@ using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Users;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
+using InteractiveLeads.Infrastructure.Configuration;
 using InteractiveLeads.Infrastructure.Constants;
 using InteractiveLeads.Infrastructure.Context.Application;
 using InteractiveLeads.Infrastructure.Identity.Models;
@@ -10,6 +11,7 @@ using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Mapster;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace InteractiveLeads.Infrastructure.Identity.Users
 {
@@ -19,17 +21,20 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
         private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly ApplicationDbContext _context;
         private readonly IMultiTenantContextAccessor<InteractiveTenantInfo> _tenantContextAccessor;
+        private readonly SysAdminSeedSettings _sysAdminSeed;
 
         public UserService(
-            UserManager<ApplicationUser> userManager, 
-            RoleManager<ApplicationRole> roleManager, 
-            ApplicationDbContext context, 
-            IMultiTenantContextAccessor<InteractiveTenantInfo> tenantContextAccessor)
+            UserManager<ApplicationUser> userManager,
+            RoleManager<ApplicationRole> roleManager,
+            ApplicationDbContext context,
+            IMultiTenantContextAccessor<InteractiveTenantInfo> tenantContextAccessor,
+            IOptions<SysAdminSeedSettings> sysAdminSeed)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _context = context;
             _tenantContextAccessor = tenantContextAccessor;
+            _sysAdminSeed = sysAdminSeed.Value;
         }
 
         public async Task<ResultResponse> ActivateOrDeactivateAsync(Guid userId, bool activation)
@@ -64,9 +69,9 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
                 && request.UserRoles.Any(ur => !ur.IsAssigned && ur.Name == RoleConstants.SysAdmin))
             {
                 var adminUsersCount = (await _userManager.GetUsersInRoleAsync(RoleConstants.SysAdmin)).Count;
-                if (userInDb.Email == TenancyConstants.Root.Email)
+                if (string.Equals(userInDb.Email, _sysAdminSeed.Email, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (_tenantContextAccessor.MultiTenantContext.TenantInfo?.Id == TenancyConstants.Root.Id)
+                    if (_tenantContextAccessor.MultiTenantContext.TenantInfo?.Id == _sysAdminSeed.RootId)
                     {
                         var conflictResponse = new ResultResponse();
                         conflictResponse.AddErrorMessage("Not allowed to remove Admin role for a Root Tenant User.", "user.admin_role_removal_not_allowed");
@@ -215,7 +220,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
         {
             var userInDb = await GetUserAsync(userId);
 
-            if (userInDb.Email == TenancyConstants.Root.Email)
+            if (string.Equals(userInDb.Email, _sysAdminSeed.Email, StringComparison.OrdinalIgnoreCase))
             {
                 var conflictResponse = new ResultResponse();
                 conflictResponse.AddErrorMessage("Not allowed to remove Admin User for a Root Tenant.", "user.root_admin_deletion_not_allowed");

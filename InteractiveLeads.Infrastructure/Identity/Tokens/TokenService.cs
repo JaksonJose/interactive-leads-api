@@ -4,9 +4,10 @@ using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Identity.Tokens;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
+using InteractiveLeads.Infrastructure.Configuration;
 using InteractiveLeads.Infrastructure.Constants;
-using InteractiveLeads.Infrastructure.Identity.Models;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
+using InteractiveLeads.Infrastructure.Identity.Models;
 using InteractiveLeads.Infrastructure.Context.Application;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -25,17 +26,20 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
         private readonly IMultiTenantContextAccessor<InteractiveTenantInfo> _multiTenantContextAccessor;
         private readonly ApplicationDbContext _context;
         private readonly JwtSettings _jwtSettings;
+        private readonly SysAdminSeedSettings _sysAdminSeed;
 
         public TokenService(
             UserManager<ApplicationUser> userManager,
             IMultiTenantContextAccessor<InteractiveTenantInfo> multiTenantContextAccessor,
             ApplicationDbContext context,
-            IOptions<JwtSettings> jwtSettings)
+            IOptions<JwtSettings> jwtSettings,
+            IOptions<SysAdminSeedSettings> sysAdminSeed)
         {
             _userManager = userManager;
             _multiTenantContextAccessor = multiTenantContextAccessor;
             _context = context;
             _jwtSettings = jwtSettings.Value;
+            _sysAdminSeed = sysAdminSeed.Value;
         }
 
         public async Task<SingleResponse<TokenResponse>> LoginAsync(TokenRequest request, CancellationToken ct = default)
@@ -73,7 +77,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
                 throw new UnauthorizedException(result);
             }
 
-            if (hasGlobalRole && tenantId != TenancyConstants.Root.Id)
+            if (hasGlobalRole && tenantId != _sysAdminSeed.RootId)
             {
                 result.AddErrorMessage("Incorrect username or password", "auth.invalid_credentials");
                 throw new UnauthorizedException(result);
@@ -85,7 +89,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
                 throw new UnauthorizedException(result);
             }
 
-            if (_multiTenantContextAccessor.MultiTenantContext.TenantInfo.Id is not TenancyConstants.Root.Id)
+            if (!string.Equals(_multiTenantContextAccessor.MultiTenantContext.TenantInfo.Id, _sysAdminSeed.RootId, StringComparison.Ordinal))
             {
                 if (_multiTenantContextAccessor.MultiTenantContext.TenantInfo.ExpirationDate < DateTime.UtcNow)
                 {
@@ -245,7 +249,6 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
                 new(ClaimTypes.Email, user.Email!),
                 new(ClaimTypes.Name, user.FirstName),
                 new(ClaimTypes.Surname, user.LastName),
-                new(ClaimConstants.Tenant, _multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id!),
                 new(ClaimTypes.MobilePhone, user.PhoneNumber ?? string.Empty),
             };
             claims.AddRange(roleClaims);

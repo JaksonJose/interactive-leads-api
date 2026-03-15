@@ -1,16 +1,20 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 
 namespace InteractiveLeads.Infrastructure.Constants
 {
     /// <summary>
     /// Constants for system role names and role management.
+    /// Authorization is pure RBAC (role-based only); no claim-based permissions.
     /// </summary>
     /// <remarks>
-    /// Defines all available roles in the system including cross-tenant and tenant-specific roles.
+    /// <list type="bullet">
+    /// <item><description><b>Global roles</b> (SysAdmin, Support): cross-tenant; not bound to a tenant.</description></item>
+    /// <item><description><b>Tenant roles</b> (Owner, Manager, Agent): bound to the user's TenantId; apply only within that tenant.</description></item>
+    /// </list>
     /// </remarks>
     public static class RoleConstants
     {
-        // Cross-Tenant Roles (System-wide access)
+        // Global roles (cross-tenant; system-wide)
         /// <summary>
         /// Role name for system administrators with full cross-tenant access.
         /// Can manage all tenants, users, and system configuration.
@@ -23,7 +27,7 @@ namespace InteractiveLeads.Infrastructure.Constants
         /// </summary>
         public const string Support = nameof(Support);
 
-        // Tenant-Specific Roles
+        // Tenant roles (bound to user's TenantId)
         /// <summary>
         /// Role name for tenant owners with full control over their tenant.
         /// Can manage all users, roles, and settings within their tenant.

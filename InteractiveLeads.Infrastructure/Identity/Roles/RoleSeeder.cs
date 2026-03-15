@@ -31,7 +31,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Roles
         }
 
         /// <summary>
-        /// Seeds all system roles. Authorization is role-based only; permissions are derived from PermissionConstants per role.
+        /// Seeds all system roles. Authorization is role-based only (RBAC).
         /// </summary>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>Result of the seeding operation.</returns>
@@ -85,7 +85,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Roles
         }
 
         /// <summary>
-        /// Gets all seeded roles with permissions derived from PermissionConstants per role (no RoleClaims).
+        /// Gets all seeded roles with permission names for display (pure RBAC by role name).
         /// </summary>
         public async Task<List<RoleWithPermissionsResponse>> GetSeededRolesAsync(CancellationToken cancellationToken = default)
         {
@@ -96,7 +96,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Roles
                 Id = role.Id,
                 Name = role.Name!,
                 Description = role.Description,
-                Permissions = InteractivePermissions.GetPermissionsForRole(role.Name ?? string.Empty).Select(p => p.Name).ToList()
+                Permissions = []
             }).ToList();
         }
 
@@ -111,10 +111,6 @@ namespace InteractiveLeads.Infrastructure.Identity.Roles
 
             try
             {
-                // Remove all role claims first
-                var allRoleClaims = await _context.RoleClaims.ToListAsync(cancellationToken);
-                _context.RoleClaims.RemoveRange(allRoleClaims);
-
                 // Remove all roles
                 var allRoles = await _context.Roles.ToListAsync(cancellationToken);
                 _context.Roles.RemoveRange(allRoles);

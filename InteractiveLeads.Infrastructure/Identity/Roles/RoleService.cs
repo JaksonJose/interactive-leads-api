@@ -143,8 +143,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Roles
             var roleResult = await GetByIdAsync(id, ct);
             var role = roleResult.Data!;
 
-            var permissionsForRole = InteractivePermissions.GetPermissionsForRole(role.Name ?? string.Empty);
-            role.Permissions = permissionsForRole.Select(p => p.Name).ToList();
+            role.Permissions = [];
 
             var response = new SingleResponse<RoleResponse>(role);
             response.AddSuccessMessage("Role with permissions retrieved successfully", "role.retrieved_with_permissions_successfully");
