@@ -65,7 +65,15 @@ namespace InteractiveLeads.Application.Interfaces
         Task<bool> HasCrossTenantPermissionsAsync(Guid userId);
 
         /// <summary>
+        /// Checks if the current user (from JWT claims) has access to all tenants (cross-tenant role).
+        /// Use this when tenant context may be null; avoids database access.
+        /// </summary>
+        /// <returns>True if the current user has a cross-tenant role (SysAdmin or Support), otherwise false.</returns>
+        bool HasCurrentUserAllTenantsAccess();
+
+        /// <summary>
         /// Checks if a user has access to all tenants (cross-tenant access).
+        /// Requires tenant context to be set so the user can be looked up.
         /// </summary>
         /// <param name="userId">The ID of the user.</param>
         /// <returns>True if the user has cross-tenant access, otherwise false.</returns>

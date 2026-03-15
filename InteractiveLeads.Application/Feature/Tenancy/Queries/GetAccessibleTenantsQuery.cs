@@ -59,8 +59,7 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Queries
         /// <exception cref="ForbiddenException">Thrown when user lacks cross-tenant access.</exception>
         public async Task<IResponse> Handle(GetAccessibleTenantsQuery request, CancellationToken cancellationToken)
         {
-            var userIdString = _currentUserService.GetUserId();
-            if (!Guid.TryParse(userIdString, out var userId))
+            if (!_currentUserService.IsAuthenticated())
             {
                 ResultResponse resultResponse = new();
                 resultResponse.AddErrorMessage("Invalid user ID", "general.unauthorized");
@@ -68,9 +67,8 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Queries
                 throw new UnauthorizedException(resultResponse);
             }
 
-            // Check if user has cross-tenant access
-            var hasAllTenantsAccess = await _authService.HasAllTenantsAccessAsync(userId);
-            if (!hasAllTenantsAccess)
+            // Check if user has cross-tenant access (from JWT roles; no DB when tenant context may be null)
+            if (!_authService.HasCurrentUserAllTenantsAccess())
             {
                 ResultResponse resultResponse = new();
                 resultResponse.AddErrorMessage("User does not have cross-tenant access", "general.forbidden");

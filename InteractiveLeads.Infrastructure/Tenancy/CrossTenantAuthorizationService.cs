@@ -19,6 +19,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly ITenantService _tenantService;
+        private readonly ICurrentUserService _currentUserService;
 
         /// <summary>
         /// Initializes a new instance of the CrossTenantAuthorizationService class.
@@ -26,14 +27,23 @@ namespace InteractiveLeads.Infrastructure.Tenancy
         /// <param name="userManager">The user manager for user operations.</param>
         /// <param name="roleManager">The role manager for role operations.</param>
         /// <param name="tenantService">The tenant service for tenant operations.</param>
+        /// <param name="currentUserService">The current user service for claim-based checks when tenant context is null.</param>
         public CrossTenantAuthorizationService(
             UserManager<ApplicationUser> userManager,
             RoleManager<ApplicationRole> roleManager,
-            ITenantService tenantService)
+            ITenantService tenantService,
+            ICurrentUserService currentUserService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _tenantService = tenantService;
+            _currentUserService = currentUserService;
+        }
+
+        /// <inheritdoc />
+        public bool HasCurrentUserAllTenantsAccess()
+        {
+            return RoleConstants.CrossTenantRoles.Any(role => _currentUserService.IsInRole(role));
         }
 
         /// <summary>
