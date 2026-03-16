@@ -214,6 +214,86 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
             return response;
         }
 
+        public async Task<ResultResponse> CreateSupportUserAsync(CreateUserRequest request)
+        {
+            if (request.Password != request.ConfirmPassword)
+            {
+                var conflictResponse = new ResultResponse();
+                conflictResponse.AddErrorMessage("Passwords do not match.", "user.passwords_not_match");
+                throw new ConflictException(conflictResponse);
+            }
+
+            if (await IsEmailTakenAsync(request.Email))
+            {
+                var conflictResponse = new ResultResponse();
+                conflictResponse.AddErrorMessage("Email already taken.", "user.email_already_taken");
+                throw new ConflictException(conflictResponse);
+            }
+
+            // Only Support role is allowed for global support users
+            var allowedRoles = new[] { RoleConstants.Support };
+            if (request.Roles != null && request.Roles.Any())
+            {
+                var invalidRoles = request.Roles.Except(allowedRoles).ToList();
+                if (invalidRoles.Any())
+                {
+                    var conflictResponse = new ResultResponse();
+                    conflictResponse.AddErrorMessage($"Only the Support role can be assigned. Invalid: {string.Join(", ", invalidRoles)}", "user.support_user_invalid_roles");
+                    throw new ConflictException(conflictResponse);
+                }
+            }
+
+            var newUser = new ApplicationUser
+            {
+                FirstName = request.FirstName,
+                LastName = request.LastName,
+                Email = request.Email,
+                PhoneNumber = request.PhoneNumber,
+                IsActive = request.IsActive,
+                UserName = request.Email,
+                EmailConfirmed = true,
+                TenantId = null
+            };
+
+            var result = await _userManager.CreateAsync(newUser, request.Password);
+            if (!result.Succeeded)
+            {
+                var identityResponse = new ResultResponse();
+                foreach (var error in IdentityHelper.GetIdentityResultErrorDescriptions(result))
+                {
+                    identityResponse.AddErrorMessage(error, "identity.operation_failed");
+                }
+                throw new IdentityException(identityResponse);
+            }
+
+            await _userManager.AddToRoleAsync(newUser, RoleConstants.Support);
+
+            var response = new ResultResponse();
+            response.AddSuccessMessage("Support user created successfully", "user.support_created_successfully");
+            return response;
+        }
+
+        public async Task<ListResponse<UserResponse>> GetGlobalUsersAsync(CancellationToken ct)
+        {
+            var usersInDb = await _userManager.Users
+                .Where(u => u.TenantId == null)
+                .ToListAsync(ct);
+
+            var userResponses = usersInDb.Adapt<List<UserResponse>>();
+
+            foreach (var userResponse in userResponses)
+            {
+                var user = usersInDb.FirstOrDefault(u => u.Id.ToString() == userResponse.Id);
+                if (user != null)
+                {
+                    var roles = await _userManager.GetRolesAsync(user);
+                    userResponse.Roles = roles.ToList();
+                }
+            }
+
+            return new ListResponse<UserResponse>(userResponses, userResponses.Count);
+        }
+
         public async Task<ResultResponse> DeleteAsync(Guid userId)
         {
             var userInDb = await GetUserAsync(userId);

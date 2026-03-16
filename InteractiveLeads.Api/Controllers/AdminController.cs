@@ -170,5 +170,26 @@ namespace InteractiveLeads.Api.Controllers
             var response = await Sender.Send(new GetRolesInTenantQuery { TenantId = tenantId });
             return Ok(response);
         }
+
+        // ---- Global support users (SysAdmin only for create) ----
+
+        /// <summary>List all global users (SysAdmin and Support).</summary>
+        [HttpGet("support-users")]
+        [OpenApiOperation("List global support users")]
+        public async Task<IActionResult> GetGlobalUsersAsync()
+        {
+            var response = await Sender.Send(new GetGlobalUsersQuery());
+            return Ok(response);
+        }
+
+        /// <summary>Create a new Support user (global user, TenantId = null). SysAdmin only.</summary>
+        [HttpPost("support-users")]
+        [Authorize(Roles = "SysAdmin")]
+        [OpenApiOperation("Create a support user (SysAdmin only)")]
+        public async Task<IActionResult> CreateSupportUserAsync([FromBody] CreateUserRequest createUser)
+        {
+            var response = await Sender.Send(new CreateSupportUserCommand { CreateUser = createUser });
+            return Ok(response);
+        }
     }
 }

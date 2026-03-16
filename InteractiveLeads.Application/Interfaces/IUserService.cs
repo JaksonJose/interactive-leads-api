@@ -19,6 +19,20 @@ namespace InteractiveLeads.Application.Interfaces
         Task<ResultResponse> CreateAsync(CreateUserRequest request);
 
         /// <summary>
+        /// Creates a new global Support user (TenantId = null). Only SysAdmin may call this.
+        /// </summary>
+        /// <param name="request">User creation request data. Only Support role is allowed.</param>
+        /// <returns>Result of the user creation operation.</returns>
+        Task<ResultResponse> CreateSupportUserAsync(CreateUserRequest request);
+
+        /// <summary>
+        /// Retrieves all global users (TenantId = null), i.e. SysAdmin and Support users.
+        /// </summary>
+        /// <param name="ct">Cancellation token.</param>
+        /// <returns>List of global users.</returns>
+        Task<ListResponse<UserResponse>> GetGlobalUsersAsync(CancellationToken ct);
+
+        /// <summary>
         /// Updates an existing user.
         /// </summary>
         /// <param name="request">User update request data.</param>
