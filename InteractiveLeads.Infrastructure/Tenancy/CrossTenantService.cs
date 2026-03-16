@@ -187,6 +187,43 @@ namespace InteractiveLeads.Infrastructure.Tenancy
         }
 
         /// <summary>
+        /// Executes an operation in the context of a specific tenant without current-user authorization (e.g. account activation by token).
+        /// </summary>
+        public async Task ExecuteInTenantContextForSystemAsync(string tenantId, Func<IServiceProvider, Task> operation)
+        {
+            var tenantResponse = await _tenantService.GetTenantsByIdAsync(tenantId, CancellationToken.None);
+            if (tenantResponse.HasAnyErrorMessage || tenantResponse.Data == null)
+            {
+                ResultResponse response = new();
+                response.AddErrorMessage($"Tenant with ID '{tenantId}' not found");
+                throw new NotFoundException(response);
+            }
+
+            var tenantData = tenantResponse.Data;
+            var targetTenant = new InteractiveTenantInfo
+            {
+                Id = tenantData.Identifier,
+                Identifier = tenantData.Identifier,
+                Name = tenantData.Name,
+                Email = tenantData.Email,
+                FirstName = tenantData.FirstName,
+                LastName = tenantData.LastName,
+                IsActive = tenantData.IsActive,
+                ExpirationDate = tenantData.ExpirationDate,
+                ConnectionString = tenantData.ConnectionString
+            };
+
+            using var scope = _serviceScopeFactory.CreateScope();
+            var scopeTenantContextSetter = scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>();
+            scopeTenantContextSetter.MultiTenantContext = new MultiTenantContext<InteractiveTenantInfo>
+            {
+                TenantInfo = targetTenant
+            };
+
+            await operation(scope.ServiceProvider);
+        }
+
+        /// <summary>
         /// Logs a cross-tenant operation for audit purposes.
         /// </summary>
         /// <param name="userId">The ID of the user performing the operation.</param>

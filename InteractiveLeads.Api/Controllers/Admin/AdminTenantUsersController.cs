@@ -50,6 +50,15 @@ namespace InteractiveLeads.Api.Controllers.Admin
             return Ok(response);
         }
 
+        /// <summary>Invite a user in the tenant (creates user without password and returns activation URL).</summary>
+        [HttpPost("users/invite")]
+        [OpenApiOperation("Invite a user in a tenant")]
+        public async Task<IActionResult> InviteUserInTenantAsync(string tenantId, [FromBody] InviteUserRequest inviteUser)
+        {
+            var response = await Sender.Send(new InviteUserInTenantCommand { TenantId = tenantId, InviteUser = inviteUser });
+            return Ok(response);
+        }
+
         /// <summary>Update a user in the tenant.</summary>
         [HttpPut("users/{userId:guid}")]
         [OpenApiOperation("Update a user in a tenant")]
@@ -83,6 +92,15 @@ namespace InteractiveLeads.Api.Controllers.Admin
         public async Task<IActionResult> GetUserRolesInTenantAsync(string tenantId, Guid userId)
         {
             var response = await Sender.Send(new GetUserRolesInTenantQuery { TenantId = tenantId, UserId = userId });
+            return Ok(response);
+        }
+
+        /// <summary>Resend activation invitation for a user in the tenant.</summary>
+        [HttpPost("users/{userId:guid}/resend-activation")]
+        [OpenApiOperation("Resend activation invitation for a user in a tenant")]
+        public async Task<IActionResult> ResendUserActivationAsync(string tenantId, Guid userId)
+        {
+            var response = await Sender.Send(new ResendUserInvitationInTenantCommand { TenantId = tenantId, UserId = userId });
             return Ok(response);
         }
 

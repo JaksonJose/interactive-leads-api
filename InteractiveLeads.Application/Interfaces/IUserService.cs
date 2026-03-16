@@ -107,5 +107,20 @@ namespace InteractiveLeads.Application.Interfaces
         /// <returns>True if email is taken, false otherwise.</returns>
         Task<bool> IsEmailTakenAsync(string email);
 
+        /// <summary>
+        /// Creates a user for invitation (no password, IsActive = false). Caller must create activation token and send link.
+        /// </summary>
+        /// <param name="request">Invitation user data.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>The created user's ID.</returns>
+        Task<Guid> CreateUserForInvitationAsync(InviteUserRequest request, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Sets password and activates the user. Used when completing account activation via token.
+        /// </summary>
+        /// <param name="userId">User ID.</param>
+        /// <param name="newPassword">New password.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        Task SetPasswordAndActivateAsync(Guid userId, string newPassword, CancellationToken cancellationToken = default);
     }
 }

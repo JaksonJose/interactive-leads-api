@@ -188,7 +188,44 @@ namespace InteractiveLeads.Infrastructure.Context.Application
 
                     builder.HasIndex(rt => rt.ExpirationTime);
                 }
-            }          
+            }
+
+            internal class UserActivationTokenConfig : IEntityTypeConfiguration<UserActivationToken>
+            {
+                public void Configure(EntityTypeBuilder<UserActivationToken> builder)
+                {
+                    // Global table: no IsMultiTenant so lookup by token works without tenant context
+                    builder.ToTable("ActivationTokens", "Identity");
+
+                    builder.HasKey(t => t.Id);
+
+                    builder.Property(t => t.Token)
+                           .HasMaxLength(256)
+                           .IsRequired();
+
+                    builder.Property(t => t.ExpiresAt)
+                           .HasColumnType("timestamp with time zone")
+                           .IsRequired();
+
+                    builder.Property(t => t.Used)
+                           .HasDefaultValue(false)
+                           .IsRequired();
+
+                    builder.Property(t => t.CreatedAt)
+                           .HasColumnType("timestamp with time zone")
+                           .HasDefaultValueSql("now() at time zone 'utc'")
+                           .IsRequired();
+
+                    builder.HasOne(t => t.User)
+                           .WithMany()
+                           .HasForeignKey(t => t.UserId)
+                           .OnDelete(DeleteBehavior.Cascade);
+
+                    builder.HasIndex(t => t.Token).IsUnique();
+                    builder.HasIndex(t => t.UserId);
+                    builder.HasIndex(t => t.ExpiresAt);
+                }
+            }
         }
     }
 }

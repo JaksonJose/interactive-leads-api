@@ -1,4 +1,4 @@
-﻿using InteractiveLeads.Application.Feature.Users;
+using InteractiveLeads.Application.Feature.Users;
 
 namespace InteractiveLeads.Application.Feature.Tenancy
 {

@@ -1,6 +1,7 @@
 using InteractiveLeads.Api.Controllers.Base;
 using InteractiveLeads.Application.Feature.CrossTenant.Commands;
 using InteractiveLeads.Application.Feature.CrossTenant.Queries;
+using InteractiveLeads.Application.Feature.Owner.Commands;
 using InteractiveLeads.Application.Feature.Users;
 using InteractiveLeads.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -70,6 +71,16 @@ namespace InteractiveLeads.Api.Controllers.Owner
             return Ok(response);
         }
 
+        /// <summary>Invite a consultant in the tenant (creates user without password and returns activation URL).</summary>
+        [HttpPost("consultants/invite")]
+        [OpenApiOperation("Invite consultant in tenant")]
+        public async Task<IActionResult> InviteConsultantAsync([FromBody] InviteUserRequest inviteUser)
+        {
+            if (EnsureTenantId(out var tenantId) is { } err) return err;
+            var response = await Sender.Send(new InviteConsultantCommand { TenantId = tenantId, InviteUser = inviteUser });
+            return Ok(response);
+        }
+
         /// <summary>Update a user in the tenant.</summary>
         [HttpPut("users/{userId:guid}")]
         [OpenApiOperation("Update user in tenant")]
@@ -107,6 +118,16 @@ namespace InteractiveLeads.Api.Controllers.Owner
         {
             if (EnsureTenantId(out var tenantId) is { } err) return err;
             var response = await Sender.Send(new GetUserRolesInTenantQuery { TenantId = tenantId, UserId = userId });
+            return Ok(response);
+        }
+
+        /// <summary>Resend activation invitation for a consultant in the tenant.</summary>
+        [HttpPost("consultants/{userId:guid}/resend-activation")]
+        [OpenApiOperation("Resend activation invitation for consultant in tenant")]
+        public async Task<IActionResult> ResendConsultantInvitationAsync(Guid userId)
+        {
+            if (EnsureTenantId(out var tenantId) is { } err) return err;
+            var response = await Sender.Send(new ResendConsultantInvitationCommand { TenantId = tenantId, UserId = userId });
             return Ok(response);
         }
     }

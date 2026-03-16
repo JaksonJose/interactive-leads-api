@@ -1,4 +1,4 @@
-﻿using Finbuckle.MultiTenant.Abstractions;
+using Finbuckle.MultiTenant.Abstractions;
 using InteractiveLeads.Infrastructure.Identity.Models;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Microsoft.EntityFrameworkCore;
@@ -15,5 +15,6 @@ namespace InteractiveLeads.Infrastructure.Context.Application
         }
 
         public DbSet<RefreshToken> RefreshTokens { get; set; }
+        public DbSet<UserActivationToken> ActivationTokens { get; set; }
     }
 }

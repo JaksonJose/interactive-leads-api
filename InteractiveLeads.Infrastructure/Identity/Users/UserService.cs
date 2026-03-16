@@ -228,6 +228,107 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
             return response;
         }
 
+        public async Task<Guid> CreateUserForInvitationAsync(InviteUserRequest request, CancellationToken cancellationToken = default)
+        {
+            if (await IsEmailTakenAsync(request.Email))
+            {
+                var conflictResponse = new ResultResponse();
+                conflictResponse.AddErrorMessage("Email already taken.", "user.email_already_taken");
+                throw new ConflictException(conflictResponse);
+            }
+
+            var tenantId = _tenantContextAccessor.MultiTenantContext.TenantInfo?.Id;
+            if (string.IsNullOrEmpty(tenantId))
+            {
+                var errorResponse = new ResultResponse();
+                errorResponse.AddErrorMessage("Tenant context is not available.", "tenant.context_not_available");
+                throw new ConflictException(errorResponse);
+            }
+
+            var currentUserCount = await _context.Users.CountAsync(u => u.TenantId == tenantId, cancellationToken);
+            var withinLimit = await _subscriptionPlanService.CheckLimitAsync(tenantId, BillingSeed.LimitKeys.Users, currentUserCount, 1);
+            if (!withinLimit)
+            {
+                var limitResponse = new ResultResponse();
+                limitResponse.AddErrorMessage("User limit reached for your plan. Please upgrade to add more users.", ErrorKeys.SUBSCRIPTION_PLAN_LIMIT_REACHED);
+                throw new ConflictException(limitResponse);
+            }
+
+            var temporaryPassword = Guid.NewGuid().ToString("N") + "Aa1!"; // User will set real password on activation
+            var newUser = new ApplicationUser
+            {
+                FirstName = request.FirstName,
+                LastName = request.LastName,
+                Email = request.Email,
+                PhoneNumber = request.PhoneNumber,
+                IsActive = false,
+                UserName = request.Email,
+                EmailConfirmed = true,
+                TenantId = tenantId
+            };
+
+            var result = await _userManager.CreateAsync(newUser, temporaryPassword);
+            if (!result.Succeeded)
+            {
+                var identityResponse = new ResultResponse();
+                foreach (var error in IdentityHelper.GetIdentityResultErrorDescriptions(result))
+                {
+                    identityResponse.AddErrorMessage(error, "identity.operation_failed");
+                }
+                throw new IdentityException(identityResponse);
+            }
+
+            if (request.Roles != null && request.Roles.Any())
+            {
+                var restrictedRoles = new[] { RoleConstants.SysAdmin, RoleConstants.Support, RoleConstants.Owner };
+                var restrictedRolesInRequest = request.Roles.Intersect(restrictedRoles).ToList();
+                if (restrictedRolesInRequest.Any())
+                {
+                    var conflictResponse = new ResultResponse();
+                    conflictResponse.AddErrorMessage($"Cannot assign restricted roles: {string.Join(", ", restrictedRolesInRequest)}", "user.restricted_roles_not_allowed");
+                    throw new ConflictException(conflictResponse);
+                }
+                var allowedRoles = request.Roles.Except(restrictedRoles).ToList();
+                if (allowedRoles.Any())
+                {
+                    var roleResult = await _userManager.AddToRolesAsync(newUser, allowedRoles);
+                    if (!roleResult.Succeeded)
+                    {
+                        var identityResponse = new ResultResponse();
+                        foreach (var error in IdentityHelper.GetIdentityResultErrorDescriptions(roleResult))
+                        {
+                            identityResponse.AddErrorMessage($"Failed to assign role: {error}", "user.role_assignment_failed");
+                        }
+                        throw new IdentityException(identityResponse);
+                    }
+                }
+            }
+
+            return newUser.Id;
+        }
+
+        public async Task SetPasswordAndActivateAsync(Guid userId, string newPassword, CancellationToken cancellationToken = default)
+        {
+            var user = await GetUserAsync(userId);
+            var hasPassword = await _userManager.HasPasswordAsync(user);
+            if (hasPassword)
+            {
+                await _userManager.RemovePasswordAsync(user);
+            }
+            var addResult = await _userManager.AddPasswordAsync(user, newPassword);
+            if (!addResult.Succeeded)
+            {
+                var identityResponse = new ResultResponse();
+                foreach (var error in IdentityHelper.GetIdentityResultErrorDescriptions(addResult))
+                {
+                    identityResponse.AddErrorMessage(error, "identity.operation_failed");
+                }
+                throw new IdentityException(identityResponse);
+            }
+            user.IsActive = true;
+            await _userManager.UpdateAsync(user);
+        }
+
         public async Task<ResultResponse> CreateSupportUserAsync(CreateUserRequest request)
         {
             if (request.Password != request.ConfirmPassword)

@@ -9,6 +9,7 @@ using InteractiveLeads.Infrastructure.Identity.Models;
 using InteractiveLeads.Infrastructure.Identity.Roles;
 using InteractiveLeads.Infrastructure.Identity.Tokens;
 using InteractiveLeads.Infrastructure.Identity;
+using InteractiveLeads.Infrastructure.Identity.Activation;
 using InteractiveLeads.Infrastructure.Identity.Impersonation;
 using InteractiveLeads.Infrastructure.Identity.Users;
 using InteractiveLeads.Infrastructure.OpenApi;
@@ -64,6 +65,7 @@ namespace InteractiveLeads.Infrastructure
             services.AddIdentityService();
 
             services.Configure<SysAdminSeedSettings>(config.GetSection(SysAdminSeedSettings.SectionName));
+            services.Configure<ActivationSettings>(config.GetSection(ActivationSettings.SectionName));
 
             services.AddTransient<ITenantDbSeeder, TenantDbSeeder>();
             services.AddTransient<ApplicationDbSeeder>();
@@ -77,6 +79,8 @@ namespace InteractiveLeads.Infrastructure
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IUserLookupService, UserLookupService>();
             services.AddScoped<IImpersonationService, ImpersonationService>();
+            services.AddScoped<IActivationTokenRepository, ActivationTokenRepository>();
+            services.AddScoped<IUserActivationService, UserActivationService>();
 
             // Register cross-tenant services
             services.AddScoped<ICrossTenantService, CrossTenantService>();

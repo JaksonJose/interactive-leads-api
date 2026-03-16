@@ -94,5 +94,19 @@ namespace InteractiveLeads.Api.Controllers.Admin
             var response = await _tenantService.AssignSubscriptionAsync(request);
             return Ok(response);
         }
+
+        /// <summary>Resend activation invitation for tenant owner. SysAdmin only.</summary>
+        [HttpPost("{tenantId}/owner/{ownerUserId:guid}/resend-activation")]
+        [Authorize(Roles = "SysAdmin")]
+        [OpenApiOperation("Resend activation invitation for tenant owner (SysAdmin only)")]
+        public async Task<IActionResult> ResendTenantOwnerActivationAsync(string tenantId, Guid ownerUserId)
+        {
+            var response = await Sender.Send(new ResendTenantOwnerActivationCommand
+            {
+                TenantId = tenantId,
+                OwnerUserId = ownerUserId
+            });
+            return Ok(response);
+        }
     }
 }

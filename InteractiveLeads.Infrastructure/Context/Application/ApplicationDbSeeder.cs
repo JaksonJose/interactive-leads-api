@@ -116,10 +116,6 @@ namespace InteractiveLeads.Infrastructure.Context.Application
                 return;
             }
 
-            var password = _sysAdminSeed.DefaultTenantOwnerPassword;
-            if (string.IsNullOrWhiteSpace(password))
-                password = "P@ssw0rd@123";
-
             var incomingUser = new ApplicationUser
             {
                 FirstName = tenantInfo.FirstName ?? string.Empty,
@@ -131,11 +127,12 @@ namespace InteractiveLeads.Infrastructure.Context.Application
                 TenantId = tenantInfo.Id,
                 EmailConfirmed = true,
                 PhoneNumberConfirmed = true,
-                IsActive = true
+                IsActive = false
             };
 
             var passwordHash = new PasswordHasher<ApplicationUser>();
-            incomingUser.PasswordHash = passwordHash.HashPassword(incomingUser, password);
+            var temporaryPassword = Guid.NewGuid().ToString("N") + "Aa1!";
+            incomingUser.PasswordHash = passwordHash.HashPassword(incomingUser, temporaryPassword);
             await _userManager.CreateAsync(incomingUser);
             await _userManager.AddToRoleAsync(incomingUser, RoleConstants.Owner);
         }

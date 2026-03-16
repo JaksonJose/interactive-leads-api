@@ -65,6 +65,12 @@ namespace InteractiveLeads.Application.Interfaces
         Task ExecuteInTenantContextAsync(string tenantId, Func<Task> operation);
 
         /// <summary>
+        /// Executes an operation in the context of a specific tenant without current-user authorization.
+        /// For system operations only (e.g. account activation by token). Caller must have validated tenantId (e.g. from a valid token).
+        /// </summary>
+        Task ExecuteInTenantContextForSystemAsync(string tenantId, Func<IServiceProvider, Task> operation);
+
+        /// <summary>
         /// Logs a cross-tenant operation for audit purposes.
         /// </summary>
         /// <param name="userId">The ID of the user performing the operation.</param>

@@ -9,8 +9,10 @@ using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Infrastructure.Constants;
 using InteractiveLeads.Infrastructure.Context.Application;
 using InteractiveLeads.Infrastructure.Context.Tenancy;
+using InteractiveLeads.Infrastructure.Identity.Models;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Mapster;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -83,8 +85,13 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 ExpirationDate = createTenantRequest.ExpirationDate
             };
 
-            await using (var transaction = await _tenantDbContext.Database.BeginTransactionAsync(ct))
+            // Usa execution strategy do EF para garantir compatibilidade com NpgsqlRetryingExecutionStrategy
+            // quando há transações iniciadas manualmente.
+            var executionStrategy = _tenantDbContext.Database.CreateExecutionStrategy();
+            var creationResponse = await executionStrategy.ExecuteAsync(async () =>
             {
+                await using var transaction = await _tenantDbContext.Database.BeginTransactionAsync(ct);
+
                 bool isSuccess = await _tenantStore.TryAddAsync(newTenant);
                 if (!isSuccess)
                 {
@@ -121,9 +128,22 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 }
 
                 await transaction.CommitAsync(ct);
+
+                // Indica sucesso para o chamador.
+                ResultResponse ok = new();
+                ok.AddSuccessMessage("Tenant created", "tenant.created_partial");
+                return ok;
+            });
+
+            // Se houve falha que retornou um erro de negócio, propaga-o
+            if (creationResponse.HasAnyErrorMessage)
+            {
+                return creationResponse;
             }
 
-            // 2) Seed no banco isolado / criação de usuário owner.
+            // 2) Seed no banco isolado / criação de usuário owner e geração do link de ativação.
+            string? ownerActivationUrl = null;
+
             await using var scope = _serviceProvider.CreateAsyncScope();
 
             _serviceProvider.GetRequiredService<IMultiTenantContextSetter>()
@@ -134,8 +154,31 @@ namespace InteractiveLeads.Infrastructure.Tenancy
 
             try
             {
-                await scope.ServiceProvider.GetRequiredService<ApplicationDbSeeder>()
+                var scopedProvider = scope.ServiceProvider;
+                await scopedProvider.GetRequiredService<ApplicationDbSeeder>()
                     .InitializeDatabaseAsync(ct);
+
+                // Após criar o Owner no banco do tenant, gerar link de ativação para ele.
+                var applicationDbContext = scopedProvider.GetRequiredService<ApplicationDbContext>();
+                var ownerUser = await applicationDbContext.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.TenantId == newTenant.Id && u.Email == newTenant.Email, ct);
+
+                if (ownerUser != null)
+                {
+                    // Garante que o Owner comece inativo até concluir a ativação.
+                    var userManager = scopedProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                    var ownerTracked = await userManager.FindByIdAsync(ownerUser.Id.ToString());
+                    if (ownerTracked != null && ownerTracked.IsActive)
+                    {
+                        ownerTracked.IsActive = false;
+                        await userManager.UpdateAsync(ownerTracked);
+                    }
+
+                    var activationService = scopedProvider.GetRequiredService<IUserActivationService>();
+                    var inviteResponse = await activationService.ResendInvitationAsync(ownerUser.Id, ct);
+                    ownerActivationUrl = inviteResponse.ActivationUrl;
+                }
             }
             catch
             {
@@ -169,6 +212,12 @@ namespace InteractiveLeads.Infrastructure.Tenancy
 
             var response = new ResultResponse();
             response.AddSuccessMessage("Tenant created successfully", "tenant.created_successfully");
+
+            if (!string.IsNullOrWhiteSpace(ownerActivationUrl))
+            {
+                response.AddInfoMessage($"Owner activation URL: {ownerActivationUrl}", "tenant.owner_activation_url");
+            }
+
             return response;
         }
 
