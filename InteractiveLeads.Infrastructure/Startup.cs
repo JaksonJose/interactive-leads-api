@@ -80,6 +80,7 @@ namespace InteractiveLeads.Infrastructure
             services.AddScoped<IUserLookupService, UserLookupService>();
             services.AddScoped<IImpersonationService, ImpersonationService>();
             services.AddScoped<IActivationTokenRepository, ActivationTokenRepository>();
+            services.AddScoped<IActivationTokenLookupRepository, ActivationTokenLookupRepository>();
             services.AddScoped<IUserActivationService, UserActivationService>();
 
             // Register cross-tenant services
