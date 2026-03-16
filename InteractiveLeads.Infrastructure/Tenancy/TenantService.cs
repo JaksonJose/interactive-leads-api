@@ -476,6 +476,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 IntervalCount = planPrice.IntervalCount,
                 IsActive = planPrice.IsActive
             };
+
             var response = new SingleResponse<PlanPriceResponse>(data);
             response.AddSuccessMessage("Plan price created successfully", "plan_price.created_successfully");
             return response;
@@ -489,8 +490,10 @@ namespace InteractiveLeads.Infrastructure.Tenancy
 
             if (request.Price.HasValue)
                 planPrice.Price = request.Price.Value;
+
             if (request.Currency != null)
                 planPrice.Currency = request.Currency.Trim().ToUpperInvariant();
+
             if (request.BillingInterval.HasValue)
             {
                 if (request.BillingInterval.Value is not 0 and not 1)
@@ -499,10 +502,13 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                     err.AddErrorMessage("BillingInterval must be 0 (Month) or 1 (Year).", "plan_price.invalid_interval");
                     throw new BadRequestException(err);
                 }
+
                 planPrice.BillingInterval = (BillingInterval)request.BillingInterval.Value;
             }
+
             if (request.IntervalCount.HasValue)
                 planPrice.IntervalCount = request.IntervalCount.Value;
+
             if (request.IsActive.HasValue)
                 planPrice.IsActive = request.IsActive.Value;
 
@@ -518,8 +524,10 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 IntervalCount = planPrice.IntervalCount,
                 IsActive = planPrice.IsActive
             };
+
             var response = new SingleResponse<PlanPriceResponse>(data);
             response.AddSuccessMessage("Plan price updated successfully", "plan_price.updated_successfully");
+
             return response;
         }
 
@@ -542,6 +550,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 IsActive = request.IsActive,
                 CreatedAt = now
             };
+
             _tenantDbContext.Plans.Add(plan);
 
             if (request.Limits != null && request.Limits.Count > 0)
@@ -557,6 +566,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                     });
                 }
             }
+
             if (request.Features != null && request.Features.Count > 0)
             {
                 foreach (var key in request.Features.Distinct())
@@ -585,8 +595,10 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 Limits = limits,
                 Features = features
             };
+
             var response = new SingleResponse<PlanResponse>(data);
             response.AddSuccessMessage("Plan created successfully", "plan.created_successfully");
+
             return response;
         }
 
@@ -598,6 +610,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
 
             if (request.Name != null)
                 plan.Name = request.Name;
+
             if (request.Identifier != null)
             {
                 var identifierExists = await _tenantDbContext.Plans.AnyAsync(p => p.Identifier == request.Identifier.Trim().ToLowerInvariant() && p.Id != planId, ct);
@@ -609,6 +622,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 }
                 plan.Identifier = request.Identifier.Trim().ToLowerInvariant();
             }
+
             if (request.IsActive.HasValue)
                 plan.IsActive = request.IsActive.Value;
 
@@ -616,6 +630,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             {
                 var existingLimits = await _tenantDbContext.PlanLimits.Where(l => l.PlanId == planId).ToListAsync(ct);
                 _tenantDbContext.PlanLimits.RemoveRange(existingLimits);
+
                 foreach (var kv in request.Limits)
                 {
                     _tenantDbContext.PlanLimits.Add(new PlanLimit
@@ -627,6 +642,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                     });
                 }
             }
+
             if (request.Features != null)
             {
                 var existingFeatures = await _tenantDbContext.PlanFeatures.Where(f => f.PlanId == planId).ToListAsync(ct);
@@ -648,6 +664,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             var subscriptionPlanService = _serviceProvider.GetRequiredService<ISubscriptionPlanService>();
             var limits = await subscriptionPlanService.GetPlanLimitsAsync(plan.Id, ct);
             var features = (await subscriptionPlanService.GetPlanFeaturesAsync(plan.Id, ct)).ToList();
+            
             var data = new PlanResponse
             {
                 Id = plan.Id,
@@ -657,8 +674,10 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 Limits = limits,
                 Features = features
             };
+
             var response = new SingleResponse<PlanResponse>(data);
             response.AddSuccessMessage("Plan updated successfully", "plan.updated_successfully");
+
             return response;
         }
 
@@ -683,6 +702,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 .AsNoTracking()
                 .Include(pp => pp.Plan)
                 .FirstOrDefaultAsync(pp => pp.Id == request.PlanPriceId, ct);
+
             if (planPrice == null || !planPrice.IsActive || planPrice.Plan == null || !planPrice.Plan.IsActive)
             {
                 var err = new ResultResponse();
@@ -695,6 +715,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             var otherActive = await _tenantDbContext.Subscriptions
                 .Where(s => s.TenantId == request.TenantId && s.Status == SubscriptionStatus.Active)
                 .ToListAsync(ct);
+
             foreach (var sub in otherActive)
             {
                 sub.Status = SubscriptionStatus.Cancelled;
@@ -720,6 +741,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
 
             var response = new ResultResponse();
             response.AddSuccessMessage("Subscription assigned successfully", "subscription.assigned_successfully");
+            
             return response;
         }
 
