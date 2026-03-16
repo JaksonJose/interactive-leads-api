@@ -36,10 +36,9 @@ namespace InteractiveLeads.Infrastructure.Context.Application
 
                 if (await _applicationDbContext.Database.CanConnectAsync(cancellationToken))
                 {
-                    // Roles are global (same for all tenants): seed only once in global context.
                     var tenantInfo = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo;
-                    if (tenantInfo?.Id == null)
-                        await _roleSeeder.SeedRolesAsync(cancellationToken);
+                    // Global context: seed roles once (shared DB). Tenant context with isolated DB: seed roles so Owner/Manager/Agent exist in tenant DB.
+                    await _roleSeeder.SeedRolesAsync(cancellationToken);
 
                     await InitializeAdminUserAsync();
                     await InitializeTenantOwnerAsync();

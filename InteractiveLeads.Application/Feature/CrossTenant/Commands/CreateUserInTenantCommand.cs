@@ -76,11 +76,16 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
             
             var isSystemAdmin = await _authService.IsSystemAdminAsync(userId);
             var isSupportUser = await _authService.IsSupportUserAsync(userId);
-            
-            if (!isSystemAdmin && !isSupportUser)
+            var isTenantOwner = await _authService.IsTenantOwnerAsync(userId);
+            var currentUserTenantId = _currentUserService.GetUserTenant() ?? string.Empty;
+
+            var allowed = isSystemAdmin || isSupportUser
+                || (isTenantOwner && !string.IsNullOrEmpty(currentUserTenantId) && string.Equals(currentUserTenantId, request.TenantId, StringComparison.OrdinalIgnoreCase));
+
+            if (!allowed)
             {
                 ResultResponse resultResponse = new();
-                resultResponse.AddErrorMessage("Only system administrators and support users can create users from other tenants");
+                resultResponse.AddErrorMessage("You do not have permission to create users in this tenant.");
 
                 throw new ForbiddenException(resultResponse);
             }
