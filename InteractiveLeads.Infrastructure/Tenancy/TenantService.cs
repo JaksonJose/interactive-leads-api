@@ -90,17 +90,24 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 return errorResponse;
             }
 
-            // Create active subscription for the new tenant (default plan, one active per tenant)
-            var defaultPrice = await BillingSeed.GetDefaultPlanPriceAsync(_tenantDbContext, ct);
-            if (defaultPrice != null)
+            // Create active subscription for the new tenant (chosen plan price or default, one active per tenant)
+            PlanPrice? priceToUse = null;
+            if (createTenantRequest.PlanPriceId is { } planPriceId)
+            {
+                priceToUse = await _tenantDbContext.PlanPrices
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(pp => pp.Id == planPriceId && pp.IsActive, ct);
+            }
+            priceToUse ??= await BillingSeed.GetDefaultPlanPriceAsync(_tenantDbContext, ct);
+            if (priceToUse != null)
             {
                 var now = DateTime.UtcNow;
                 _tenantDbContext.Subscriptions.Add(new Subscription
                 {
                     Id = Guid.NewGuid(),
                     TenantId = uniqueIdentifier,
-                    PlanId = defaultPrice.PlanId,
-                    PlanPriceId = defaultPrice.Id,
+                    PlanId = priceToUse.PlanId,
+                    PlanPriceId = priceToUse.Id,
                     Status = SubscriptionStatus.Active,
                     StartDate = now,
                     EndDate = createTenantRequest.ExpirationDate,

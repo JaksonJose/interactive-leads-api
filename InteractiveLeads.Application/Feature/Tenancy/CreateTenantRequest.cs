@@ -1,4 +1,4 @@
-﻿namespace InteractiveLeads.Application.Feature.Tenancy
+namespace InteractiveLeads.Application.Feature.Tenancy
 {
     /// <summary>
     /// Request model for creating a new tenant in the multi-tenant system.
@@ -41,6 +41,12 @@
         /// Gets or sets the expiration date of the tenant's subscription.
         /// </summary>
         public DateTime ExpirationDate { get; set; }
+
+        /// <summary>
+        /// Optional. Billing option (plan price) to assign to the new tenant's subscription.
+        /// When null, the default plan price is used.
+        /// </summary>
+        public Guid? PlanPriceId { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether the tenant is active.
