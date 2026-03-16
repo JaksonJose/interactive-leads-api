@@ -1,4 +1,5 @@
 using Finbuckle.MultiTenant.Abstractions;
+using InteractiveLeads.Application.Constants;
 using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Users;
 using InteractiveLeads.Application.Interfaces;
@@ -6,6 +7,7 @@ using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Infrastructure.Configuration;
 using InteractiveLeads.Infrastructure.Constants;
 using InteractiveLeads.Infrastructure.Context.Application;
+using InteractiveLeads.Infrastructure.Context.Tenancy;
 using InteractiveLeads.Infrastructure.Identity.Models;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Mapster;
@@ -21,6 +23,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
         private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly ApplicationDbContext _context;
         private readonly IMultiTenantContextAccessor<InteractiveTenantInfo> _tenantContextAccessor;
+        private readonly ISubscriptionPlanService _subscriptionPlanService;
         private readonly SysAdminSeedSettings _sysAdminSeed;
 
         public UserService(
@@ -28,12 +31,14 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
             RoleManager<ApplicationRole> roleManager,
             ApplicationDbContext context,
             IMultiTenantContextAccessor<InteractiveTenantInfo> tenantContextAccessor,
+            ISubscriptionPlanService subscriptionPlanService,
             IOptions<SysAdminSeedSettings> sysAdminSeed)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _context = context;
             _tenantContextAccessor = tenantContextAccessor;
+            _subscriptionPlanService = subscriptionPlanService;
             _sysAdminSeed = sysAdminSeed.Value;
         }
 
@@ -154,6 +159,15 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
                 var errorResponse = new ResultResponse();
                 errorResponse.AddErrorMessage("Tenant context is not available.", "tenant.context_not_available");
                 throw new ConflictException(errorResponse);
+            }
+
+            var currentUserCount = await _context.Users.CountAsync(u => u.TenantId == tenantId);
+            var withinLimit = await _subscriptionPlanService.CheckLimitAsync(tenantId, BillingSeed.LimitKeys.Users, currentUserCount, 1);
+            if (!withinLimit)
+            {
+                var limitResponse = new ResultResponse();
+                limitResponse.AddErrorMessage("User limit reached for your plan. Please upgrade to add more users.", ErrorKeys.SUBSCRIPTION_PLAN_LIMIT_REACHED);
+                throw new ConflictException(limitResponse);
             }
 
             var newUser = new ApplicationUser

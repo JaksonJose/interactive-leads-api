@@ -1,4 +1,5 @@
 using Finbuckle.MultiTenant.Abstractions;
+using InteractiveLeads.Application.Constants;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
@@ -74,6 +75,20 @@ namespace InteractiveLeads.Api.Middleware
                 response.AddErrorMessage("You do not have access to this tenant.", "tenant.access_denied");
                 var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                 await context.Response.WriteAsync(JsonSerializer.Serialize(response, jsonOptions));
+                return;
+            }
+
+            // Require active subscription (Status = Active, EndDate >= today) for tenant-scoped access
+            var subscriptionPlanService = context.RequestServices.GetRequiredService<ISubscriptionPlanService>();
+            var activeSubscription = await subscriptionPlanService.GetActiveSubscriptionAsync(tenantId, context.RequestAborted);
+            if (activeSubscription == null)
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                context.Response.ContentType = "application/json";
+                var subResponse = new ResultResponse();
+                subResponse.AddErrorMessage("Subscription is not active or has expired. Please renew to access the system.", ErrorKeys.AUTH_SUBSCRIPTION_NOT_ACTIVE);
+                var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                await context.Response.WriteAsync(JsonSerializer.Serialize(subResponse, jsonOptions));
                 return;
             }
 

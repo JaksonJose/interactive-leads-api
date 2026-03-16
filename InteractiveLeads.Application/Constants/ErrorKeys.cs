@@ -33,6 +33,11 @@ namespace InteractiveLeads.Application.Constants
         public const string GENERAL_UNAUTHORIZED = "general.unauthorized";
         public const string GENERAL_FORBIDDEN = "general.forbidden";
 
+        // Subscription / Billing
+        public const string SUBSCRIPTION_PLAN_LIMIT_REACHED = "subscription.plan_limit_reached";
+        public const string PLAN_NOT_FOUND = "plan.not_found";
+        public const string PLAN_IDENTIFIER_ALREADY_EXISTS = "plan.identifier_already_exists";
+
         // Identity System
         public const string IDENTITY_USER_CREATION_FAILED = "identity.user_creation_failed";
         public const string IDENTITY_ROLE_ASSIGNMENT_FAILED = "identity.role_assignment_failed";

@@ -3,6 +3,7 @@ using InteractiveLeads.Infrastructure.Constants;
 using InteractiveLeads.Infrastructure.Context.Application;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 
 namespace InteractiveLeads.Infrastructure.Tenancy.Strategies
@@ -10,14 +11,16 @@ namespace InteractiveLeads.Infrastructure.Tenancy.Strategies
     /// <summary>
     /// Resolves tenant at login by reading email from the request body and looking up the user's TenantId in Identity.Users.
     /// Users with TenantId = null (SysAdmin, Support) result in global context.
+    /// Uses a separate scope to query the DB so the request-scoped ApplicationDbContext is not created with a null tenant
+    /// (which would cause NullReferenceException when TokenService later uses the same context for FindByNameAsync).
     /// </summary>
     public class UserMappingLookupStrategy : IMultiTenantStrategy
     {
-        private readonly ApplicationDbContext _applicationDbContext;
+        private readonly IServiceProvider _serviceProvider;
 
-        public UserMappingLookupStrategy(ApplicationDbContext applicationDbContext)
+        public UserMappingLookupStrategy(IServiceProvider serviceProvider)
         {
-            _applicationDbContext = applicationDbContext;
+            _serviceProvider = serviceProvider;
         }
 
         public async Task<string?> GetIdentifierAsync(object context)
@@ -56,8 +59,11 @@ namespace InteractiveLeads.Infrastructure.Tenancy.Strategies
 
                 var normalizedEmail = email.Trim().ToUpperInvariant();
 
-                // Resolve tenant from Identity.Users (ignore tenant filter so we can find any user by email)
-                var tenantId = await _applicationDbContext.Users
+                // Use a new scope so we don't create the request-scoped ApplicationDbContext with null tenant.
+                // That context would then be reused by TokenService and cause NRE when the tenant filter is applied.
+                await using var scope = _serviceProvider.CreateAsyncScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var tenantId = await dbContext.Users
                     .AsNoTracking()
                     .IgnoreQueryFilters()
                     .Where(u => u.NormalizedEmail == normalizedEmail)

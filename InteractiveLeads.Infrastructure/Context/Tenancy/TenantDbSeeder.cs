@@ -33,6 +33,8 @@ namespace InteractiveLeads.Infrastructure.Context.Tenancy
         public async Task InitializeDatabaseAsync(CancellationToken cancellationToken)
         {
             await _tenantDbContext.Database.MigrateAsync(cancellationToken);
+            await BillingSeed.SeedAsync(_tenantDbContext, cancellationToken);
+            await BillingSeed.MigrateExistingTenantsToSubscriptionAsync(_tenantDbContext, cancellationToken);
 
             // Single seed run in global context: same roles for all, SysAdmin with TenantId = null
             using var scope = _serviceProvider.CreateAsyncScope();

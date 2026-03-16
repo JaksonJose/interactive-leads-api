@@ -1,5 +1,6 @@
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
+using InteractiveLeads.Application.Constants;
 using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Tenancy;
 using InteractiveLeads.Application.Interfaces;
@@ -87,6 +88,26 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 var errorResponse = new ResultResponse();
                 errorResponse.AddErrorMessage("Failed to create tenant. Identifier may already exist.");
                 return errorResponse;
+            }
+
+            // Create active subscription for the new tenant (default plan, one active per tenant)
+            var defaultPlan = await _tenantDbContext.Plans
+                .FirstOrDefaultAsync(p => p.Identifier == BillingSeed.DefaultPlanIdentifier, ct);
+            if (defaultPlan != null)
+            {
+                var now = DateTime.UtcNow;
+                _tenantDbContext.Subscriptions.Add(new Subscription
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = uniqueIdentifier,
+                    PlanId = defaultPlan.Id,
+                    Status = SubscriptionStatus.Active,
+                    StartDate = now,
+                    EndDate = createTenantRequest.ExpirationDate,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+                await _tenantDbContext.SaveChangesAsync(ct);
             }
 
             // Seeding tenant data
@@ -224,13 +245,299 @@ namespace InteractiveLeads.Infrastructure.Tenancy
         public async Task<ResultResponse> UpdateSubscriptionAsync(UpdateTenantSubscriptionRequest updateTenantSubscriptionRequest, CancellationToken ct = default)
         {
             var tenantInDb = await _tenantStore.TryGetAsync(updateTenantSubscriptionRequest.TenantId);
+            if (tenantInDb == null)
+            {
+                var errorResponse = new ResultResponse();
+                errorResponse.AddErrorMessage("Tenant not found", "tenant.not_found");
+                return errorResponse;
+            }
 
             tenantInDb.ExpirationDate = updateTenantSubscriptionRequest.NewExpirationDate;
-
             await _tenantStore.TryUpdateAsync(tenantInDb);
+
+            // Keep Subscription entity in sync (source of truth for access control)
+            var activeSub = await _tenantDbContext.Subscriptions
+                .FirstOrDefaultAsync(s => s.TenantId == updateTenantSubscriptionRequest.TenantId && s.Status == SubscriptionStatus.Active, ct);
+            if (activeSub != null)
+            {
+                activeSub.EndDate = updateTenantSubscriptionRequest.NewExpirationDate;
+                activeSub.UpdatedAt = DateTime.UtcNow;
+                await _tenantDbContext.SaveChangesAsync(ct);
+            }
+            else
+            {
+                // No active subscription: create one with default plan (e.g. admin extending subscription)
+                var defaultPlan = await _tenantDbContext.Plans
+                    .FirstOrDefaultAsync(p => p.Identifier == BillingSeed.DefaultPlanIdentifier, ct);
+                if (defaultPlan != null)
+                {
+                    var now = DateTime.UtcNow;
+                    _tenantDbContext.Subscriptions.Add(new Subscription
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = updateTenantSubscriptionRequest.TenantId,
+                        PlanId = defaultPlan.Id,
+                        Status = SubscriptionStatus.Active,
+                        StartDate = now,
+                        EndDate = updateTenantSubscriptionRequest.NewExpirationDate,
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    });
+                    await _tenantDbContext.SaveChangesAsync(ct);
+                }
+            }
 
             var response = new ResultResponse();
             response.AddSuccessMessage("Tenant subscription updated successfully", "tenant.subscription_updated_successfully");
+            return response;
+        }
+
+        public async Task<ListResponse<PlanResponse>> GetPlansAsync(bool includeLimitsAndFeatures, CancellationToken ct = default)
+        {
+            var plans = await _tenantDbContext.Plans
+                .AsNoTracking()
+                .OrderBy(p => p.Name)
+                .ToListAsync(ct);
+
+            var subscriptionPlanService = _serviceProvider.GetRequiredService<ISubscriptionPlanService>();
+            var list = new List<PlanResponse>();
+            foreach (var p in plans)
+            {
+                var resp = new PlanResponse
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Identifier = p.Identifier,
+                    IsActive = p.IsActive
+                };
+                if (includeLimitsAndFeatures)
+                {
+                    resp.Limits = await subscriptionPlanService.GetPlanLimitsAsync(p.Id, ct);
+                    resp.Features = (await subscriptionPlanService.GetPlanFeaturesAsync(p.Id, ct)).ToList();
+                }
+                list.Add(resp);
+            }
+            var response = new ListResponse<PlanResponse>(list, list.Count);
+            response.AddSuccessMessage("Plans retrieved successfully", "plans.retrieved_successfully");
+            return response;
+        }
+
+        public async Task<SingleResponse<PlanResponse>> GetPlanByIdAsync(Guid planId, CancellationToken ct = default)
+        {
+            var plan = await _tenantDbContext.Plans.AsNoTracking().FirstOrDefaultAsync(p => p.Id == planId, ct);
+            if (plan == null)
+                throw new NotFoundException();
+
+            var subscriptionPlanService = _serviceProvider.GetRequiredService<ISubscriptionPlanService>();
+            var limits = await subscriptionPlanService.GetPlanLimitsAsync(plan.Id, ct);
+            var features = (await subscriptionPlanService.GetPlanFeaturesAsync(plan.Id, ct)).ToList();
+            var data = new PlanResponse
+            {
+                Id = plan.Id,
+                Name = plan.Name,
+                Identifier = plan.Identifier,
+                IsActive = plan.IsActive,
+                Limits = limits,
+                Features = features
+            };
+            var response = new SingleResponse<PlanResponse>(data);
+            response.AddSuccessMessage("Plan retrieved successfully", "plan.retrieved_successfully");
+            return response;
+        }
+
+        public async Task<SingleResponse<PlanResponse>> CreatePlanAsync(CreatePlanRequest request, CancellationToken ct = default)
+        {
+            var identifierExists = await _tenantDbContext.Plans.AnyAsync(p => p.Identifier == request.Identifier, ct);
+            if (identifierExists)
+            {
+                var err = new ResultResponse();
+                err.AddErrorMessage("A plan with this identifier already exists.", ErrorKeys.PLAN_IDENTIFIER_ALREADY_EXISTS);
+                throw new ConflictException(err);
+            }
+
+            var now = DateTime.UtcNow;
+            var plan = new Plan
+            {
+                Id = Guid.NewGuid(),
+                Name = request.Name,
+                Identifier = request.Identifier.Trim().ToLowerInvariant(),
+                IsActive = request.IsActive,
+                CreatedAt = now
+            };
+            _tenantDbContext.Plans.Add(plan);
+
+            if (request.Limits != null && request.Limits.Count > 0)
+            {
+                foreach (var kv in request.Limits)
+                {
+                    _tenantDbContext.PlanLimits.Add(new PlanLimit
+                    {
+                        Id = Guid.NewGuid(),
+                        PlanId = plan.Id,
+                        LimitKey = kv.Key,
+                        LimitValue = kv.Value
+                    });
+                }
+            }
+            if (request.Features != null && request.Features.Count > 0)
+            {
+                foreach (var key in request.Features.Distinct())
+                {
+                    if (string.IsNullOrWhiteSpace(key)) continue;
+                    _tenantDbContext.PlanFeatures.Add(new PlanFeature
+                    {
+                        Id = Guid.NewGuid(),
+                        PlanId = plan.Id,
+                        FeatureKey = key.Trim()
+                    });
+                }
+            }
+
+            await _tenantDbContext.SaveChangesAsync(ct);
+
+            var subscriptionPlanService = _serviceProvider.GetRequiredService<ISubscriptionPlanService>();
+            var limits = await subscriptionPlanService.GetPlanLimitsAsync(plan.Id, ct);
+            var features = (await subscriptionPlanService.GetPlanFeaturesAsync(plan.Id, ct)).ToList();
+            var data = new PlanResponse
+            {
+                Id = plan.Id,
+                Name = plan.Name,
+                Identifier = plan.Identifier,
+                IsActive = plan.IsActive,
+                Limits = limits,
+                Features = features
+            };
+            var response = new SingleResponse<PlanResponse>(data);
+            response.AddSuccessMessage("Plan created successfully", "plan.created_successfully");
+            return response;
+        }
+
+        public async Task<SingleResponse<PlanResponse>> UpdatePlanAsync(Guid planId, UpdatePlanRequest request, CancellationToken ct = default)
+        {
+            var plan = await _tenantDbContext.Plans.FirstOrDefaultAsync(p => p.Id == planId, ct);
+            if (plan == null)
+                throw new NotFoundException();
+
+            if (request.Name != null)
+                plan.Name = request.Name;
+            if (request.Identifier != null)
+            {
+                var identifierExists = await _tenantDbContext.Plans.AnyAsync(p => p.Identifier == request.Identifier.Trim().ToLowerInvariant() && p.Id != planId, ct);
+                if (identifierExists)
+                {
+                    var err = new ResultResponse();
+                    err.AddErrorMessage("A plan with this identifier already exists.", ErrorKeys.PLAN_IDENTIFIER_ALREADY_EXISTS);
+                    throw new ConflictException(err);
+                }
+                plan.Identifier = request.Identifier.Trim().ToLowerInvariant();
+            }
+            if (request.IsActive.HasValue)
+                plan.IsActive = request.IsActive.Value;
+
+            if (request.Limits != null)
+            {
+                var existingLimits = await _tenantDbContext.PlanLimits.Where(l => l.PlanId == planId).ToListAsync(ct);
+                _tenantDbContext.PlanLimits.RemoveRange(existingLimits);
+                foreach (var kv in request.Limits)
+                {
+                    _tenantDbContext.PlanLimits.Add(new PlanLimit
+                    {
+                        Id = Guid.NewGuid(),
+                        PlanId = plan.Id,
+                        LimitKey = kv.Key,
+                        LimitValue = kv.Value
+                    });
+                }
+            }
+            if (request.Features != null)
+            {
+                var existingFeatures = await _tenantDbContext.PlanFeatures.Where(f => f.PlanId == planId).ToListAsync(ct);
+                _tenantDbContext.PlanFeatures.RemoveRange(existingFeatures);
+                foreach (var key in request.Features.Distinct())
+                {
+                    if (string.IsNullOrWhiteSpace(key)) continue;
+                    _tenantDbContext.PlanFeatures.Add(new PlanFeature
+                    {
+                        Id = Guid.NewGuid(),
+                        PlanId = plan.Id,
+                        FeatureKey = key.Trim()
+                    });
+                }
+            }
+
+            await _tenantDbContext.SaveChangesAsync(ct);
+
+            var subscriptionPlanService = _serviceProvider.GetRequiredService<ISubscriptionPlanService>();
+            var limits = await subscriptionPlanService.GetPlanLimitsAsync(plan.Id, ct);
+            var features = (await subscriptionPlanService.GetPlanFeaturesAsync(plan.Id, ct)).ToList();
+            var data = new PlanResponse
+            {
+                Id = plan.Id,
+                Name = plan.Name,
+                Identifier = plan.Identifier,
+                IsActive = plan.IsActive,
+                Limits = limits,
+                Features = features
+            };
+            var response = new SingleResponse<PlanResponse>(data);
+            response.AddSuccessMessage("Plan updated successfully", "plan.updated_successfully");
+            return response;
+        }
+
+        public async Task<ResultResponse> AssignSubscriptionAsync(AssignTenantSubscriptionRequest request, CancellationToken ct = default)
+        {
+            if (IsGlobalTenantId(request.TenantId))
+            {
+                var err = new ResultResponse();
+                err.AddErrorMessage("Cannot assign subscription for global context", "tenant.global_modification_denied");
+                return err;
+            }
+
+            var tenantInDb = await _tenantStore.TryGetAsync(request.TenantId);
+            if (tenantInDb == null)
+            {
+                var err = new ResultResponse();
+                err.AddErrorMessage("Tenant not found", "tenant.not_found");
+                return err;
+            }
+
+            var planExists = await _tenantDbContext.Plans.AnyAsync(p => p.Id == request.PlanId && p.IsActive, ct);
+            if (!planExists)
+            {
+                var err = new ResultResponse();
+                err.AddErrorMessage("Plan not found or inactive", "plan.not_found");
+                return err;
+            }
+
+            var now = DateTime.UtcNow;
+            // End any other active subscription for this tenant (at most one active per tenant)
+            var otherActive = await _tenantDbContext.Subscriptions
+                .Where(s => s.TenantId == request.TenantId && s.Status == SubscriptionStatus.Active)
+                .ToListAsync(ct);
+            foreach (var sub in otherActive)
+            {
+                sub.Status = SubscriptionStatus.Cancelled;
+                sub.UpdatedAt = now;
+            }
+
+            _tenantDbContext.Subscriptions.Add(new Subscription
+            {
+                Id = Guid.NewGuid(),
+                TenantId = request.TenantId,
+                PlanId = request.PlanId,
+                Status = SubscriptionStatus.Active,
+                StartDate = now,
+                EndDate = request.EndDate,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+
+            tenantInDb.ExpirationDate = request.EndDate;
+            await _tenantStore.TryUpdateAsync(tenantInDb);
+            await _tenantDbContext.SaveChangesAsync(ct);
+
+            var response = new ResultResponse();
+            response.AddSuccessMessage("Subscription assigned successfully", "subscription.assigned_successfully");
             return response;
         }
 

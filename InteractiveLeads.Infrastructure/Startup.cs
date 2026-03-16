@@ -66,6 +66,7 @@ namespace InteractiveLeads.Infrastructure
             services.AddTransient<RoleSeeder>();
 
             // Register application services
+            services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>();
             services.AddScoped<ITenantService, TenantService>();
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IRoleService, RoleService>();

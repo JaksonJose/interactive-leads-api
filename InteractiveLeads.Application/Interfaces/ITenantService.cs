@@ -1,4 +1,4 @@
-﻿using InteractiveLeads.Application.Feature.Tenancy;
+using InteractiveLeads.Application.Feature.Tenancy;
 using InteractiveLeads.Application.Models;
 using InteractiveLeads.Application.Responses;
 
@@ -67,5 +67,30 @@ namespace InteractiveLeads.Application.Interfaces
         /// <param name="ct">Cancellation token for the async operation.</param>
         /// <returns>Tenant data if found.</returns>
         Task<SingleResponse<TenantResponse>> GetTenantsByIdAsync(string id, CancellationToken ct);
+
+        /// <summary>
+        /// Lists all billing plans (from DB). Optionally include limits and features.
+        /// </summary>
+        Task<ListResponse<PlanResponse>> GetPlansAsync(bool includeLimitsAndFeatures, CancellationToken ct = default);
+
+        /// <summary>
+        /// Gets a single billing plan by id, including limits and features.
+        /// </summary>
+        Task<SingleResponse<PlanResponse>> GetPlanByIdAsync(Guid planId, CancellationToken ct = default);
+
+        /// <summary>
+        /// Creates a new billing plan with optional limits and features.
+        /// </summary>
+        Task<SingleResponse<PlanResponse>> CreatePlanAsync(CreatePlanRequest request, CancellationToken ct = default);
+
+        /// <summary>
+        /// Updates an existing billing plan. When Limits/Features are provided, they replace existing ones.
+        /// </summary>
+        Task<SingleResponse<PlanResponse>> UpdatePlanAsync(Guid planId, UpdatePlanRequest request, CancellationToken ct = default);
+
+        /// <summary>
+        /// Assigns or updates the tenant's subscription to the given plan and end date. Ensures at most one active subscription per tenant.
+        /// </summary>
+        Task<ResultResponse> AssignSubscriptionAsync(AssignTenantSubscriptionRequest request, CancellationToken ct = default);
     }
 }
