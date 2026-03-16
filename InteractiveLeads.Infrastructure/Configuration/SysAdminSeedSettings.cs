@@ -1,29 +1,23 @@
 namespace InteractiveLeads.Infrastructure.Configuration
 {
     /// <summary>
-    /// Single configuration for root/SysAdmin: credentials to access the application and create other users.
+    /// Configuration for global SysAdmin: credentials to access the application and create other users.
     /// Store in appsettings (or user secrets / environment); do not commit sensitive values.
     /// </summary>
     public class SysAdminSeedSettings
     {
         public const string SectionName = "SysAdminSeed";
 
-        /// <summary>Root tenant identifier (e.g. "root").</summary>
-        public string RootId { get; set; } = "root";
-
-        /// <summary>Root tenant display name.</summary>
-        public string RootName { get; set; } = "root";
-
-        /// <summary>Email for the root administrator (login).</summary>
+        /// <summary>Email for the global SysAdmin (login).</summary>
         public string Email { get; set; } = string.Empty;
 
-        /// <summary>Password for the root administrator. Change after first login.</summary>
+        /// <summary>Password for the global SysAdmin. Change after first login.</summary>
         public string Password { get; set; } = string.Empty;
 
-        /// <summary>First name of the root administrator.</summary>
+        /// <summary>First name of the global SysAdmin.</summary>
         public string FirstName { get; set; } = string.Empty;
 
-        /// <summary>Last name of the root administrator.</summary>
+        /// <summary>Last name of the global SysAdmin.</summary>
         public string LastName { get; set; } = string.Empty;
     }
 }

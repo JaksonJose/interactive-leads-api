@@ -1,7 +1,7 @@
 namespace InteractiveLeads.Infrastructure.Constants
 {
     /// <summary>
-    /// Tenant-related constants. Root id/name and passwords are in appsettings (TenancySettings, SysAdminSeedSettings).
+    /// Tenant-related constants. Passwords and SysAdmin credentials are in appsettings (TenancySettings, SysAdminSeedSettings).
     /// </summary>
     public static class TenancyConstants
     {
