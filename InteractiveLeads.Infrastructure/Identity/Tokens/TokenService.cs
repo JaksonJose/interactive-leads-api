@@ -99,10 +99,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
             #endregion
 
             var tokenResponse = await GenerateJwtTokenAndUpdateUserAsync(userInDb);
-            
-            var response = new SingleResponse<TokenResponse>(tokenResponse);
-            response.AddSuccessMessage("Authentication successful", "auth.login_successful");
-            return response;
+            return new SingleResponse<TokenResponse>(tokenResponse);
         }
 
         public async Task<SingleResponse<TokenResponse>> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken ct = default)
