@@ -69,6 +69,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             // Generate unique identifier based on company name
             string uniqueIdentifier = await GenerateUniqueTenantIdentifier(createTenantRequest.Name);
 
+            // 1) Cria tenant e subscription no banco de multitenancy dentro de transação local.
             var newTenant = new InteractiveTenantInfo
             {
                 Id = uniqueIdentifier,
@@ -82,42 +83,47 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 ExpirationDate = createTenantRequest.ExpirationDate
             };
 
-            bool isSuccess = await _tenantStore.TryAddAsync(newTenant);
-            if (!isSuccess)
+            await using (var transaction = await _tenantDbContext.Database.BeginTransactionAsync(ct))
             {
-                var errorResponse = new ResultResponse();
-                errorResponse.AddErrorMessage("Failed to create tenant. Identifier may already exist.");
-                return errorResponse;
-            }
-
-            // Create active subscription for the new tenant (chosen plan price or default, one active per tenant)
-            PlanPrice? priceToUse = null;
-            if (createTenantRequest.PlanPriceId is { } planPriceId)
-            {
-                priceToUse = await _tenantDbContext.PlanPrices
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(pp => pp.Id == planPriceId && pp.IsActive, ct);
-            }
-            priceToUse ??= await BillingSeed.GetDefaultPlanPriceAsync(_tenantDbContext, ct);
-            if (priceToUse != null)
-            {
-                var now = DateTime.UtcNow;
-                _tenantDbContext.Subscriptions.Add(new Subscription
+                bool isSuccess = await _tenantStore.TryAddAsync(newTenant);
+                if (!isSuccess)
                 {
-                    Id = Guid.NewGuid(),
-                    TenantId = uniqueIdentifier,
-                    PlanId = priceToUse.PlanId,
-                    PlanPriceId = priceToUse.Id,
-                    Status = SubscriptionStatus.Active,
-                    StartDate = now,
-                    EndDate = createTenantRequest.ExpirationDate,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                });
-                await _tenantDbContext.SaveChangesAsync(ct);
+                    var errorResponse = new ResultResponse();
+                    errorResponse.AddErrorMessage("Failed to create tenant. Identifier may already exist.");
+                    return errorResponse;
+                }
+
+                // Create active subscription for the new tenant (chosen plan price or default, one active per tenant)
+                PlanPrice? priceToUse = null;
+                if (createTenantRequest.PlanPriceId is { } planPriceId)
+                {
+                    priceToUse = await _tenantDbContext.PlanPrices
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(pp => pp.Id == planPriceId && pp.IsActive, ct);
+                }
+                priceToUse ??= await BillingSeed.GetDefaultPlanPriceAsync(_tenantDbContext, ct);
+                if (priceToUse != null)
+                {
+                    var now = DateTime.UtcNow;
+                    _tenantDbContext.Subscriptions.Add(new Subscription
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = uniqueIdentifier,
+                        PlanId = priceToUse.PlanId,
+                        PlanPriceId = priceToUse.Id,
+                        Status = SubscriptionStatus.Active,
+                        StartDate = now,
+                        EndDate = createTenantRequest.ExpirationDate,
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    });
+                    await _tenantDbContext.SaveChangesAsync(ct);
+                }
+
+                await transaction.CommitAsync(ct);
             }
 
-            // Seeding tenant data
+            // 2) Seed no banco isolado / criação de usuário owner.
             await using var scope = _serviceProvider.CreateAsyncScope();
 
             _serviceProvider.GetRequiredService<IMultiTenantContextSetter>()
@@ -126,9 +132,40 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                     TenantInfo = newTenant
                 };
 
-            
-            await scope.ServiceProvider.GetRequiredService<ApplicationDbSeeder>()
-                .InitializeDatabaseAsync(ct);
+            try
+            {
+                await scope.ServiceProvider.GetRequiredService<ApplicationDbSeeder>()
+                    .InitializeDatabaseAsync(ct);
+            }
+            catch
+            {
+                // 3) Compensação: se falhar ao criar o usuário no banco isolado,
+                // remove tenant e subscriptions recém-criados no banco de multitenancy.
+                await using var cleanupScope = _serviceProvider.CreateAsyncScope();
+                var cleanupContext = cleanupScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+
+                await using var cleanupTransaction = await cleanupContext.Database.BeginTransactionAsync(ct);
+
+                var tenantToRemove = await cleanupContext.TenantInfo
+                    .FirstOrDefaultAsync(t => t.Id == uniqueIdentifier, ct);
+                if (tenantToRemove != null)
+                {
+                    cleanupContext.TenantInfo.Remove(tenantToRemove);
+                }
+
+                var subsToRemove = await cleanupContext.Subscriptions
+                    .Where(s => s.TenantId == uniqueIdentifier)
+                    .ToListAsync(ct);
+                if (subsToRemove.Count > 0)
+                {
+                    cleanupContext.Subscriptions.RemoveRange(subsToRemove);
+                }
+
+                await cleanupContext.SaveChangesAsync(ct);
+                await cleanupTransaction.CommitAsync(ct);
+
+                throw;
+            }
 
             var response = new ResultResponse();
             response.AddSuccessMessage("Tenant created successfully", "tenant.created_successfully");

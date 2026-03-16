@@ -1,6 +1,7 @@
 using Finbuckle.MultiTenant.Abstractions;
 using InteractiveLeads.Infrastructure.Constants;
 using InteractiveLeads.Infrastructure.Context.Application;
+using InteractiveLeads.Infrastructure.Context.Tenancy;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -62,6 +63,9 @@ namespace InteractiveLeads.Infrastructure.Tenancy.Strategies
                 // Use a new scope so we don't create the request-scoped ApplicationDbContext with null tenant.
                 // That context would then be reused by TokenService and cause NRE when the tenant filter is applied.
                 await using var scope = _serviceProvider.CreateAsyncScope();
+
+                // 1) First, try to resolve tenant using the shared Identity database (global ApplicationDbContext).
+                //    This covers SysAdmin/Support and any tenants using the shared DB for identity.
                 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 var tenantId = await dbContext.Users
                     .AsNoTracking()
@@ -70,7 +74,29 @@ namespace InteractiveLeads.Infrastructure.Tenancy.Strategies
                     .Select(u => u.TenantId)
                     .FirstOrDefaultAsync();
 
-                return string.IsNullOrEmpty(tenantId) ? TenancyConstants.GlobalTenantIdentifier : tenantId;
+                if (!string.IsNullOrEmpty(tenantId))
+                {
+                    return tenantId;
+                }
+
+                // 2) If there is no user in the shared Identity DB, try to resolve the tenant
+                //    by the primary email stored in the Tenants table (TenantDbContext).
+                //    This supports tenants that use a dedicated/isolated database where the
+                //    owner user only exists in the tenant database.
+                var tenantDbContext = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+                var tenantInfo = await tenantDbContext.TenantInfo
+                    .AsNoTracking()
+                    .Where(t => t.Email != null && t.Email.ToUpper() == normalizedEmail)
+                    .Select(t => new { t.Id })
+                    .FirstOrDefaultAsync();
+
+                if (tenantInfo != null && !string.IsNullOrEmpty(tenantInfo.Id))
+                {
+                    return tenantInfo.Id;
+                }
+
+                // 3) Fallback: global context (SysAdmin/Support without explicit tenant).
+                return TenancyConstants.GlobalTenantIdentifier;
             }
             catch
             {
