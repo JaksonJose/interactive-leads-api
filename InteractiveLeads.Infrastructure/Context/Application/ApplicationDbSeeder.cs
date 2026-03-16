@@ -1,15 +1,12 @@
 using Finbuckle.MultiTenant.Abstractions;
 using InteractiveLeads.Infrastructure.Configuration;
 using InteractiveLeads.Infrastructure.Constants;
-using InteractiveLeads.Infrastructure.Context.Tenancy;
 using InteractiveLeads.Infrastructure.Identity.Models;
 using InteractiveLeads.Infrastructure.Identity.Roles;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using System.Security.Claims;
 
 namespace InteractiveLeads.Infrastructure.Context.Application
 {
@@ -18,7 +15,6 @@ namespace InteractiveLeads.Infrastructure.Context.Application
         RoleManager<ApplicationRole> roleManager,
         UserManager<ApplicationUser> userManager,
         ApplicationDbContext applicationDbContext,
-        IServiceProvider serviceProvider,
         RoleSeeder roleSeeder,
         IOptions<SysAdminSeedSettings> sysAdminSeed)
     {
@@ -26,7 +22,6 @@ namespace InteractiveLeads.Infrastructure.Context.Application
         private readonly RoleManager<ApplicationRole> _roleManager = roleManager;
         private readonly UserManager<ApplicationUser> _userManager = userManager;
         private readonly ApplicationDbContext _applicationDbContext = applicationDbContext;
-        private readonly IServiceProvider _serviceProvider = serviceProvider;
         private readonly RoleSeeder _roleSeeder = roleSeeder;
         private readonly SysAdminSeedSettings _sysAdminSeed = sysAdminSeed.Value;
 
@@ -53,7 +48,7 @@ namespace InteractiveLeads.Infrastructure.Context.Application
         }
 
         /// <summary>
-        /// Creates global SysAdmin when in global context (TenantInfo.Id is null). No root tenant; no UserTenantMapping for global users.
+        /// Creates global SysAdmin when in global context (TenantInfo.Id is null).
         /// </summary>
         private async Task InitializeAdminUserAsync()
         {
@@ -119,7 +114,6 @@ namespace InteractiveLeads.Infrastructure.Context.Application
             {
                 if (!await _userManager.IsInRoleAsync(existingUser, RoleConstants.Owner))
                     await _userManager.AddToRoleAsync(existingUser, RoleConstants.Owner);
-                await CreateUserTenantMappingAsync(tenantInfo.Email.Trim(), tenantInfo.Id);
                 return;
             }
 
@@ -145,39 +139,6 @@ namespace InteractiveLeads.Infrastructure.Context.Application
             incomingUser.PasswordHash = passwordHash.HashPassword(incomingUser, password);
             await _userManager.CreateAsync(incomingUser);
             await _userManager.AddToRoleAsync(incomingUser, RoleConstants.Owner);
-            await CreateUserTenantMappingAsync(tenantInfo.Email.Trim(), tenantInfo.Id);
-        }
-
-        private async Task CreateUserTenantMappingAsync(string email, string tenantId)
-        {
-            try
-            {
-                using var scope = _serviceProvider.CreateScope();
-                var tenantDbContext = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
-                
-                // Check if mapping already exists
-                var existingMapping = await tenantDbContext.UserTenantMappings
-                    .Where(m => m.Email == email)
-                    .FirstOrDefaultAsync();
-                
-                if (existingMapping == null)
-                {
-                    var mapping = new UserTenantMapping
-                    {
-                        Email = email,
-                        TenantId = tenantId,
-                        IsActive = true
-                    };
-                    
-                    tenantDbContext.UserTenantMappings.Add(mapping);
-                    await tenantDbContext.SaveChangesAsync();
-                }
-            }
-            catch
-            {
-                // Log error if needed, but don't fail the user creation
-                // The system can still work with the fallback strategy
-            }
         }
     }
 }

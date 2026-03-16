@@ -1,7 +1,6 @@
 using Finbuckle.MultiTenant.Abstractions;
-using Finbuckle.MultiTenant.Strategies;
 using InteractiveLeads.Infrastructure.Constants;
-using InteractiveLeads.Infrastructure.Context.Tenancy;
+using InteractiveLeads.Infrastructure.Context.Application;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -9,16 +8,16 @@ using System.Text.Json;
 namespace InteractiveLeads.Infrastructure.Tenancy.Strategies
 {
     /// <summary>
-    /// Strategy that uses a user-tenant mapping table for optimal performance.
-    /// This provides O(1) lookup time by directly querying the mapping table.
+    /// Resolves tenant at login by reading email from the request body and looking up the user's TenantId in Identity.Users.
+    /// Users with TenantId = null (SysAdmin, Support) result in global context.
     /// </summary>
     public class UserMappingLookupStrategy : IMultiTenantStrategy
     {
-        private readonly TenantDbContext _tenantDbContext;
+        private readonly ApplicationDbContext _applicationDbContext;
 
-        public UserMappingLookupStrategy(TenantDbContext tenantDbContext)
+        public UserMappingLookupStrategy(ApplicationDbContext applicationDbContext)
         {
-            _tenantDbContext = tenantDbContext;
+            _applicationDbContext = applicationDbContext;
         }
 
         public async Task<string?> GetIdentifierAsync(object context)
@@ -26,17 +25,14 @@ namespace InteractiveLeads.Infrastructure.Tenancy.Strategies
             if (context is not HttpContext httpContext)
                 return null;
 
-            // Only for login endpoint
             if (!httpContext.Request.Path.Value?.Contains("/token/login", StringComparison.OrdinalIgnoreCase) ?? true)
                 return null;
 
-            // Only for POST requests with JSON body
             if (httpContext.Request.Method != HttpMethods.Post)
                 return null;
 
             try
             {
-                // Read email from request body
                 httpContext.Request.EnableBuffering();
                 httpContext.Request.Body.Position = 0;
 
@@ -47,7 +43,6 @@ namespace InteractiveLeads.Infrastructure.Tenancy.Strategies
                 if (string.IsNullOrWhiteSpace(body))
                     return null;
 
-                // Extract email from JSON
                 using var jsonDoc = JsonDocument.Parse(body);
                 string? email = null;
 
@@ -59,14 +54,17 @@ namespace InteractiveLeads.Infrastructure.Tenancy.Strategies
                 if (string.IsNullOrWhiteSpace(email))
                     return null;
 
-                // Direct lookup in mapping table; no mapping => global context (SysAdmin/Support)
-                var mapping = await _tenantDbContext.UserTenantMappings
-                    .Where(m => m.Email == email && m.IsActive)
-                    .Select(m => m.TenantId)
+                var normalizedEmail = email.Trim().ToUpperInvariant();
+
+                // Resolve tenant from Identity.Users (ignore tenant filter so we can find any user by email)
+                var tenantId = await _applicationDbContext.Users
                     .AsNoTracking()
+                    .IgnoreQueryFilters()
+                    .Where(u => u.NormalizedEmail == normalizedEmail)
+                    .Select(u => u.TenantId)
                     .FirstOrDefaultAsync();
 
-                return mapping ?? TenancyConstants.GlobalTenantIdentifier;
+                return string.IsNullOrEmpty(tenantId) ? TenancyConstants.GlobalTenantIdentifier : tenantId;
             }
             catch
             {
