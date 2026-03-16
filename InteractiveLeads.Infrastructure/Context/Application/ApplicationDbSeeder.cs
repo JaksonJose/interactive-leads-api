@@ -44,6 +44,7 @@ namespace InteractiveLeads.Infrastructure.Context.Application
                     // Use the new RoleSeeder for comprehensive role initialization
                     await _roleSeeder.SeedRolesAsync(cancellationToken);
                     await InitializeAdminUserAsync();
+                    await InitializeTenantOwnerAsync();
                 }
             }
         }
@@ -93,6 +94,55 @@ namespace InteractiveLeads.Infrastructure.Context.Application
             incomingUser.PasswordHash = passwordHash.HashPassword(incomingUser, password);
             await _userManager.CreateAsync(incomingUser);
             await _userManager.AddToRoleAsync(incomingUser, RoleConstants.SysAdmin);
+        }
+
+        /// <summary>
+        /// Creates the tenant Owner user when in tenant context (new tenant). Uses tenant Email, FirstName, LastName and a fixed default password.
+        /// </summary>
+        private async Task InitializeTenantOwnerAsync()
+        {
+            var tenantInfo = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo;
+            bool isTenantContext = tenantInfo?.Id != null;
+            if (!isTenantContext)
+                return;
+
+            if (string.IsNullOrWhiteSpace(tenantInfo!.Email))
+                return;
+
+            var existingUser = await _userManager.Users
+                .Where(u => u.TenantId == tenantInfo.Id && u.Email == tenantInfo.Email.Trim())
+                .SingleOrDefaultAsync();
+            if (existingUser != null)
+            {
+                if (!await _userManager.IsInRoleAsync(existingUser, RoleConstants.Owner))
+                    await _userManager.AddToRoleAsync(existingUser, RoleConstants.Owner);
+                await CreateUserTenantMappingAsync(tenantInfo.Email.Trim(), tenantInfo.Id);
+                return;
+            }
+
+            var password = _sysAdminSeed.DefaultTenantOwnerPassword;
+            if (string.IsNullOrWhiteSpace(password))
+                password = "P@ssw0rd@123";
+
+            var incomingUser = new ApplicationUser
+            {
+                FirstName = tenantInfo.FirstName ?? string.Empty,
+                LastName = tenantInfo.LastName ?? string.Empty,
+                Email = tenantInfo.Email.Trim(),
+                UserName = tenantInfo.Email.Trim(),
+                NormalizedEmail = tenantInfo.Email.Trim().ToUpperInvariant(),
+                NormalizedUserName = tenantInfo.Email.Trim().ToUpperInvariant(),
+                TenantId = tenantInfo.Id,
+                EmailConfirmed = true,
+                PhoneNumberConfirmed = true,
+                IsActive = true
+            };
+
+            var passwordHash = new PasswordHasher<ApplicationUser>();
+            incomingUser.PasswordHash = passwordHash.HashPassword(incomingUser, password);
+            await _userManager.CreateAsync(incomingUser);
+            await _userManager.AddToRoleAsync(incomingUser, RoleConstants.Owner);
+            await CreateUserTenantMappingAsync(tenantInfo.Email.Trim(), tenantInfo.Id);
         }
 
         private async Task CreateUserTenantMappingAsync(string email, string tenantId)

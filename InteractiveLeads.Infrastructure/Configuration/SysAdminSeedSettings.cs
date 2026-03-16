@@ -19,5 +19,8 @@ namespace InteractiveLeads.Infrastructure.Configuration
 
         /// <summary>Last name of the global SysAdmin.</summary>
         public string LastName { get; set; } = string.Empty;
+
+        /// <summary>Default password for the tenant Owner user created when a new tenant is created. Change in production.</summary>
+        public string DefaultTenantOwnerPassword { get; set; } = "P@ssw0rd@123";
     }
 }

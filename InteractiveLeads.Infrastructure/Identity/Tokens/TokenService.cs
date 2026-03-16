@@ -54,12 +54,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
             var tenantInfo = _multiTenantContextAccessor.MultiTenantContext.TenantInfo;
             bool isGlobalContext = tenantInfo.Id == null;
 
-            if (!isGlobalContext && !tenantInfo.IsActive)
-            {
-                result.AddErrorMessage("Tenant subscription is not active. Contact administrator.", "tenant.subscription_not_active");
-                throw new UnauthorizedException(result);
-            }
-
+            // Allow login even when tenant is deactivated or expired so users can enter to edit/reactivate.
             var userInDb = await _userManager.FindByNameAsync(request.UserName);
             if (userInDb is null || !await _userManager.CheckPasswordAsync(userInDb, request.Password))
             {
@@ -100,11 +95,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
                 throw new UnauthorizedException(result);
             }
 
-            if (!isGlobalContext && tenantInfo.ExpirationDate < DateTime.UtcNow)
-            {
-                result.AddErrorMessage("Subscription has expired. Contact administrator.", "auth.subscription_expired");
-                throw new UnauthorizedException(result);
-            }
+            // Allow login when tenant is expired or deactivated so user can enter to edit/reactivate/renew.
             #endregion
 
             var tokenResponse = await GenerateJwtTokenAndUpdateUserAsync(userInDb);

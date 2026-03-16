@@ -108,23 +108,6 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                     ConnectionString = tenantData.ConnectionString
                 };
 
-                // Validate tenant is active and not expired
-                if (!targetTenant.IsActive)
-                {
-                    ResultResponse response = new();
-                    response.AddErrorMessage($"Tenant with ID '{tenantId}' is not active.");
-
-                    throw new ForbiddenException(response);
-                }
-
-                if (targetTenant.ExpirationDate < DateTime.UtcNow)
-                {
-                    ResultResponse response = new();
-                    response.AddErrorMessage($"Tenant with ID '{tenantId}' has expired.");
-
-                    throw new ForbiddenException();
-                }
-
                 // Create a new scope for the target tenant context
                 using var scope = _serviceScopeFactory.CreateScope();
                 
