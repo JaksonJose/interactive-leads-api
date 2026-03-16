@@ -13,5 +13,7 @@ namespace InteractiveLeads.Application.Feature.Tenancy
         public IReadOnlyDictionary<string, int>? Limits { get; set; }
         /// <summary>Feature keys. Optional; populated when including details.</summary>
         public IReadOnlyList<string>? Features { get; set; }
+        /// <summary>Plan prices (billing options). Optional; populated when including details.</summary>
+        public IReadOnlyList<PlanPriceResponse>? Prices { get; set; }
     }
 }

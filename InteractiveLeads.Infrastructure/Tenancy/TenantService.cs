@@ -91,16 +91,16 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             }
 
             // Create active subscription for the new tenant (default plan, one active per tenant)
-            var defaultPlan = await _tenantDbContext.Plans
-                .FirstOrDefaultAsync(p => p.Identifier == BillingSeed.DefaultPlanIdentifier, ct);
-            if (defaultPlan != null)
+            var defaultPrice = await BillingSeed.GetDefaultPlanPriceAsync(_tenantDbContext, ct);
+            if (defaultPrice != null)
             {
                 var now = DateTime.UtcNow;
                 _tenantDbContext.Subscriptions.Add(new Subscription
                 {
                     Id = Guid.NewGuid(),
                     TenantId = uniqueIdentifier,
-                    PlanId = defaultPlan.Id,
+                    PlanId = defaultPrice.PlanId,
+                    PlanPriceId = defaultPrice.Id,
                     Status = SubscriptionStatus.Active,
                     StartDate = now,
                     EndDate = createTenantRequest.ExpirationDate,
@@ -267,16 +267,16 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             else
             {
                 // No active subscription: create one with default plan (e.g. admin extending subscription)
-                var defaultPlan = await _tenantDbContext.Plans
-                    .FirstOrDefaultAsync(p => p.Identifier == BillingSeed.DefaultPlanIdentifier, ct);
-                if (defaultPlan != null)
+                var defaultPrice = await BillingSeed.GetDefaultPlanPriceAsync(_tenantDbContext, ct);
+                if (defaultPrice != null)
                 {
                     var now = DateTime.UtcNow;
                     _tenantDbContext.Subscriptions.Add(new Subscription
                     {
                         Id = Guid.NewGuid(),
                         TenantId = updateTenantSubscriptionRequest.TenantId,
-                        PlanId = defaultPlan.Id,
+                        PlanId = defaultPrice.PlanId,
+                        PlanPriceId = defaultPrice.Id,
                         Status = SubscriptionStatus.Active,
                         StartDate = now,
                         EndDate = updateTenantSubscriptionRequest.NewExpirationDate,
@@ -322,7 +322,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             return response;
         }
 
-        public async Task<SingleResponse<PlanResponse>> GetPlanByIdAsync(Guid planId, CancellationToken ct = default)
+        public async Task<SingleResponse<PlanResponse>> GetPlanByIdAsync(Guid planId, bool includePrices = false, CancellationToken ct = default)
         {
             var plan = await _tenantDbContext.Plans.AsNoTracking().FirstOrDefaultAsync(p => p.Id == planId, ct);
             if (plan == null)
@@ -331,6 +331,28 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             var subscriptionPlanService = _serviceProvider.GetRequiredService<ISubscriptionPlanService>();
             var limits = await subscriptionPlanService.GetPlanLimitsAsync(plan.Id, ct);
             var features = (await subscriptionPlanService.GetPlanFeaturesAsync(plan.Id, ct)).ToList();
+
+            IReadOnlyList<PlanPriceResponse>? prices = null;
+            if (includePrices)
+            {
+                var priceList = await _tenantDbContext.PlanPrices
+                    .AsNoTracking()
+                    .Where(pp => pp.PlanId == plan.Id)
+                    .OrderBy(pp => pp.BillingInterval).ThenBy(pp => pp.IntervalCount)
+                    .Select(pp => new PlanPriceResponse
+                    {
+                        Id = pp.Id,
+                        PlanId = pp.PlanId,
+                        Price = pp.Price,
+                        Currency = pp.Currency,
+                        BillingInterval = (int)pp.BillingInterval,
+                        IntervalCount = pp.IntervalCount,
+                        IsActive = pp.IsActive
+                    })
+                    .ToListAsync(ct);
+                prices = priceList;
+            }
+
             var data = new PlanResponse
             {
                 Id = plan.Id,
@@ -338,10 +360,122 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 Identifier = plan.Identifier,
                 IsActive = plan.IsActive,
                 Limits = limits,
-                Features = features
+                Features = features,
+                Prices = prices
             };
             var response = new SingleResponse<PlanResponse>(data);
             response.AddSuccessMessage("Plan retrieved successfully", "plan.retrieved_successfully");
+            return response;
+        }
+
+        public async Task<ListResponse<PlanPriceResponse>> GetPlanPricesAsync(Guid planId, CancellationToken ct = default)
+        {
+            var planExists = await _tenantDbContext.Plans.AnyAsync(p => p.Id == planId, ct);
+            if (!planExists)
+                throw new NotFoundException();
+
+            var list = await _tenantDbContext.PlanPrices
+                .AsNoTracking()
+                .Where(pp => pp.PlanId == planId)
+                .OrderBy(pp => pp.BillingInterval).ThenBy(pp => pp.IntervalCount)
+                .Select(pp => new PlanPriceResponse
+                {
+                    Id = pp.Id,
+                    PlanId = pp.PlanId,
+                    Price = pp.Price,
+                    Currency = pp.Currency,
+                    BillingInterval = (int)pp.BillingInterval,
+                    IntervalCount = pp.IntervalCount,
+                    IsActive = pp.IsActive
+                })
+                .ToListAsync(ct);
+            var response = new ListResponse<PlanPriceResponse>(list, list.Count);
+            response.AddSuccessMessage("Plan prices retrieved successfully", "plan_prices.retrieved_successfully");
+            return response;
+        }
+
+        public async Task<SingleResponse<PlanPriceResponse>> CreatePlanPriceAsync(Guid planId, CreatePlanPriceRequest request, CancellationToken ct = default)
+        {
+            var plan = await _tenantDbContext.Plans.FirstOrDefaultAsync(p => p.Id == planId, ct);
+            if (plan == null)
+                throw new NotFoundException();
+
+            if (request.BillingInterval is not 0 and not 1)
+            {
+                var err = new ResultResponse();
+                err.AddErrorMessage("BillingInterval must be 0 (Month) or 1 (Year).", "plan_price.invalid_interval");
+                throw new BadRequestException(err);
+            }
+
+            var now = DateTime.UtcNow;
+            var planPrice = new PlanPrice
+            {
+                Id = Guid.NewGuid(),
+                PlanId = planId,
+                Price = request.Price,
+                Currency = request.Currency?.Trim().ToUpperInvariant() ?? "BRL",
+                BillingInterval = (BillingInterval)request.BillingInterval,
+                IntervalCount = request.IntervalCount,
+                IsActive = request.IsActive,
+                CreatedAt = now
+            };
+            _tenantDbContext.PlanPrices.Add(planPrice);
+            await _tenantDbContext.SaveChangesAsync(ct);
+
+            var data = new PlanPriceResponse
+            {
+                Id = planPrice.Id,
+                PlanId = planPrice.PlanId,
+                Price = planPrice.Price,
+                Currency = planPrice.Currency,
+                BillingInterval = (int)planPrice.BillingInterval,
+                IntervalCount = planPrice.IntervalCount,
+                IsActive = planPrice.IsActive
+            };
+            var response = new SingleResponse<PlanPriceResponse>(data);
+            response.AddSuccessMessage("Plan price created successfully", "plan_price.created_successfully");
+            return response;
+        }
+
+        public async Task<SingleResponse<PlanPriceResponse>> UpdatePlanPriceAsync(Guid planId, Guid priceId, UpdatePlanPriceRequest request, CancellationToken ct = default)
+        {
+            var planPrice = await _tenantDbContext.PlanPrices.FirstOrDefaultAsync(pp => pp.Id == priceId && pp.PlanId == planId, ct);
+            if (planPrice == null)
+                throw new NotFoundException();
+
+            if (request.Price.HasValue)
+                planPrice.Price = request.Price.Value;
+            if (request.Currency != null)
+                planPrice.Currency = request.Currency.Trim().ToUpperInvariant();
+            if (request.BillingInterval.HasValue)
+            {
+                if (request.BillingInterval.Value is not 0 and not 1)
+                {
+                    var err = new ResultResponse();
+                    err.AddErrorMessage("BillingInterval must be 0 (Month) or 1 (Year).", "plan_price.invalid_interval");
+                    throw new BadRequestException(err);
+                }
+                planPrice.BillingInterval = (BillingInterval)request.BillingInterval.Value;
+            }
+            if (request.IntervalCount.HasValue)
+                planPrice.IntervalCount = request.IntervalCount.Value;
+            if (request.IsActive.HasValue)
+                planPrice.IsActive = request.IsActive.Value;
+
+            await _tenantDbContext.SaveChangesAsync(ct);
+
+            var data = new PlanPriceResponse
+            {
+                Id = planPrice.Id,
+                PlanId = planPrice.PlanId,
+                Price = planPrice.Price,
+                Currency = planPrice.Currency,
+                BillingInterval = (int)planPrice.BillingInterval,
+                IntervalCount = planPrice.IntervalCount,
+                IsActive = planPrice.IsActive
+            };
+            var response = new SingleResponse<PlanPriceResponse>(data);
+            response.AddSuccessMessage("Plan price updated successfully", "plan_price.updated_successfully");
             return response;
         }
 
@@ -501,11 +635,14 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 return err;
             }
 
-            var planExists = await _tenantDbContext.Plans.AnyAsync(p => p.Id == request.PlanId && p.IsActive, ct);
-            if (!planExists)
+            var planPrice = await _tenantDbContext.PlanPrices
+                .AsNoTracking()
+                .Include(pp => pp.Plan)
+                .FirstOrDefaultAsync(pp => pp.Id == request.PlanPriceId, ct);
+            if (planPrice == null || !planPrice.IsActive || planPrice.Plan == null || !planPrice.Plan.IsActive)
             {
                 var err = new ResultResponse();
-                err.AddErrorMessage("Plan not found or inactive", "plan.not_found");
+                err.AddErrorMessage("Plan price not found or inactive", "plan.not_found");
                 return err;
             }
 
@@ -524,7 +661,8 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             {
                 Id = Guid.NewGuid(),
                 TenantId = request.TenantId,
-                PlanId = request.PlanId,
+                PlanId = planPrice.PlanId,
+                PlanPriceId = planPrice.Id,
                 Status = SubscriptionStatus.Active,
                 StartDate = now,
                 EndDate = request.EndDate,

@@ -14,8 +14,6 @@ namespace InteractiveLeads.Api.Controllers.Admin
     /// <summary>
     /// Admin API: tenant CRUD, activate/deactivate, and subscription assignment.
     /// </summary>
-    [Route("api/v1/Admin/tenants")]
-    [ApiController]
     [Authorize(Roles = "SysAdmin,Support")]
     public class AdminTenantsController : BaseApiController
     {

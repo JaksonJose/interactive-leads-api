@@ -74,9 +74,24 @@ namespace InteractiveLeads.Application.Interfaces
         Task<ListResponse<PlanResponse>> GetPlansAsync(bool includeLimitsAndFeatures, CancellationToken ct = default);
 
         /// <summary>
-        /// Gets a single billing plan by id, including limits and features.
+        /// Gets a single billing plan by id, including limits, features and prices when requested.
         /// </summary>
-        Task<SingleResponse<PlanResponse>> GetPlanByIdAsync(Guid planId, CancellationToken ct = default);
+        Task<SingleResponse<PlanResponse>> GetPlanByIdAsync(Guid planId, bool includePrices = false, CancellationToken ct = default);
+
+        /// <summary>
+        /// Lists plan prices (billing options) for a plan.
+        /// </summary>
+        Task<ListResponse<PlanPriceResponse>> GetPlanPricesAsync(Guid planId, CancellationToken ct = default);
+
+        /// <summary>
+        /// Creates a plan price (billing option) for a plan.
+        /// </summary>
+        Task<SingleResponse<PlanPriceResponse>> CreatePlanPriceAsync(Guid planId, CreatePlanPriceRequest request, CancellationToken ct = default);
+
+        /// <summary>
+        /// Updates a plan price.
+        /// </summary>
+        Task<SingleResponse<PlanPriceResponse>> UpdatePlanPriceAsync(Guid planId, Guid priceId, UpdatePlanPriceRequest request, CancellationToken ct = default);
 
         /// <summary>
         /// Creates a new billing plan with optional limits and features.

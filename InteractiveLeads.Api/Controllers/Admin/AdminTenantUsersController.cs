@@ -11,8 +11,6 @@ namespace InteractiveLeads.Api.Controllers.Admin
     /// <summary>
     /// Admin API: users and roles within a specific tenant.
     /// </summary>
-    [Route("api/v1/Admin/tenants/{tenantId}")]
-    [ApiController]
     [Authorize(Roles = "SysAdmin,Support")]
     public class AdminTenantUsersController : BaseApiController
     {

@@ -20,20 +20,29 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             var today = DateTime.UtcNow.Date;
             var sub = await _tenantDbContext.Subscriptions
                 .AsNoTracking()
+                .Include(s => s.PlanPrice)
                 .Where(s => s.TenantId == tenantId && s.Status == SubscriptionStatus.Active && s.EndDate >= today)
                 .OrderByDescending(s => s.EndDate)
-                .Select(s => new { s.Id, s.PlanId, s.EndDate })
                 .FirstOrDefaultAsync(ct);
 
             if (sub == null)
                 return null;
 
-            return new ActiveSubscriptionInfo
+            var info = new ActiveSubscriptionInfo
             {
                 SubscriptionId = sub.Id,
                 PlanId = sub.PlanId,
                 EndDate = sub.EndDate
             };
+            if (sub.PlanPrice != null)
+            {
+                info.PlanPriceId = sub.PlanPrice.Id;
+                info.Price = sub.PlanPrice.Price;
+                info.Currency = sub.PlanPrice.Currency;
+                info.BillingInterval = (int)sub.PlanPrice.BillingInterval;
+                info.IntervalCount = sub.PlanPrice.IntervalCount;
+            }
+            return info;
         }
 
         public async Task<IReadOnlyDictionary<string, int>> GetPlanLimitsAsync(Guid planId, CancellationToken ct = default)

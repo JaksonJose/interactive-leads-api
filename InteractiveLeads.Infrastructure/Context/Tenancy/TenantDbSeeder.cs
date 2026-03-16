@@ -34,7 +34,9 @@ namespace InteractiveLeads.Infrastructure.Context.Tenancy
         {
             await _tenantDbContext.Database.MigrateAsync(cancellationToken);
             await BillingSeed.SeedAsync(_tenantDbContext, cancellationToken);
+            await BillingSeed.EnsureDefaultPlanPricesAsync(_tenantDbContext, cancellationToken);
             await BillingSeed.MigrateExistingTenantsToSubscriptionAsync(_tenantDbContext, cancellationToken);
+            await BillingSeed.BackfillSubscriptionPlanPriceAsync(_tenantDbContext, cancellationToken);
 
             // Single seed run in global context: same roles for all, SysAdmin with TenantId = null
             using var scope = _serviceProvider.CreateAsyncScope();

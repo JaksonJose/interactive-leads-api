@@ -11,6 +11,9 @@ namespace InteractiveLeads.Infrastructure.Tenancy.Models
         public string TenantId { get; set; } = string.Empty;
         public Guid PlanId { get; set; }
         public Plan Plan { get; set; } = null!;
+        /// <summary>Which billing option the tenant selected. Null for legacy subscriptions.</summary>
+        public Guid? PlanPriceId { get; set; }
+        public PlanPrice? PlanPrice { get; set; }
         public SubscriptionStatus Status { get; set; }
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }

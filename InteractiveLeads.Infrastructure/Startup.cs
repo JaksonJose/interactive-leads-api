@@ -45,8 +45,12 @@ namespace InteractiveLeads.Infrastructure
 
         public static IServiceCollection AddInfraestructureServices(this IServiceCollection services, IConfiguration config)
         {
-            services.AddDbContext<TenantDbContext>(options => options.UseNpgsql(config.GetConnectionString("DefaultConnection"),
-                npgsqlOptions => npgsqlOptions.EnableRetryOnFailure()));
+            services.AddDbContext<TenantDbContext>(options =>
+            {
+                options.UseNpgsql(config.GetConnectionString("DefaultConnection"),
+                    npgsqlOptions => npgsqlOptions.EnableRetryOnFailure());
+                options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+            });
             
             services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(config.GetConnectionString("DefaultConnection"),
                 npgsqlOptions => npgsqlOptions.EnableRetryOnFailure()));

@@ -11,8 +11,6 @@ namespace InteractiveLeads.Api.Controllers.Admin
     /// <summary>
     /// Admin API: global support users (SysAdmin and Support; TenantId = null).
     /// </summary>
-    [Route("api/v1/Admin/support-users")]
-    [ApiController]
     [Authorize(Roles = "SysAdmin,Support")]
     public class AdminSupportUsersController : BaseApiController
     {

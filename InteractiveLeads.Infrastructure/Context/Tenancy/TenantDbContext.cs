@@ -10,6 +10,7 @@ namespace InteractiveLeads.Infrastructure.Context.Tenancy
         public DbSet<Plan> Plans => Set<Plan>();
         public DbSet<PlanLimit> PlanLimits => Set<PlanLimit>();
         public DbSet<PlanFeature> PlanFeatures => Set<PlanFeature>();
+        public DbSet<PlanPrice> PlanPrices => Set<PlanPrice>();
         public DbSet<Subscription> Subscriptions => Set<Subscription>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -46,11 +47,21 @@ namespace InteractiveLeads.Infrastructure.Context.Tenancy
                 b.HasOne(e => e.Plan).WithMany().HasForeignKey(e => e.PlanId).OnDelete(DeleteBehavior.Cascade);
             });
 
+            modelBuilder.Entity<PlanPrice>(b =>
+            {
+                b.ToTable("PlanPrices", "Multitenancy");
+                b.HasKey(e => e.Id);
+                b.Property(e => e.Currency).HasMaxLength(10).IsRequired();
+                b.HasIndex(e => new { e.PlanId, e.BillingInterval, e.IntervalCount }).IsUnique();
+                b.HasOne(e => e.Plan).WithMany().HasForeignKey(e => e.PlanId).OnDelete(DeleteBehavior.Restrict);
+            });
+
             modelBuilder.Entity<Subscription>(b =>
             {
                 b.ToTable("Subscriptions", "Multitenancy");
                 b.HasKey(e => e.Id);
                 b.HasOne(e => e.Plan).WithMany().HasForeignKey(e => e.PlanId).OnDelete(DeleteBehavior.Restrict);
+                b.HasOne(e => e.PlanPrice).WithMany().HasForeignKey(e => e.PlanPriceId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
                 // At most one active subscription per tenant (SubscriptionStatus.Active = 0)
                 b.HasIndex(e => e.TenantId)
                     .HasFilter("\"Status\" = 0")
