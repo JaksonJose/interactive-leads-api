@@ -1,4 +1,4 @@
-﻿using InteractiveLeads.Application.Responses;
+using InteractiveLeads.Application.Responses;
 using System.Net;
 
 namespace InteractiveLeads.Application.Exceptions

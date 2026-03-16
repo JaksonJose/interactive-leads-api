@@ -1,4 +1,4 @@
-﻿using InteractiveLeads.Application.Exceptions;
+using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Responses;
 using System.Net;
 using System.Text.Json;
@@ -52,7 +52,7 @@ namespace InteractiveLeads.Api.Middleware
                 {
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 };
-                var result = JsonSerializer.Serialize(responseWrapper, jsonOptions);
+                var result = JsonSerializer.Serialize(responseWrapper, responseWrapper.GetType(), jsonOptions);
 
                 await response.WriteAsync(result);
             }
@@ -63,7 +63,7 @@ namespace InteractiveLeads.Api.Middleware
         /// </summary>
         /// <param name="ex">The exception to handle.</param>
         /// <returns>A ResponseWrapper with error information.</returns>
-        private static IResponse HandleException(Exception ex)
+        private static object HandleException(Exception ex)
         {
             return ex switch
             {
