@@ -360,7 +360,6 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
             userResponse.Roles = roles.ToList();
             
             var response = new SingleResponse<UserResponse>(userResponse);
-            response.AddSuccessMessage("User retrieved successfully", "user.retrieved_successfully");
             return response;
         }
 
@@ -381,7 +380,6 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
             userResponse.Roles = roles.ToList();
             
             var response = new SingleResponse<UserResponse>(userResponse);
-            response.AddSuccessMessage("User retrieved successfully", "user.retrieved_successfully");
             return response;
         }
 
@@ -405,7 +403,6 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
             }
 
             var response = new ListResponse<UserRoleResponse>(userRoles, userRoles.Count);
-            response.AddSuccessMessage("User roles retrieved successfully", "user.roles_retrieved_successfully");
             return response;
         }
 

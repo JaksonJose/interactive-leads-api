@@ -215,7 +215,6 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             var tenants = paginatedTenants.Adapt<List<TenantResponse>>();
 
             var response = new ListResponse<TenantResponse>(tenants, totalTenants);
-            response.AddSuccessMessage("Tenants retrieved successfully", "tenants.retrieved_successfully");
             return response;
         }
 
@@ -362,7 +361,6 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 list.Add(resp);
             }
             var response = new ListResponse<PlanResponse>(list, list.Count);
-            response.AddSuccessMessage("Plans retrieved successfully", "plans.retrieved_successfully");
             return response;
         }
 
@@ -408,7 +406,6 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 Prices = prices
             };
             var response = new SingleResponse<PlanResponse>(data);
-            response.AddSuccessMessage("Plan retrieved successfully", "plan.retrieved_successfully");
             return response;
         }
 
@@ -434,7 +431,6 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 })
                 .ToListAsync(ct);
             var response = new ListResponse<PlanPriceResponse>(list, list.Count);
-            response.AddSuccessMessage("Plan prices retrieved successfully", "plan_prices.retrieved_successfully");
             return response;
         }
 

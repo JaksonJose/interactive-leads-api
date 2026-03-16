@@ -114,7 +114,6 @@ namespace InteractiveLeads.Infrastructure.Identity.Roles
             var roles = rolesInDb.Adapt<List<RoleResponse>>();
 
             var response = new ListResponse<RoleResponse>(roles, roles.Count);
-            response.AddSuccessMessage("Roles retrieved successfully", "roles.retrieved_successfully");
             return response;
         }
 
@@ -134,7 +133,6 @@ namespace InteractiveLeads.Infrastructure.Identity.Roles
             var roleResponse = roleInDb.Adapt<RoleResponse>();
             
             var response = new SingleResponse<RoleResponse>(roleResponse);
-            response.AddSuccessMessage("Role retrieved successfully", "role.retrieved_successfully");
             return response;
         }
 
@@ -146,7 +144,6 @@ namespace InteractiveLeads.Infrastructure.Identity.Roles
             role.Permissions = [];
 
             var response = new SingleResponse<RoleResponse>(role);
-            response.AddSuccessMessage("Role with permissions retrieved successfully", "role.retrieved_with_permissions_successfully");
             return response;
         }
 
