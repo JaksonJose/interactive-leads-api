@@ -41,8 +41,11 @@ namespace InteractiveLeads.Infrastructure.Context.Application
 
                 if (await _applicationDbContext.Database.CanConnectAsync(cancellationToken))
                 {
-                    // Use the new RoleSeeder for comprehensive role initialization
-                    await _roleSeeder.SeedRolesAsync(cancellationToken);
+                    // Roles are global (same for all tenants): seed only once in global context.
+                    var tenantInfo = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo;
+                    if (tenantInfo?.Id == null)
+                        await _roleSeeder.SeedRolesAsync(cancellationToken);
+
                     await InitializeAdminUserAsync();
                     await InitializeTenantOwnerAsync();
                 }

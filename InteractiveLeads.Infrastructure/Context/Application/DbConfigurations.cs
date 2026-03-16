@@ -59,11 +59,10 @@ namespace InteractiveLeads.Infrastructure.Context.Application
             {
                 public void Configure(EntityTypeBuilder<ApplicationRole> builder)
                 {
-                    builder.ToTable("Roles", "Identity")
-                           .IsMultiTenant();
+                    // Roles are global (same for all tenants): do not use IsMultiTenant() to avoid duplicating roles per tenant.
+                    builder.ToTable("Roles", "Identity");
                     builder.Property<string>("TenantId").IsRequired(false);
 
-                    // Configure index for NormalizedName with unique: false for multitenancy
                     builder.HasIndex(r => r.NormalizedName)
                            .HasFilter("\"NormalizedName\" IS NOT NULL")
                            .IsUnique(false);

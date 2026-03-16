@@ -4,10 +4,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace InteractiveLeads.Infrastructure.Migrations.Application
+namespace InteractiveLeads.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class MakeUserTenantIdNullable : Migration
+    public partial class InitialDbApplication : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -26,7 +26,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'"),
                     CreatedBy = table.Column<Guid>(type: "uuid", nullable: true),
                     UpdatedBy = table.Column<Guid>(type: "uuid", nullable: true),
-                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    TenantId = table.Column<string>(type: "text", nullable: true),
                     Name = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     NormalizedName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     ConcurrencyStamp = table.Column<string>(type: "text", nullable: true)
@@ -82,7 +82,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     IsRevoked = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
                     DeviceInfo = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
                     IpAddress = table.Column<string>(type: "character varying(45)", maxLength: 45, nullable: true),
-                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'"),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'"),
                     CreatedBy = table.Column<Guid>(type: "uuid", nullable: true),
@@ -110,7 +110,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
                     ClaimType = table.Column<string>(type: "text", nullable: true),
                     ClaimValue = table.Column<string>(type: "text", nullable: true),
-                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false)
+                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -133,7 +133,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     ProviderKey = table.Column<string>(type: "text", nullable: false),
                     ProviderDisplayName = table.Column<string>(type: "text", nullable: true),
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false)
+                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -154,7 +154,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                 {
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
                     RoleId = table.Column<Guid>(type: "uuid", nullable: false),
-                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false)
+                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -184,7 +184,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     LoginProvider = table.Column<string>(type: "text", nullable: false),
                     Name = table.Column<string>(type: "text", nullable: false),
                     Value = table.Column<string>(type: "text", nullable: true),
-                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false)
+                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true)
                 },
                 constraints: table =>
                 {

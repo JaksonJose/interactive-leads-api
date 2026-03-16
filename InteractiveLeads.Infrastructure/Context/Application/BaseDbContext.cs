@@ -50,6 +50,9 @@ namespace InteractiveLeads.Infrastructure.Context.Application
 
             builder.ApplyConfigurationsFromAssembly(GetType().Assembly);
 
+            // Roles are global (same for all tenants): always read roles with TenantId == null so no duplication per tenant.
+            builder.Entity<ApplicationRole>().HasQueryFilter(r => EF.Property<string>(r, "TenantId") == null);
+
             // Pure RBAC: do not map role claims to any table (no RoleClaims table).
             builder.Ignore<IdentityRoleClaim<Guid>>();
         }
