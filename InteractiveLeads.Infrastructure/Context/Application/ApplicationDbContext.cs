@@ -17,11 +17,14 @@ namespace InteractiveLeads.Infrastructure.Context.Application
 
         public DbSet<Tenant> Tenants { get; set; }
         public DbSet<Company> Companies { get; set; }
+        public DbSet<Inbox> Inboxes { get; set; }
+        public DbSet<InboxMember> InboxMembers { get; set; }
         public DbSet<Integration> Integrations { get; set; }
         public DbSet<Contact> Contacts { get; set; }
         public DbSet<ContactChannel> ContactChannels { get; set; }
         public DbSet<Conversation> Conversations { get; set; }
         public DbSet<ConversationParticipant> ConversationParticipants { get; set; }
+        public DbSet<ConversationAssignment> ConversationAssignments { get; set; }
         public DbSet<Message> Messages { get; set; }
         public DbSet<MessageMedia> MessageMedia { get; set; }
         public DbSet<MessageReaction> MessageReactions { get; set; }

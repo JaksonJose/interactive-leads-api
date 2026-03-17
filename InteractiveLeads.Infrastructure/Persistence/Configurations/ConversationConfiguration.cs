@@ -16,6 +16,13 @@ public class ConversationConfiguration : IEntityTypeConfiguration<Conversation>
         builder.Property(c => c.Status)
             .IsRequired();
 
+        builder.Property(c => c.AssignedAt)
+            .HasColumnType("timestamp with time zone");
+
+        builder.Property(c => c.Priority)
+            .HasDefaultValue(0)
+            .IsRequired();
+
         builder.Property(c => c.LastMessageAt)
             .HasColumnType("timestamp with time zone")
             .IsRequired();
@@ -34,8 +41,20 @@ public class ConversationConfiguration : IEntityTypeConfiguration<Conversation>
         builder.HasIndex(c => c.IntegrationId)
             .HasDatabaseName("IX_Conversation_IntegrationId");
 
+        builder.HasIndex(c => c.InboxId)
+            .HasDatabaseName("IX_Conversation_InboxId");
+
         builder.HasIndex(c => c.AssignedAgentId)
             .HasDatabaseName("IX_Conversation_AssignedAgentId");
+
+        builder.HasIndex(c => c.Status)
+            .HasDatabaseName("IX_Conversation_Status");
+
+        builder.HasIndex(c => c.Priority)
+            .HasDatabaseName("IX_Conversation_Priority");
+
+        builder.HasIndex(c => c.LastMessageAt)
+            .HasDatabaseName("IX_Conversation_LastMessageAt");
 
         builder.HasOne(c => c.Company)
             .WithMany(co => co.Conversations)
@@ -50,6 +69,16 @@ public class ConversationConfiguration : IEntityTypeConfiguration<Conversation>
         builder.HasOne(c => c.Integration)
             .WithMany(i => i.Conversations)
             .HasForeignKey(c => c.IntegrationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(c => c.Inbox)
+            .WithMany(i => i.Conversations)
+            .HasForeignKey(c => c.InboxId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(c => c.Assignments)
+            .WithOne(a => a.Conversation)
+            .HasForeignKey(a => a.ConversationId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasMany(c => c.Messages)
