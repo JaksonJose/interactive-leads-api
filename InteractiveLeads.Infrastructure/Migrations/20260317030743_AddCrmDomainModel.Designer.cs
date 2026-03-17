@@ -3,6 +3,7 @@ using System;
 using InteractiveLeads.Infrastructure.Context.Application;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace InteractiveLeads.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260317030743_AddCrmDomainModel")]
+    partial class AddCrmDomainModel
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -184,61 +187,6 @@ namespace InteractiveLeads.Infrastructure.Migrations
                         .HasDatabaseName("IX_Conversation_IntegrationId");
 
                     b.ToTable("Conversation", "Crm");
-                });
-
-            modelBuilder.Entity("InteractiveLeads.Domain.Entities.ConversationParticipant", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ContactId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ConversationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTimeOffset>("JoinedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("LeftAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Role")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("UserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("character varying(450)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ContactId")
-                        .HasDatabaseName("IX_ConversationParticipant_ContactId");
-
-                    b.HasIndex("ConversationId")
-                        .HasDatabaseName("IX_ConversationParticipant_ConversationId");
-
-                    b.HasIndex("IsActive")
-                        .HasDatabaseName("IX_ConversationParticipant_IsActive");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("IX_ConversationParticipant_UserId");
-
-                    b.HasIndex("ConversationId", "ContactId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ConversationParticipant_ConversationId_ContactId_Active")
-                        .HasFilter("\"IsActive\" = true AND \"ContactId\" IS NOT NULL");
-
-                    b.HasIndex("ConversationId", "UserId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ConversationParticipant_ConversationId_UserId_Active")
-                        .HasFilter("\"IsActive\" = true AND \"UserId\" IS NOT NULL");
-
-                    b.ToTable("ConversationParticipant", "Crm");
                 });
 
             modelBuilder.Entity("InteractiveLeads.Domain.Entities.Integration", b =>
@@ -859,24 +807,6 @@ namespace InteractiveLeads.Infrastructure.Migrations
                     b.Navigation("Integration");
                 });
 
-            modelBuilder.Entity("InteractiveLeads.Domain.Entities.ConversationParticipant", b =>
-                {
-                    b.HasOne("InteractiveLeads.Domain.Entities.Contact", "Contact")
-                        .WithMany()
-                        .HasForeignKey("ContactId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("InteractiveLeads.Domain.Entities.Conversation", "Conversation")
-                        .WithMany("Participants")
-                        .HasForeignKey("ConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Contact");
-
-                    b.Navigation("Conversation");
-                });
-
             modelBuilder.Entity("InteractiveLeads.Domain.Entities.Integration", b =>
                 {
                     b.HasOne("InteractiveLeads.Domain.Entities.Company", "Company")
@@ -1011,8 +941,6 @@ namespace InteractiveLeads.Infrastructure.Migrations
             modelBuilder.Entity("InteractiveLeads.Domain.Entities.Conversation", b =>
                 {
                     b.Navigation("Messages");
-
-                    b.Navigation("Participants");
                 });
 
             modelBuilder.Entity("InteractiveLeads.Domain.Entities.Integration", b =>

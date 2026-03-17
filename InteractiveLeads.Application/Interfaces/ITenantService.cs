@@ -1,5 +1,5 @@
 using InteractiveLeads.Application.Feature.Tenancy;
-using InteractiveLeads.Application.Models;
+using InteractiveLeads.Application.Requests;
 using InteractiveLeads.Application.Responses;
 
 namespace InteractiveLeads.Application.Interfaces
@@ -58,7 +58,7 @@ namespace InteractiveLeads.Application.Interfaces
         /// <param name="pagination">Pagination parameters for the query.</param>
         /// <param name="ct">Cancellation token for the async operation.</param>
         /// <returns>Paginated list of tenants.</returns>
-        Task<ListResponse<TenantResponse>> GetTenantsAsync(PaginationRequest pagination, CancellationToken ct);
+        Task<ListResponse<TenantResponse>> GetTenantsAsync(InquiryRequest pagination, CancellationToken ct);
 
         /// <summary>
         /// Retrieves a specific tenant by its identifier.

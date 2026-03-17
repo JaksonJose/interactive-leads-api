@@ -1,4 +1,6 @@
-namespace InteractiveLeads.Application.Models
+using InteractiveLeads.Application.Requests.Enums;
+
+namespace InteractiveLeads.Application.Requests
 {
     /// <summary>
     /// Request model for list pagination.
@@ -6,7 +8,7 @@ namespace InteractiveLeads.Application.Models
     /// <remarks>
     /// Used to control pagination of results in endpoints that return lists.
     /// </remarks>
-    public sealed class PaginationRequest
+    public sealed class InquiryRequest
     {
         /// <summary>
         /// Page number to be returned (1-based).
@@ -24,6 +26,27 @@ namespace InteractiveLeads.Application.Models
         /// Maximum value: 100
         /// </remarks>
         public int PageSize { get; set; } = 10;
+
+        /// <summary>
+        /// Optional sort field name (e.g. name, email, expirationDate, isActive).
+        /// Must match a valid column; ignored if null or empty.
+        /// </summary>
+        public string? SortBy { get; set; }
+
+        /// <summary>
+        /// Sort direction. Used only when <see cref="SortBy"/> is set.
+        /// </summary>
+        public SortDirection SortOrder { get; set; } = SortDirection.Ascending;
+
+        /// <summary>
+        /// Optional column filters (advanced filter). Applied when non-null and non-empty.
+        /// </summary>
+        public List<ColumnFilterRequest>? Filters { get; set; }
+
+        /// <summary>
+        /// Operator between filter constraints: "and" (match all) or "or" (match any). Default: and.
+        /// </summary>
+        public string? FilterOperator { get; set; }
 
         /// <summary>
         /// Calculates the number of items to skip based on the current page.

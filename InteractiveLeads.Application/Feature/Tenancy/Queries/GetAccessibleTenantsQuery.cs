@@ -1,6 +1,6 @@
 using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Interfaces;
-using InteractiveLeads.Application.Models;
+using InteractiveLeads.Application.Requests;
 using InteractiveLeads.Application.Responses;
 using MediatR;
 
@@ -18,7 +18,7 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Queries
         /// <summary>
         /// Gets or sets the pagination parameters for the query.
         /// </summary>
-        public PaginationRequest Pagination { get; set; } = new();
+        public InquiryRequest Pagination { get; set; } = new();
     }
 
     /// <summary>

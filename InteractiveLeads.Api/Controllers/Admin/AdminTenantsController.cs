@@ -4,7 +4,7 @@ using InteractiveLeads.Application.Feature.Tenancy;
 using InteractiveLeads.Application.Feature.Tenancy.Commands;
 using InteractiveLeads.Application.Feature.Tenancy.Queries;
 using InteractiveLeads.Application.Interfaces;
-using InteractiveLeads.Application.Models;
+using InteractiveLeads.Application.Requests;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NSwag.Annotations;
@@ -24,13 +24,12 @@ namespace InteractiveLeads.Api.Controllers.Admin
             _tenantService = tenantService;
         }
 
-        /// <summary>List tenants accessible to the current user.</summary>
-        [HttpGet]
+        /// <summary>List tenants accessible to the current user. Accepts pagination and filters in body (POST for complex query).</summary>
+        [HttpPost("list")]
         [OpenApiOperation("List accessible tenants")]
-        public async Task<IActionResult> GetTenantsAsync(int pageNumber = 1, int pageSize = 50)
+        public async Task<IActionResult> GetTenantsAsync([FromBody] InquiryRequest request)
         {
-            var pagination = new PaginationRequest { Page = pageNumber, PageSize = pageSize };
-            var response = await Sender.Send(new GetAccessibleTenantsQuery { Pagination = pagination });
+            var response = await Sender.Send(new GetAccessibleTenantsQuery { Pagination = request ?? new InquiryRequest() });
             return Ok(response);
         }
 

@@ -4,7 +4,7 @@ using InteractiveLeads.Application.Constants;
 using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Tenancy;
 using InteractiveLeads.Application.Interfaces;
-using InteractiveLeads.Application.Models;
+using InteractiveLeads.Application.Requests;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Infrastructure.Constants;
 using InteractiveLeads.Infrastructure.Context.Application;
@@ -17,6 +17,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using System.Text.RegularExpressions;
+using InteractiveLeads.Application.Requests.Enums;
 
 namespace InteractiveLeads.Infrastructure.Tenancy
 {
@@ -246,17 +247,34 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             return response;
         }
 
-        public async Task<ListResponse<TenantResponse>> GetTenantsAsync(PaginationRequest pagination, CancellationToken ct)
+        public async Task<ListResponse<TenantResponse>> GetTenantsAsync(InquiryRequest pagination, CancellationToken ct)
         {
             if (!pagination.IsValid())
             {
-                pagination = new PaginationRequest();
+                pagination = new InquiryRequest();
             }
 
-            var totalTenants = await _tenantDbContext.TenantInfo.CountAsync(ct);
+            var query = _tenantDbContext.TenantInfo.AsQueryable();
 
-            var paginatedTenants = await _tenantDbContext.TenantInfo
-                .OrderBy(t => t.Name)
+            query = TenantFilterExpressionBuilder.ApplyFilters(query, pagination.Filters, pagination.FilterOperator);
+
+            var sortBy = string.IsNullOrWhiteSpace(pagination.SortBy) ? "name" : pagination.SortBy.Trim();
+            var ascending = pagination.SortOrder == SortDirection.Ascending;
+
+            query = sortBy.ToLowerInvariant() switch
+            {
+                "name" => ascending ? query.OrderBy(t => t.Name) : query.OrderByDescending(t => t.Name),
+                "email" => ascending ? query.OrderBy(t => t.Email) : query.OrderByDescending(t => t.Email),
+                "firstname" => ascending ? query.OrderBy(t => t.FirstName) : query.OrderByDescending(t => t.FirstName),
+                "lastname" => ascending ? query.OrderBy(t => t.LastName) : query.OrderByDescending(t => t.LastName),
+                "expirationdate" => ascending ? query.OrderBy(t => t.ExpirationDate) : query.OrderByDescending(t => t.ExpirationDate),
+                "isactive" => ascending ? query.OrderBy(t => t.IsActive) : query.OrderByDescending(t => t.IsActive),
+                _ => query.OrderBy(t => t.Name)
+            };
+
+            var totalTenants = await query.CountAsync(ct);
+
+            var paginatedTenants = await query
                 .Skip(pagination.CalculateSkip())
                 .Take(pagination.PageSize)
                 .ToListAsync(ct);
