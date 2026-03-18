@@ -9,6 +9,7 @@ public sealed class InboxMemberDto
     public string UserId { get; set; } = string.Empty;
     public InboxMemberRole? Role { get; set; }
     public bool IsActive { get; set; }
+    public bool CanBeAssigned { get; set; }
     public DateTimeOffset JoinedAt { get; set; }
 }
 

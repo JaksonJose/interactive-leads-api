@@ -50,6 +50,11 @@ public sealed class CreateInboxCommandHandler(
             throw new NotFoundException(response);
         }
 
+        var companyName = await db.Companies
+            .Where(c => c.Id == companyId)
+            .Select(c => c.Name)
+            .SingleOrDefaultAsync(cancellationToken) ?? string.Empty;
+
         var name = (request.CreateInbox?.Name ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -81,6 +86,7 @@ public sealed class CreateInboxCommandHandler(
         {
             Id = inbox.Id,
             Name = inbox.Name,
+            CompanyName = companyName,
             IsActive = inbox.IsActive,
             CreatedAt = inbox.CreatedAt
         });

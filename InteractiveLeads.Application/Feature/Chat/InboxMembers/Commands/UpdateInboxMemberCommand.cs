@@ -45,6 +45,8 @@ public sealed class UpdateInboxMemberCommandHandler(
 
         member.Role = request.UpdateInboxMember?.Role;
         member.IsActive = request.UpdateInboxMember?.IsActive ?? member.IsActive;
+        if (request.UpdateInboxMember?.CanBeAssigned != null)
+            member.CanBeAssigned = request.UpdateInboxMember.CanBeAssigned.Value;
 
         await db.SaveChangesAsync(cancellationToken);
 
@@ -55,6 +57,7 @@ public sealed class UpdateInboxMemberCommandHandler(
             UserId = member.UserId,
             Role = member.Role,
             IsActive = member.IsActive,
+            CanBeAssigned = member.CanBeAssigned,
             JoinedAt = member.JoinedAt
         });
     }

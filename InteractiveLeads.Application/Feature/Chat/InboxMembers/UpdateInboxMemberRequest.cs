@@ -6,5 +6,6 @@ public sealed class UpdateInboxMemberRequest
 {
     public InboxMemberRole? Role { get; set; }
     public bool IsActive { get; set; }
+    public bool? CanBeAssigned { get; set; }
 }
 

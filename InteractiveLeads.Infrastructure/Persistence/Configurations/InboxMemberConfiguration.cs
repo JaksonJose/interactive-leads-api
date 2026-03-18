@@ -19,6 +19,10 @@ public class InboxMemberConfiguration : IEntityTypeConfiguration<InboxMember>
         builder.Property(m => m.IsActive)
             .IsRequired();
 
+        builder.Property(m => m.CanBeAssigned)
+            .IsRequired()
+            .HasDefaultValue(true);
+
         builder.Property(m => m.JoinedAt)
             .HasColumnType("timestamp with time zone")
             .HasDefaultValueSql("now() at time zone 'utc'")

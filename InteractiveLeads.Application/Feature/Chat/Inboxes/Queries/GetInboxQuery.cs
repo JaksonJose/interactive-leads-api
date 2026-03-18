@@ -49,6 +49,11 @@ public sealed class GetInboxQueryHandler(
             throw new NotFoundException(response);
         }
 
+        var companyName = await db.Companies
+            .Where(c => c.Id == companyId)
+            .Select(c => c.Name)
+            .SingleOrDefaultAsync(cancellationToken) ?? string.Empty;
+
         var inbox = await db.Inboxes
             .AsNoTracking()
             .Where(i => i.Id == request.InboxId && i.CompanyId == companyId)
@@ -56,6 +61,7 @@ public sealed class GetInboxQueryHandler(
             {
                 Id = i.Id,
                 Name = i.Name,
+                CompanyName = companyName,
                 IsActive = i.IsActive,
                 CreatedAt = i.CreatedAt
             })

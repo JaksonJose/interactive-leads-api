@@ -45,6 +45,11 @@ public sealed class ListInboxesQueryHandler(
                 .AddErrorMessage("Company not found for current tenant.", "general.not_found");
         }
 
+        var companyName = await db.Companies
+            .Where(c => c.Id == companyId)
+            .Select(c => c.Name)
+            .SingleOrDefaultAsync(cancellationToken) ?? string.Empty;
+
         var isAgent = currentUserService.IsInRole("Agent");
         var userId = currentUserService.GetUserId();
 
@@ -69,6 +74,7 @@ public sealed class ListInboxesQueryHandler(
             {
                 Id = i.Id,
                 Name = i.Name,
+                CompanyName = companyName,
                 IsActive = i.IsActive,
                 CreatedAt = i.CreatedAt
             })

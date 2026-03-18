@@ -32,6 +32,7 @@ public sealed class ListInboxMembersQueryHandler(
                 UserId = m.UserId,
                 Role = m.Role,
                 IsActive = m.IsActive,
+                CanBeAssigned = m.CanBeAssigned,
                 JoinedAt = m.JoinedAt
             })
             .ToListAsync(cancellationToken);

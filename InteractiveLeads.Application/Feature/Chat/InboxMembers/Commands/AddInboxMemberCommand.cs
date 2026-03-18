@@ -49,6 +49,7 @@ public sealed class AddInboxMemberCommandHandler(
         {
             existing.IsActive = request.AddInboxMember?.IsActive ?? true;
             existing.Role = request.AddInboxMember?.Role;
+            existing.CanBeAssigned = request.AddInboxMember?.CanBeAssigned ?? true;
             if (existing.JoinedAt == default)
                 existing.JoinedAt = DateTimeOffset.UtcNow;
 
@@ -61,6 +62,7 @@ public sealed class AddInboxMemberCommandHandler(
                 UserId = existing.UserId,
                 Role = existing.Role,
                 IsActive = existing.IsActive,
+                CanBeAssigned = existing.CanBeAssigned,
                 JoinedAt = existing.JoinedAt
             });
         }
@@ -72,6 +74,7 @@ public sealed class AddInboxMemberCommandHandler(
             UserId = userId,
             Role = request.AddInboxMember?.Role,
             IsActive = request.AddInboxMember?.IsActive ?? true,
+            CanBeAssigned = request.AddInboxMember?.CanBeAssigned ?? true,
             JoinedAt = DateTimeOffset.UtcNow
         };
 
@@ -85,6 +88,7 @@ public sealed class AddInboxMemberCommandHandler(
             UserId = member.UserId,
             Role = member.Role,
             IsActive = member.IsActive,
+            CanBeAssigned = member.CanBeAssigned,
             JoinedAt = member.JoinedAt
         });
     }

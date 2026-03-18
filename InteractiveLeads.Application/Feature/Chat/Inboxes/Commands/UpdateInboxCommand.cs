@@ -50,6 +50,11 @@ public sealed class UpdateInboxCommandHandler(
             throw new NotFoundException(response);
         }
 
+        var companyName = await db.Companies
+            .Where(c => c.Id == companyId)
+            .Select(c => c.Name)
+            .SingleOrDefaultAsync(cancellationToken) ?? string.Empty;
+
         var inbox = await db.Inboxes
             .Where(i => i.Id == request.InboxId && i.CompanyId == companyId)
             .SingleOrDefaultAsync(cancellationToken);
@@ -85,6 +90,7 @@ public sealed class UpdateInboxCommandHandler(
         {
             Id = inbox.Id,
             Name = inbox.Name,
+            CompanyName = companyName,
             IsActive = inbox.IsActive,
             CreatedAt = inbox.CreatedAt
         });

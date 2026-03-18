@@ -7,5 +7,6 @@ public sealed class AddInboxMemberRequest
     public string UserId { get; set; } = string.Empty;
     public InboxMemberRole? Role { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool CanBeAssigned { get; set; } = true;
 }
 
