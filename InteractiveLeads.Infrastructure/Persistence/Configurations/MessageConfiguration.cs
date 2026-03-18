@@ -33,6 +33,10 @@ public class MessageConfiguration : IEntityTypeConfiguration<Message>
         builder.HasIndex(m => m.ConversationId)
             .HasDatabaseName("IX_Message_ConversationId");
 
+        builder.HasIndex(m => m.ExternalMessageId)
+            .IsUnique()
+            .HasDatabaseName("UX_Message_ExternalMessageId");
+
         builder.HasIndex(m => m.SenderUserId)
             .HasDatabaseName("IX_Message_SenderUserId");
 
