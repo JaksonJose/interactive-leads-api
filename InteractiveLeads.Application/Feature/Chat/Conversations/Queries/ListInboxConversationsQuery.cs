@@ -59,7 +59,8 @@ public sealed class ListInboxConversationsQueryHandler(
 
 public sealed class PagedInboxConversationsQueryHandler(
     IApplicationDbContext db,
-    ICurrentUserService currentUserService) : IRequestHandler<PagedInboxConversationsQuery, IResponse>
+    ICurrentUserService currentUserService,
+    IUserSummaryLookupService userSummaryLookup) : IRequestHandler<PagedInboxConversationsQuery, IResponse>
 {
     public async Task<IResponse> Handle(PagedInboxConversationsQuery request, CancellationToken cancellationToken)
     {
@@ -97,11 +98,33 @@ public sealed class PagedInboxConversationsQueryHandler(
                     .Select(m => m.Content)
                     .FirstOrDefault() ?? string.Empty,
                 LastMessageAt = c.LastMessageAt,
+                CreatedAt = c.CreatedAt,
                 InboxName = c.Inbox.Name,
                 Status = c.Status,
                 AssignedAgentId = c.AssignedAgentId
             })
             .ToListAsync(cancellationToken);
+
+        if (items.Count > 0)
+        {
+            var assignedUserIds = items
+                .Where(i => i.AssignedAgentId.HasValue)
+                .Select(i => i.AssignedAgentId!.Value.ToString())
+                .Distinct()
+                .ToList();
+
+            if (assignedUserIds.Count > 0)
+            {
+                var summaries = await userSummaryLookup.GetSummariesByIdsAsync(assignedUserIds, cancellationToken);
+                foreach (var item in items)
+                {
+                    if (!item.AssignedAgentId.HasValue) continue;
+                    var key = item.AssignedAgentId.Value.ToString();
+                    if (!summaries.TryGetValue(key, out var summary)) continue;
+                    item.AssignedAgentName = summary.DisplayName;
+                }
+            }
+        }
 
         var hasMore = items.Count > pageSize;
         if (hasMore)
