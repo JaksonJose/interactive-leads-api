@@ -25,6 +25,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
         private readonly IMultiTenantContextAccessor<InteractiveTenantInfo> _tenantContextAccessor;
         private readonly ISubscriptionPlanService _subscriptionPlanService;
         private readonly SysAdminSeedSettings _sysAdminSeed;
+        private readonly ICurrentUserService _currentUserService;
 
         public UserService(
             UserManager<ApplicationUser> userManager,
@@ -32,7 +33,8 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
             ApplicationDbContext context,
             IMultiTenantContextAccessor<InteractiveTenantInfo> tenantContextAccessor,
             ISubscriptionPlanService subscriptionPlanService,
-            IOptions<SysAdminSeedSettings> sysAdminSeed)
+            IOptions<SysAdminSeedSettings> sysAdminSeed,
+            ICurrentUserService currentUserService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
@@ -40,11 +42,13 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
             _tenantContextAccessor = tenantContextAccessor;
             _subscriptionPlanService = subscriptionPlanService;
             _sysAdminSeed = sysAdminSeed.Value;
+            _currentUserService = currentUserService;
         }
 
         public async Task<ResultResponse> ActivateOrDeactivateAsync(Guid userId, bool activation)
         {
             var userInDb = await GetUserAsync(userId);
+            await EnsureManagerCannotAccessOwnerAsync(userInDb);
 
             userInDb.IsActive = activation;
 
@@ -69,6 +73,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
         public async Task<ResultResponse> AssignRolesAsync(Guid userId, UserRolesRequest request)
         {
             var userInDb = await GetUserAsync(userId);
+            await EnsureManagerCannotAccessOwnerAsync(userInDb);
 
             if (await _userManager.IsInRoleAsync(userInDb, RoleConstants.SysAdmin)
                 && request.UserRoles.Any(ur => !ur.IsAssigned && ur.Name == RoleConstants.SysAdmin))
@@ -444,6 +449,14 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
                     userResponse.Roles = roles.ToList();
                 }
             }
+
+            // Manager can use consultants feature, but must not see Owner users.
+            if (IsManagerWithoutOwnerPrivileges())
+            {
+                userResponses = userResponses
+                    .Where(u => u.Roles == null || !u.Roles.Contains(RoleConstants.Owner))
+                    .ToList();
+            }
             
             var response = new ListResponse<UserResponse>(userResponses, userResponses.Count);
 
@@ -453,6 +466,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
         public async Task<SingleResponse<UserResponse>> GetByIdAsync(Guid userId, CancellationToken ct)
         {
             var userInDb = await GetUserAsync(userId);
+            await EnsureManagerCannotAccessOwnerAsync(userInDb);
 
             var userResponse = userInDb.Adapt<UserResponse>();
             
@@ -515,6 +529,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
         public async Task<ResultResponse> UpdateAsync(UpdateUserRequest request)
         {
             var userInDb = await GetUserAsync(request.Id);
+            await EnsureManagerCannotAccessOwnerAsync(userInDb);
 
             userInDb.FirstName = request.FirstName;
             userInDb.LastName = request.LastName;
@@ -615,6 +630,26 @@ namespace InteractiveLeads.Infrastructure.Identity.Users
             var response = new ResultResponse();
             response.AddSuccessMessage("User updated successfully", "user.updated_successfully");
             return response;
+        }
+
+        private bool IsManagerWithoutOwnerPrivileges()
+        {
+            return _currentUserService.IsInRole(RoleConstants.Manager)
+                   && !_currentUserService.IsInRole(RoleConstants.Owner);
+        }
+
+        private async Task EnsureManagerCannotAccessOwnerAsync(ApplicationUser targetUser)
+        {
+            if (!IsManagerWithoutOwnerPrivileges())
+                return;
+
+            var isOwner = await _userManager.IsInRoleAsync(targetUser, RoleConstants.Owner);
+            if (!isOwner)
+                return;
+
+            var forbidden = new ResultResponse();
+            forbidden.AddErrorMessage("Managers are not allowed to access Owner users.", "user.manager_cannot_access_owner");
+            throw new ForbiddenException(forbidden);
         }
 
         private async Task<ApplicationUser> GetUserAsync(Guid userId)
