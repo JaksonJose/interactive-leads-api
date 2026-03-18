@@ -1,6 +1,7 @@
 using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
+using InteractiveLeads.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Chat;
@@ -79,6 +80,26 @@ internal static class ChatContext
             response.AddErrorMessage("You are not authorized to access this inbox.", "general.access_denied");
             throw new ForbiddenException(response);
         }
+    }
+
+    public static IQueryable<Conversation> ApplyConversationAccessFilter(
+        IApplicationDbContext db,
+        ICurrentUserService currentUserService,
+        Guid companyId,
+        IQueryable<Conversation> query)
+    {
+        query = query.Where(c => c.CompanyId == companyId);
+
+        if (!currentUserService.IsInRole("Agent"))
+            return query;
+
+        var userId = currentUserService.GetUserId();
+
+        return query.Where(c =>
+            db.InboxMembers.Any(m =>
+                m.InboxId == c.InboxId &&
+                m.UserId == userId &&
+                m.IsActive));
     }
 }
 

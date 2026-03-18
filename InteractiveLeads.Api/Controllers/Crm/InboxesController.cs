@@ -23,6 +23,17 @@ public sealed class InboxesController : BaseApiController
         return Ok(response);
     }
 
+    /// <summary>
+    /// List inboxes available to the current user for chat filters, returning only id and name.
+    /// </summary>
+    [HttpGet("/api/inboxes")]
+    [OpenApiOperation("List available inboxes for chat filters")]
+    public async Task<IActionResult> ListForChatAsync()
+    {
+        var response = await Sender.Send(new ListInboxesQuery { IncludeInactive = false });
+        return Ok(response);
+    }
+
     /// <summary>Get an inbox by id (Agent must be an active member).</summary>
     [HttpGet("{inboxId:guid}")]
     [OpenApiOperation("Get inbox by id")]
