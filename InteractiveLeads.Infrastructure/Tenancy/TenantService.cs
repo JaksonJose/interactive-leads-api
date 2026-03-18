@@ -16,7 +16,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using System.Text.RegularExpressions;
 using InteractiveLeads.Application.Requests.Enums;
 
 namespace InteractiveLeads.Infrastructure.Tenancy
@@ -69,8 +68,8 @@ namespace InteractiveLeads.Infrastructure.Tenancy
 
         public async Task<ResultResponse> CreateTenantAsync(CreateTenantRequest createTenantRequest, CancellationToken ct)
         {
-            // Generate unique identifier based on company name
-            string uniqueIdentifier = await GenerateUniqueTenantIdentifier(createTenantRequest.Name);
+            // Option A: use GUID string as tenant id/identifier (no header-based routing needed).
+            string uniqueIdentifier = Guid.NewGuid().ToString("N");
 
             // 1) Cria tenant e subscription no banco de multitenancy dentro de transação local.
             var newTenant = new InteractiveTenantInfo
@@ -183,6 +182,22 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             }
             catch
             {
+                // Best-effort cleanup for isolated tenants: if the tenant uses its own database, drop it to avoid orphan data.
+                // For shared DB tenants (ConnectionString null/empty), do NOT attempt deletion.
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(newTenant.ConnectionString))
+                    {
+                        var scopedProvider = scope.ServiceProvider;
+                        var tenantDb = scopedProvider.GetRequiredService<ApplicationDbContext>();
+                        await tenantDb.Database.EnsureDeletedAsync(ct);
+                    }
+                }
+                catch
+                {
+                    // Ignore cleanup failures; compensation below (tenant store) is still required.
+                }
+
                 // 3) Compensação: se falhar ao criar o usuário no banco isolado,
                 // remove tenant e subscriptions recém-criados no banco de multitenancy.
                 await using var cleanupScope = _serviceProvider.CreateAsyncScope();
@@ -808,65 +823,5 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             return response;
         }
 
-        /// <summary>
-        /// Generates a unique identifier for the tenant based on the company name.
-        /// Combines the name slug with a unique identifier (GUID or number) to ensure uniqueness.
-        /// </summary>
-        /// <param name="companyName">Company name</param>
-        /// <returns>Unique identifier for the tenant</returns>
-        private async Task<string> GenerateUniqueTenantIdentifier(string companyName)
-        {
-            // Generate slug based on company name
-            string baseSlug = GenerateSlugFromCompanyName(companyName);
-
-            return await GenerateUniqueIdentifier(baseSlug);
-        }
-
-        /// <summary>
-        /// Converts the company name into a valid slug for identifier.
-        /// Takes only the first word of the company name for simplicity.
-        /// </summary>
-        /// <param name="companyName">Company name</param>
-        /// <returns>Slug generated from the first word</returns>
-        private static string GenerateSlugFromCompanyName(string companyName)
-        {
-            // Get the first word of the company name
-            string firstWord = companyName
-                .ToLowerInvariant()
-                .Trim()
-                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                .First();
-
-            // Clean up the first word - keep only letters and numbers
-            string cleaned = Regex.Replace(firstWord, @"[^a-z0-9]", "");
-            
-            // Limit size to 20 characters (leaving room for timestamp)
-            return cleaned.Length > 20 ? cleaned.Substring(0, 20) : cleaned;
-        }
-
-        /// <summary>
-        /// Generates a unique identifier by adding a Unix timestamp suffix to the base slug.
-        /// Uses milliseconds for maximum uniqueness and collision avoidance.
-        /// </summary>
-        /// <param name="baseSlug">Base slug</param>
-        /// <returns>Unique identifier</returns>
-        private async Task<string> GenerateUniqueIdentifier(string baseSlug)
-        {
-            // Use Unix timestamp in milliseconds for maximum uniqueness
-            long unixTimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            string identifierWithTimestamp = $"{baseSlug}-{unixTimestampMs}";
-            
-            // Verify uniqueness (practically impossible to conflict with millisecond precision)
-            var existingTenant = await _tenantStore.TryGetAsync(identifierWithTimestamp);
-            if (existingTenant == null)
-            {
-                return identifierWithTimestamp;
-            }
-
-            // If somehow there's a conflict (extremely rare), add a small random number
-            // This should never happen with millisecond precision, but provides extra safety
-            int randomSuffix = new Random().Next(100, 999);
-            return $"{baseSlug}-{unixTimestampMs}-{randomSuffix}";
-        }
     }
 }

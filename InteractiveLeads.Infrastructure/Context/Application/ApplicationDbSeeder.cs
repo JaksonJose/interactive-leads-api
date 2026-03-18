@@ -1,4 +1,5 @@
 using Finbuckle.MultiTenant.Abstractions;
+using InteractiveLeads.Domain.Entities;
 using InteractiveLeads.Infrastructure.Configuration;
 using InteractiveLeads.Infrastructure.Constants;
 using InteractiveLeads.Infrastructure.Identity.Models;
@@ -18,6 +19,8 @@ namespace InteractiveLeads.Infrastructure.Context.Application
         RoleSeeder roleSeeder,
         IOptions<SysAdminSeedSettings> sysAdminSeed)
     {
+        private const string DefaultInboxName = "Geral";
+
         private readonly IMultiTenantContextAccessor<InteractiveTenantInfo> _tenantInfoContextAccessor = tenantInfoContextAccessor;
         private readonly RoleManager<ApplicationRole> _roleManager = roleManager;
         private readonly UserManager<ApplicationUser> _userManager = userManager;
@@ -41,7 +44,19 @@ namespace InteractiveLeads.Infrastructure.Context.Application
                     await _roleSeeder.SeedRolesAsync(cancellationToken);
 
                     await InitializeAdminUserAsync();
-                    await InitializeTenantOwnerAsync();
+
+                    // In tenant-context, ensure tenant bootstrap is atomic (important for shared DB).
+                    if (tenantInfo?.Id != null)
+                    {
+                        var executionStrategy = _applicationDbContext.Database.CreateExecutionStrategy();
+                        await executionStrategy.ExecuteAsync(async () =>
+                        {
+                            await using var tx = await _applicationDbContext.Database.BeginTransactionAsync(cancellationToken);
+                            await InitializeTenantOwnerAsync();
+                            await InitializeCrmDefaultsAsync(cancellationToken);
+                            await tx.CommitAsync(cancellationToken);
+                        });
+                    }
                 }
             }
         }
@@ -135,6 +150,62 @@ namespace InteractiveLeads.Infrastructure.Context.Application
             incomingUser.PasswordHash = passwordHash.HashPassword(incomingUser, temporaryPassword);
             await _userManager.CreateAsync(incomingUser);
             await _userManager.AddToRoleAsync(incomingUser, RoleConstants.Owner);
+        }
+
+        private async Task InitializeCrmDefaultsAsync(CancellationToken cancellationToken)
+        {
+            var tenantInfo = _tenantInfoContextAccessor.MultiTenantContext.TenantInfo;
+            bool isTenantContext = tenantInfo?.Id != null;
+            if (!isTenantContext)
+                return;
+
+            // 1) Ensure Crm.Tenant exists (Identifier == Finbuckle tenant identifier).
+            var crmTenant = await _applicationDbContext.Tenants
+                .FirstOrDefaultAsync(t => t.Identifier == tenantInfo!.Id, cancellationToken);
+
+            if (crmTenant == null)
+            {
+                crmTenant = new Tenant
+                {
+                    Id = Guid.NewGuid(),
+                    Name = tenantInfo!.Name ?? string.Empty,
+                    Identifier = tenantInfo.Id
+                };
+                _applicationDbContext.Tenants.Add(crmTenant);
+                await _applicationDbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            // 2) Ensure a default Company exists for this tenant.
+            var company = await _applicationDbContext.Companies
+                .FirstOrDefaultAsync(c => c.TenantId == crmTenant.Id, cancellationToken);
+
+            if (company == null)
+            {
+                company = new Company
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = crmTenant.Id,
+                    Name = tenantInfo!.Name ?? string.Empty
+                };
+                _applicationDbContext.Companies.Add(company);
+                await _applicationDbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            // 3) Ensure one default active Inbox exists for the company.
+            var hasAnyInbox = await _applicationDbContext.Inboxes
+                .AnyAsync(i => i.CompanyId == company.Id, cancellationToken);
+
+            if (!hasAnyInbox)
+            {
+                _applicationDbContext.Inboxes.Add(new Inbox
+                {
+                    Id = Guid.NewGuid(),
+                    CompanyId = company.Id,
+                    Name = DefaultInboxName,
+                    IsActive = true
+                });
+                await _applicationDbContext.SaveChangesAsync(cancellationToken);
+            }
         }
     }
 }

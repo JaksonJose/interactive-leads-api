@@ -1,4 +1,5 @@
 using Finbuckle.MultiTenant.Abstractions;
+using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Domain.Entities;
 using InteractiveLeads.Infrastructure.Identity.Models;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
@@ -6,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Infrastructure.Context.Application
 {
-    public class ApplicationDbContext : BaseDbContext
+    public class ApplicationDbContext : BaseDbContext, IApplicationDbContext
     {
         public ApplicationDbContext(
             IMultiTenantContextAccessor<InteractiveTenantInfo> tenantContextAccessor,
@@ -25,6 +26,7 @@ namespace InteractiveLeads.Infrastructure.Context.Application
         public DbSet<Conversation> Conversations { get; set; }
         public DbSet<ConversationParticipant> ConversationParticipants { get; set; }
         public DbSet<ConversationAssignment> ConversationAssignments { get; set; }
+        public DbSet<ConversationInboxMovement> ConversationInboxMovements { get; set; }
         public DbSet<Message> Messages { get; set; }
         public DbSet<MessageMedia> MessageMedia { get; set; }
         public DbSet<MessageReaction> MessageReactions { get; set; }

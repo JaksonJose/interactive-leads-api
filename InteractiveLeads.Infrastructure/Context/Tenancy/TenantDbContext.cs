@@ -13,6 +13,7 @@ namespace InteractiveLeads.Infrastructure.Context.Tenancy
         public DbSet<PlanPrice> PlanPrices => Set<PlanPrice>();
         public DbSet<Subscription> Subscriptions => Set<Subscription>();
         public DbSet<ActivationTokenLookup> ActivationTokenLookups => Set<ActivationTokenLookup>();
+        public DbSet<IntegrationLookup> IntegrationLookups => Set<IntegrationLookup>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -76,6 +77,16 @@ namespace InteractiveLeads.Infrastructure.Context.Tenancy
                 b.HasIndex(e => e.Token).IsUnique();
                 b.Property(e => e.Token).HasMaxLength(512).IsRequired();
                 b.Property(e => e.TenantId).HasMaxLength(64).IsRequired();
+            });
+
+            modelBuilder.Entity<IntegrationLookup>(b =>
+            {
+                b.ToTable("IntegrationLookups", "Multitenancy");
+                b.HasKey(e => e.Id);
+                b.HasIndex(e => new { e.IntegrationType, e.ExternalIdentifier }).IsUnique();
+                b.HasIndex(e => e.IntegrationId).IsUnique();
+                b.Property(e => e.TenantId).HasMaxLength(64).IsRequired();
+                b.Property(e => e.ExternalIdentifier).HasMaxLength(256).IsRequired();
             });
         }
     }

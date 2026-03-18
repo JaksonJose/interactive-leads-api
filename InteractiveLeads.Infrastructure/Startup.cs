@@ -55,6 +55,7 @@ namespace InteractiveLeads.Infrastructure
             
             services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(config.GetConnectionString("DefaultConnection"),
                 npgsqlOptions => npgsqlOptions.EnableRetryOnFailure()));
+            services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
 
             services.AddMultiTenant<InteractiveTenantInfo>()
                 .WithStrategy<UserMappingLookupStrategy>(ServiceLifetime.Scoped)
@@ -81,6 +82,7 @@ namespace InteractiveLeads.Infrastructure
             services.AddScoped<IImpersonationService, ImpersonationService>();
             services.AddScoped<IActivationTokenRepository, ActivationTokenRepository>();
             services.AddScoped<IActivationTokenLookupRepository, ActivationTokenLookupRepository>();
+            services.AddScoped<IIntegrationExternalIdentifierLookupRepository, IntegrationLookupRepository>();
             services.AddScoped<IUserActivationService, UserActivationService>();
 
             // Register cross-tenant services

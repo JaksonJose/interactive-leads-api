@@ -11,9 +11,10 @@ using NSwag.Annotations;
 namespace InteractiveLeads.Api.Controllers.Owner
 {
     /// <summary>
-    /// Owner API: users and roles within the owner's tenant. Tenant is resolved from the current user context.
+    /// Owner/Manager API: users and roles within the tenant. Tenant is resolved from the current user context.
+    /// Owner and Manager can list, add, edit and manage consultants.
     /// </summary>
-    [Authorize(Roles = "Owner")]
+    [Authorize(Roles = "Owner,Manager")]
     public class OwnerConsultantsController : BaseApiController
     {
         private readonly ICurrentUserService _currentUserService;

@@ -50,10 +50,11 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
             var isSystemAdmin = await _authService.IsSystemAdminAsync(userId);
             var isSupportUser = await _authService.IsSupportUserAsync(userId);
             var isTenantOwner = await _authService.IsTenantOwnerAsync(userId);
+            var isTenantManager = await _authService.IsTenantManagerAsync(userId);
             var currentUserTenantId = _currentUserService.GetUserTenant() ?? string.Empty;
 
             var allowed = isSystemAdmin || isSupportUser
-                || (isTenantOwner && !string.IsNullOrEmpty(currentUserTenantId) && string.Equals(currentUserTenantId, request.TenantId, StringComparison.OrdinalIgnoreCase));
+                || ((isTenantOwner || isTenantManager) && !string.IsNullOrEmpty(currentUserTenantId) && string.Equals(currentUserTenantId, request.TenantId, StringComparison.OrdinalIgnoreCase));
 
             if (!allowed)
             {

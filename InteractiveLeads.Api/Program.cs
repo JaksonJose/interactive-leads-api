@@ -2,6 +2,7 @@ using InteractiveLeads.Api.Middleware;
 using InteractiveLeads.Application;
 using InteractiveLeads.Infrastructure;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +18,7 @@ builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: true));
     });
 
 builder.Services.AddInfraestructureServices(builder.Configuration);

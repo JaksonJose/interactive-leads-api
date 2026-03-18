@@ -1,5 +1,6 @@
-﻿using FluentValidation;
+using FluentValidation;
 using InteractiveLeads.Application.Pipelines;
+using InteractiveLeads.Application.Integrations.Settings;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
@@ -29,12 +30,17 @@ namespace InteractiveLeads.Application
         {
             var assembly = Assembly.GetExecutingAssembly();
 
-            return services.AddValidatorsFromAssembly(assembly)
+            services.AddValidatorsFromAssembly(assembly)
                 .AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationPipelineBenaviour<,>))
                 .AddMediatR(cfg =>
                 {
                     cfg.RegisterServicesFromAssemblies(assembly);
                 });
+
+            services.AddScoped<IIntegrationSettingsResolver, IntegrationSettingsResolver>();
+            services.AddScoped<IIntegrationExternalIdentifierResolver, IntegrationExternalIdentifierResolver>();
+
+            return services;
         }
     }
 }
