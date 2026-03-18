@@ -1,6 +1,8 @@
 using System.Text.Json;
 using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Chat;
+using InteractiveLeads.Application.Realtime.Models;
+using InteractiveLeads.Application.Realtime.Services;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Feature.Chat.Messages;
 using InteractiveLeads.Application.Responses;
@@ -20,7 +22,8 @@ public sealed class SendConversationMessageCommand : IRequest<IResponse>
 
 public sealed class SendConversationMessageCommandHandler(
     IApplicationDbContext db,
-    ICurrentUserService currentUserService) : IRequestHandler<SendConversationMessageCommand, IResponse>
+    ICurrentUserService currentUserService,
+    IRealtimeService realtimeService) : IRequestHandler<SendConversationMessageCommand, IResponse>
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -47,6 +50,7 @@ public sealed class SendConversationMessageCommandHandler(
         }
 
         var companyId = await ChatContext.GetCompanyIdAsync(db, currentUserService, cancellationToken);
+        var tenantId = currentUserService.GetUserTenant();
 
         var conversation = await db.Conversations
             .Include(c => c.Inbox)
@@ -90,11 +94,30 @@ public sealed class SendConversationMessageCommandHandler(
         // Deduplication: if the same outbound message was already created, only update conversation state.
         if (existingMessage != null)
         {
-            if (conversation.LastMessageAt < now)
+            var movedToTop = conversation.LastMessageAt < now;
+            if (movedToTop)
                 conversation.LastMessageAt = now;
 
             conversation.Status = ConversationStatus.Open;
             await db.SaveChangesAsync(cancellationToken);
+
+            if (movedToTop)
+            {
+                var movedEventDedup = new RealtimeEvent<ConversationMovedToTopPayloadDto>
+                {
+                    Type = "conversation.moved_to_top",
+                    TenantId = tenantId,
+                    Timestamp = DateTime.UtcNow,
+                    Payload = new ConversationMovedToTopPayloadDto
+                    {
+                        Id = conversation.Id,
+                        LastMessage = existingMessage.Content,
+                        LastMessageAt = conversation.LastMessageAt
+                    }
+                };
+
+                await realtimeService.SendToInboxAsync(conversation.InboxId.ToString(), movedEventDedup);
+            }
 
             return new SingleResponse<MessageListItemDto>(new MessageListItemDto
             {
@@ -126,12 +149,48 @@ public sealed class SendConversationMessageCommandHandler(
 
         db.Messages.Add(message);
 
-        if (conversation.LastMessageAt < now)
+        var movedToTopCreated = conversation.LastMessageAt < now;
+        if (movedToTopCreated)
             conversation.LastMessageAt = now;
 
         conversation.Status = ConversationStatus.Open;
 
         await db.SaveChangesAsync(cancellationToken);
+
+        var messageCreatedEvent = new RealtimeEvent<MessageCreatedPayloadDto>
+        {
+            Type = "message.created",
+            TenantId = tenantId,
+            Timestamp = DateTime.UtcNow,
+            Payload = new MessageCreatedPayloadDto
+            {
+                Id = message.Id,
+                ConversationId = message.ConversationId,
+                Text = message.Content,
+                SenderId = message.SenderUserId?.ToString(),
+                CreatedAt = message.CreatedAt
+            }
+        };
+
+        await realtimeService.SendToConversationAsync(conversation.Id.ToString(), messageCreatedEvent);
+
+        // Always notify the inbox list after we created a message.
+        // Even if `LastMessageAt` didn't strictly advance (timestamp equality), the card must update
+        // preview text and/or the date.
+        var movedEvent = new RealtimeEvent<ConversationMovedToTopPayloadDto>
+        {
+            Type = "conversation.moved_to_top",
+            TenantId = tenantId,
+            Timestamp = DateTime.UtcNow,
+            Payload = new ConversationMovedToTopPayloadDto
+            {
+                Id = conversation.Id,
+                LastMessage = message.Content,
+                LastMessageAt = conversation.LastMessageAt
+            }
+        };
+
+        await realtimeService.SendToInboxAsync(conversation.InboxId.ToString(), movedEvent);
 
         return new SingleResponse<MessageListItemDto>(new MessageListItemDto
         {

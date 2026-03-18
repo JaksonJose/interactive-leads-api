@@ -122,6 +122,22 @@ namespace InteractiveLeads.Infrastructure
 
                 bearer.Events = new()
                 {
+                    OnMessageReceived = context =>
+                    {
+                        // SignalR sends the JWT as `access_token` query string when using
+                        // HubConnectionBuilder.withUrl(..., { accessTokenFactory: ... }).
+                        // We need to read that token for hubs requests.
+                        var path = context.HttpContext.Request.Path;
+                        var accessToken = context.Request.Query["access_token"].ToString();
+
+                        if (!string.IsNullOrEmpty(accessToken) &&
+                            path.StartsWithSegments("/hubs/chat", StringComparison.OrdinalIgnoreCase))
+                        {
+                            context.Token = accessToken;
+                        }
+
+                        return Task.CompletedTask;
+                    },
                     OnAuthenticationFailed = context =>
                     {
                         if (context.Exception is SecurityTokenException)

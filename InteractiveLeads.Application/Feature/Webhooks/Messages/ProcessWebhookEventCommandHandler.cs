@@ -2,6 +2,8 @@ using System.Text.Json;
 using InteractiveLeads.Application.Integrations.Settings;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
+using InteractiveLeads.Application.Realtime.Models;
+using InteractiveLeads.Application.Realtime.Services;
 using InteractiveLeads.Domain.Entities;
 using InteractiveLeads.Domain.Enums;
 using MediatR;
@@ -14,6 +16,7 @@ namespace InteractiveLeads.Application.Feature.Webhooks.Messages;
 public sealed class ProcessWebhookEventCommandHandler(
     IIntegrationExternalIdentifierLookupRepository integrationLookupRepository,
     ICrossTenantService crossTenantService,
+    IRealtimeService realtimeService,
     ILogger<ProcessWebhookEventCommandHandler> logger)
     : IRequestHandler<ProcessWebhookEventCommand, IResponse>
 {
@@ -153,6 +156,7 @@ public sealed class ProcessWebhookEventCommandHandler(
 
                 // Prefer reusing the most recent conversation for the contact+integration.
                 // New incoming/outgoing messages should "revive" a closed conversation rather than creating duplicates.
+                var isNewConversation = false;
                 var conversation = await db.Conversations
                     .OrderByDescending(c => c.CreatedAt)
                     .FirstOrDefaultAsync(
@@ -163,6 +167,7 @@ public sealed class ProcessWebhookEventCommandHandler(
 
                 if (conversation == null)
                 {
+                    isNewConversation = true;
                     var inboxId = await ResolveInboxIdAsync(
                         db,
                         settingsResolver,
@@ -187,6 +192,28 @@ public sealed class ProcessWebhookEventCommandHandler(
 
                     db.Conversations.Add(conversation);
                     await db.SaveChangesAsync(cancellationToken);
+
+                    var conversationCreatedEvent = new RealtimeEvent<ConversationCreatedPayloadDto>
+                    {
+                        Type = "conversation.created",
+                        TenantId = lookup.TenantId,
+                        Timestamp = DateTime.UtcNow,
+                        Payload = new ConversationCreatedPayloadDto
+                        {
+                            Id = conversation.Id,
+                            InboxId = conversation.InboxId,
+                            CreatedAt = conversation.CreatedAt
+                        }
+                    };
+
+                    try
+                    {
+                        await realtimeService.SendToInboxAsync(conversation.InboxId.ToString(), conversationCreatedEvent);
+                    }
+                    catch (Exception ex)
+                    {
+                        tenantLogger.LogWarning(ex, "Failed to send conversation.created event via SignalR.");
+                    }
                 }
 
                 var exists = await db.Messages
@@ -202,12 +229,41 @@ public sealed class ProcessWebhookEventCommandHandler(
                         messagePayload.Id);
 
                     // Even if we already have the message, ensure conversation's LastMessageAt is not stale.
-                    if (conversation.LastMessageAt < eventTimestamp)
+                    var movedToTop = conversation.LastMessageAt < eventTimestamp;
+                    if (movedToTop)
                         conversation.LastMessageAt = eventTimestamp;
                     conversation.Status = ConversationStatus.Open;
 
                     await db.SaveChangesAsync(cancellationToken);
                     await tx.CommitAsync(cancellationToken);
+
+                    if (movedToTop)
+                    {
+                        var lastMessage = ResolveContent(messagePayload);
+
+                        var movedEventDuplicate = new RealtimeEvent<ConversationMovedToTopPayloadDto>
+                        {
+                            Type = "conversation.moved_to_top",
+                            TenantId = lookup.TenantId,
+                            Timestamp = DateTime.UtcNow,
+                            Payload = new ConversationMovedToTopPayloadDto
+                            {
+                                Id = conversation.Id,
+                                LastMessage = lastMessage,
+                                LastMessageAt = conversation.LastMessageAt
+                            }
+                        };
+
+                        try
+                        {
+                            await realtimeService.SendToInboxAsync(conversation.InboxId.ToString(), movedEventDuplicate);
+                        }
+                        catch (Exception ex)
+                        {
+                            tenantLogger.LogWarning(ex, "Failed to send moved_to_top event via SignalR.");
+                        }
+                    }
+
                     return;
                 }
 
@@ -240,6 +296,55 @@ public sealed class ProcessWebhookEventCommandHandler(
 
                 await db.SaveChangesAsync(cancellationToken);
                 await tx.CommitAsync(cancellationToken);
+
+                var messageCreatedEvent = new RealtimeEvent<MessageCreatedPayloadDto>
+                {
+                    Type = "message.created",
+                    TenantId = lookup.TenantId,
+                    Timestamp = DateTime.UtcNow,
+                    Payload = new MessageCreatedPayloadDto
+                    {
+                        Id = message.Id,
+                        ConversationId = message.ConversationId,
+                        Text = message.Content,
+                        SenderId = message.SenderUserId?.ToString(),
+                        CreatedAt = message.CreatedAt
+                    }
+                };
+
+                // Always notify the inbox list after inserting a new message.
+                // This keeps `lastMessage` and `lastMessageAt` in sync on the UI,
+                // even if LastMessageAt didn't advance strictly (timestamp equality).
+                var movedEvent = new RealtimeEvent<ConversationMovedToTopPayloadDto>
+                {
+                    Type = "conversation.moved_to_top",
+                    TenantId = lookup.TenantId,
+                    Timestamp = DateTime.UtcNow,
+                    Payload = new ConversationMovedToTopPayloadDto
+                    {
+                        Id = conversation.Id,
+                        LastMessage = content,
+                        LastMessageAt = conversation.LastMessageAt
+                    }
+                };
+
+                try
+                {
+                    await realtimeService.SendToInboxAsync(conversation.InboxId.ToString(), movedEvent);
+                }
+                catch (Exception ex)
+                {
+                    tenantLogger.LogWarning(ex, "Failed to send moved_to_top event via SignalR.");
+                }
+
+                try
+                {
+                    await realtimeService.SendToConversationAsync(conversation.Id.ToString(), messageCreatedEvent);
+                }
+                catch (Exception ex)
+                {
+                    tenantLogger.LogWarning(ex, "Failed to send message.created event via SignalR.");
+                }
 
                 tenantLogger.LogInformation(
                     "Webhook message processed. integrationId {IntegrationId} externalIdentifier {ExternalIdentifier} messageId {MessageId} conversationId {ConversationId} contactId {ContactId}",

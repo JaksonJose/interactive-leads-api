@@ -55,7 +55,12 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
             bool isGlobalContext = tenantInfo.Id == null;
 
             // Allow login even when tenant is deactivated or expired so users can enter to edit/reactivate.
-            var userInDb = await _userManager.FindByNameAsync(request.UserName);
+            // Note: the multi-tenant strategy resolves tenant by treating `userName` as email for /token/login.
+            // Therefore, support both username and email for Identity lookup.
+            var normalizedInput = (request.UserName ?? string.Empty).Trim();
+            var userInDb = await _userManager.FindByNameAsync(normalizedInput);
+            if (userInDb == null)
+                userInDb = await _userManager.FindByEmailAsync(normalizedInput);
             if (userInDb is null || !await _userManager.CheckPasswordAsync(userInDb, request.Password))
             {
                 result.AddErrorMessage("Incorrect username or password", "auth.invalid_credentials");
