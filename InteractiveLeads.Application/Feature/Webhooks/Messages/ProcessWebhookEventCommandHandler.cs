@@ -151,12 +151,14 @@ public sealed class ProcessWebhookEventCommandHandler(
                     ? DateTimeOffset.FromUnixTimeSeconds(messagePayload.Timestamp)
                     : DateTimeOffset.UtcNow;
 
+                // Prefer reusing the most recent conversation for the contact+integration.
+                // New incoming/outgoing messages should "revive" a closed conversation rather than creating duplicates.
                 var conversation = await db.Conversations
-                    .SingleOrDefaultAsync(
+                    .OrderByDescending(c => c.CreatedAt)
+                    .FirstOrDefaultAsync(
                         c => c.CompanyId == companyId &&
                              c.ContactId == contact.Id &&
-                             c.IntegrationId == integration.Id &&
-                             c.Status == ConversationStatus.Open,
+                             c.IntegrationId == integration.Id,
                         cancellationToken);
 
                 if (conversation == null)
@@ -198,6 +200,13 @@ public sealed class ProcessWebhookEventCommandHandler(
                         integration.Id,
                         externalIdentifier,
                         messagePayload.Id);
+
+                    // Even if we already have the message, ensure conversation's LastMessageAt is not stale.
+                    if (conversation.LastMessageAt < eventTimestamp)
+                        conversation.LastMessageAt = eventTimestamp;
+                    conversation.Status = ConversationStatus.Open;
+
+                    await db.SaveChangesAsync(cancellationToken);
                     await tx.CommitAsync(cancellationToken);
                     return;
                 }
@@ -225,7 +234,8 @@ public sealed class ProcessWebhookEventCommandHandler(
 
                 db.Messages.Add(message);
 
-                conversation.LastMessageAt = eventTimestamp;
+                if (conversation.LastMessageAt < eventTimestamp)
+                    conversation.LastMessageAt = eventTimestamp;
                 conversation.Status = ConversationStatus.Open;
 
                 await db.SaveChangesAsync(cancellationToken);
