@@ -2,6 +2,8 @@ using InteractiveLeads.Api.Controllers.Base;
 using InteractiveLeads.Application.Feature.Chat.Conversations;
 using InteractiveLeads.Application.Feature.Chat.Conversations.Commands;
 using InteractiveLeads.Application.Feature.Chat.Conversations.Queries;
+using InteractiveLeads.Application.Feature.Chat.Messages.Commands;
+using InteractiveLeads.Application.Feature.Chat.Messages;
 using InteractiveLeads.Application.Feature.Chat.Messages.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -68,6 +70,26 @@ public sealed class ConversationsController : BaseApiController
             ConversationId = conversationId,
             BeforeCreatedAt = beforeCreatedAt,
             PageSize = pageSize
+        });
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Send a message from chat to the backend (MVP: persist outbound only).
+    /// </summary>
+    [HttpPost("{conversationId:guid}/messages")]
+    [OpenApiOperation("Send a message (persist outbound message)")]
+    public async Task<IActionResult> SendMessageAsync(Guid conversationId, [FromBody] SendConversationMessageRequest request)
+    {
+        if (request == null)
+            return BadRequest();
+
+        var response = await Sender.Send(new SendConversationMessageCommand
+        {
+            ConversationId = conversationId,
+            Content = request.Content,
+            ExternalMessageId = request.ExternalMessageId
         });
 
         return Ok(response);
