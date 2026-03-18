@@ -78,6 +78,7 @@ namespace InteractiveLeads.Infrastructure
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IRoleService, RoleService>();
             services.AddScoped<IUserService, UserService>();
+            services.AddScoped<IUserSummaryLookupService, UserSummaryLookupService>();
             services.AddScoped<IUserLookupService, UserLookupService>();
             services.AddScoped<IImpersonationService, ImpersonationService>();
             services.AddScoped<IActivationTokenRepository, ActivationTokenRepository>();

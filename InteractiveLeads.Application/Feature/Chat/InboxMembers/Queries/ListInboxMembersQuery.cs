@@ -13,7 +13,8 @@ public sealed class ListInboxMembersQuery : IRequest<IResponse>
 
 public sealed class ListInboxMembersQueryHandler(
     IApplicationDbContext db,
-    ICurrentUserService currentUserService) : IRequestHandler<ListInboxMembersQuery, IResponse>
+    ICurrentUserService currentUserService,
+    IUserSummaryLookupService userSummaryLookup) : IRequestHandler<ListInboxMembersQuery, IResponse>
 {
     public async Task<IResponse> Handle(ListInboxMembersQuery request, CancellationToken cancellationToken)
     {
@@ -36,6 +37,23 @@ public sealed class ListInboxMembersQueryHandler(
                 JoinedAt = m.JoinedAt
             })
             .ToListAsync(cancellationToken);
+
+        if (items.Count > 0)
+        {
+            var userIds = items
+                .Select(i => i.UserId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct()
+                .ToList();
+
+            var summaries = await userSummaryLookup.GetSummariesByIdsAsync(userIds, cancellationToken);
+            foreach (var item in items)
+            {
+                if (!summaries.TryGetValue(item.UserId, out var summary)) continue;
+                item.UserDisplayName = summary.DisplayName;
+                item.UserEmail = summary.Email;
+            }
+        }
 
         return new ListResponse<InboxMemberDto>(items, items.Count);
     }
