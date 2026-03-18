@@ -66,8 +66,17 @@ internal static class ChatContext
             throw new NotFoundException(response);
         }
 
-        if (!currentUserService.IsInRole("Agent"))
+        // Owner/Manager: full access within the tenant (ignore Agent bindings).
+        if (currentUserService.IsInRole("Owner") || currentUserService.IsInRole("Manager"))
             return;
+
+        // Agent: requires InboxMember binding.
+        if (!currentUserService.IsInRole("Agent"))
+        {
+            var response = new ResultResponse();
+            response.AddErrorMessage("You are not authorized to access this inbox.", "general.access_denied");
+            throw new ForbiddenException(response);
+        }
 
         var userId = currentUserService.GetUserId();
         var isMember = await db.InboxMembers
@@ -90,16 +99,24 @@ internal static class ChatContext
     {
         query = query.Where(c => c.CompanyId == companyId);
 
-        if (!currentUserService.IsInRole("Agent"))
+        // Owner/Manager: unrestricted within the tenant.
+        if (currentUserService.IsInRole("Owner") || currentUserService.IsInRole("Manager"))
             return query;
 
-        var userId = currentUserService.GetUserId();
+        // Agent: restricted by InboxMember bindings.
+        if (currentUserService.IsInRole("Agent"))
+        {
+            var userId = currentUserService.GetUserId();
 
-        return query.Where(c =>
-            db.InboxMembers.Any(m =>
-                m.InboxId == c.InboxId &&
-                m.UserId == userId &&
-                m.IsActive));
+            return query.Where(c =>
+                db.InboxMembers.Any(m =>
+                    m.InboxId == c.InboxId &&
+                    m.UserId == userId &&
+                    m.IsActive));
+        }
+
+        // No relevant role: deny everything.
+        return query.Where(_ => false);
     }
 }
 

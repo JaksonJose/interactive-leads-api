@@ -54,9 +54,17 @@ public class RealtimeJoinAuthorizationService : IRealtimeJoinAuthorizationServic
             throw new NotFoundException(response);
         }
 
-        // If the current user isn't an Agent, allow joining the conversation (admins can see all).
-        if (!_currentUserService.IsInRole("Agent"))
+        // Owner/Manager: full access within the tenant (ignore Agent bindings).
+        if (_currentUserService.IsInRole("Owner") || _currentUserService.IsInRole("Manager"))
             return;
+
+        // Agent: requires InboxMember binding.
+        if (!_currentUserService.IsInRole("Agent"))
+        {
+            var response = new ResultResponse();
+            response.AddErrorMessage("You are not authorized to access this inbox.", "general.access_denied");
+            throw new ForbiddenException(response);
+        }
 
         var userId = _currentUserService.GetUserId();
 
