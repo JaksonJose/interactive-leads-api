@@ -5,6 +5,7 @@ using InteractiveLeads.Application.Feature.Identity.Tokens;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Infrastructure.Constants;
+using InteractiveLeads.Infrastructure.Tenancy.Extensions;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Microsoft.Extensions.Logging;
 
@@ -90,7 +91,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Impersonation
                 throw new NotFoundException(notFound);
             }
 
-            _tenantContextSetter.MultiTenantContext = new MultiTenantContext<InteractiveTenantInfo> { TenantInfo = tenantInfo };
+            _tenantContextSetter.MultiTenantContext = new MultiTenantContext<InteractiveTenantInfo>(tenantInfo);
 
             _logger.LogInformation(
                 "Impersonation: User {CurrentUserId} is impersonating user {TargetUserId} (tenant: {TenantId})",

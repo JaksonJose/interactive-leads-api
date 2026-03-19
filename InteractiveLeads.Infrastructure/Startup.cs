@@ -1,4 +1,6 @@
 using Finbuckle.MultiTenant;
+using Finbuckle.MultiTenant.AspNetCore.Extensions;
+using Finbuckle.MultiTenant.Extensions;
 using InteractiveLeads.Application;
 using InteractiveLeads.Application.Interfaces.HttpRequests;
 using InteractiveLeads.Application.Interfaces;

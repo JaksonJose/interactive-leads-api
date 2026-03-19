@@ -58,9 +58,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
             // Note: the multi-tenant strategy resolves tenant by treating `userName` as email for /token/login.
             // Therefore, support both username and email for Identity lookup.
             var normalizedInput = (request.UserName ?? string.Empty).Trim();
-            var userInDb = await _userManager.FindByNameAsync(normalizedInput);
-            if (userInDb == null)
-                userInDb = await _userManager.FindByEmailAsync(normalizedInput);
+            var userInDb = await FindUserForLoginAsync(normalizedInput, tenantInfo.Id);
             if (userInDb is null || !await _userManager.CheckPasswordAsync(userInDb, request.Password))
             {
                 result.AddErrorMessage("Incorrect username or password", "auth.invalid_credentials");
@@ -68,7 +66,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
             }
 
             var tenantId = tenantInfo.Id;
-            var userRoles = await _userManager.GetRolesAsync(userInDb);
+            var userRoles = await GetUserRoleNamesAsync(userInDb.Id);
             var hasGlobalRole = userRoles.Any(r => RoleConstants.CrossTenantRoles.Contains(r));
             var hasOnlyTenantRoles = userRoles.All(r => RoleConstants.TenantRoles.Contains(r));
 
@@ -239,7 +237,7 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
 
         private async Task<IEnumerable<Claim>> GetUserClaimsAsync(ApplicationUser user)
         {
-            var userRoles = await _userManager.GetRolesAsync(user);
+            var userRoles = await GetUserRoleNamesAsync(user.Id);
             var roleClaims = userRoles
                 .Select(role => new Claim(ClaimTypes.Role, role))
                 .ToList();
@@ -255,6 +253,55 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
             };
             claims.AddRange(roleClaims);
             return claims;
+        }
+
+        private async Task<List<string>> GetUserRoleNamesAsync(Guid userId)
+        {
+            var userRoleIds = await _context.UserRoles
+                .AsNoTracking()
+                .Where(ur => ur.UserId == userId)
+                .Select(ur => ur.RoleId)
+                .ToListAsync();
+
+            if (userRoleIds.Count == 0)
+                return [];
+
+            // Important after Finbuckle/EF upgrades: role entity may have tenant filters.
+            // Ignore filters so JWT always gets the effective roles assigned to the user.
+            return await _context.Roles
+                .AsNoTracking()
+                .IgnoreQueryFilters()
+                .Where(r => userRoleIds.Contains(r.Id))
+                .Select(r => r.Name!)
+                .Distinct()
+                .ToListAsync();
+        }
+
+        private async Task<ApplicationUser?> FindUserForLoginAsync(string loginInput, string? tenantId)
+        {
+            // 1) Fast path through Identity APIs (respects current tenant context).
+            var user = await _userManager.FindByNameAsync(loginInput);
+            if (user != null)
+                return user;
+
+            user = await _userManager.FindByEmailAsync(loginInput);
+            if (user != null)
+                return user;
+
+            // 2) Fallback for tenant-resolution edge cases after Finbuckle/EF upgrades.
+            // Query users ignoring filters, then constrain by resolved tenant context.
+            var normalized = loginInput.ToUpperInvariant();
+            var query = _context.Users
+                .AsNoTracking()
+                .IgnoreQueryFilters()
+                .Where(u => u.NormalizedUserName == normalized || u.NormalizedEmail == normalized);
+
+            if (tenantId == null)
+                query = query.Where(u => u.TenantId == null);
+            else
+                query = query.Where(u => u.TenantId == tenantId);
+
+            return await query.FirstOrDefaultAsync();
         }
 
         private static string GenerateRefreshToken()

@@ -10,6 +10,7 @@ using InteractiveLeads.Infrastructure.Constants;
 using InteractiveLeads.Infrastructure.Context.Application;
 using InteractiveLeads.Infrastructure.Context.Tenancy;
 using InteractiveLeads.Infrastructure.Identity.Models;
+using InteractiveLeads.Infrastructure.Tenancy.Extensions;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Mapster;
 using Microsoft.AspNetCore.Identity;
@@ -147,10 +148,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
             await using var scope = _serviceProvider.CreateAsyncScope();
 
             _serviceProvider.GetRequiredService<IMultiTenantContextSetter>()
-                .MultiTenantContext = new MultiTenantContext<InteractiveTenantInfo>()
-                {
-                    TenantInfo = newTenant
-                };
+                .MultiTenantContext = new MultiTenantContext<InteractiveTenantInfo>(newTenant);
 
             try
             {

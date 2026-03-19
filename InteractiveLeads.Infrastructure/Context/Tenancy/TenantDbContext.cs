@@ -1,4 +1,4 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Stores.EFCoreStore;
+using Finbuckle.MultiTenant.EntityFrameworkCore.Stores;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Microsoft.EntityFrameworkCore;
 

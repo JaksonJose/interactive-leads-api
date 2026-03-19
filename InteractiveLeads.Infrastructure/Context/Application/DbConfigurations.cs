@@ -1,10 +1,8 @@
-using Finbuckle.MultiTenant;
+using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using InteractiveLeads.Infrastructure.Identity.Models;
-using InteractiveLeads.Infrastructure.Tenancy.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using NpgsqlTypes;
 
 namespace InteractiveLeads.Infrastructure.Context.Application
 {
@@ -59,7 +57,9 @@ namespace InteractiveLeads.Infrastructure.Context.Application
             {
                 public void Configure(EntityTypeBuilder<ApplicationRole> builder)
                 {
-                    // Roles are global (same for all tenants): do not use IsMultiTenant() to avoid duplicating roles per tenant.
+                    // Roles are global (same for all tenants).
+                    // Keep default mapping here; role retrieval for JWT is handled in TokenService
+                    // using IgnoreQueryFilters to avoid tenant-filter side effects.
                     builder.ToTable("Roles", "Identity");
                     builder.Property<string>("TenantId").IsRequired(false);
 

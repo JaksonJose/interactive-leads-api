@@ -53,18 +53,6 @@ namespace InteractiveLeads.Application.Interfaces
         Task<T> ExecuteInTenantContextAsync<T>(string tenantId, Func<Task<T>> operation);
 
         /// <summary>
-        /// Executes an operation in the context of a specific tenant (legacy method for backward compatibility).
-        /// </summary>
-        /// <param name="tenantId">The ID of the tenant to execute the operation in.</param>
-        /// <param name="operation">The operation to execute.</param>
-        /// <returns>A task representing the asynchronous operation.</returns>
-        /// <remarks>
-        /// This method is marked as obsolete. Use the overload that accepts IServiceProvider parameter for better DbContext management.
-        /// </remarks>
-        [Obsolete("Use the overload that accepts IServiceProvider parameter for better DbContext management")]
-        Task ExecuteInTenantContextAsync(string tenantId, Func<Task> operation);
-
-        /// <summary>
         /// Executes an operation in the context of a specific tenant without current-user authorization.
         /// For system operations only (e.g. account activation by token). Caller must have validated tenantId (e.g. from a valid token).
         /// </summary>

@@ -40,10 +40,7 @@ namespace InteractiveLeads.Infrastructure.Context.Tenancy
 
             // Single seed run in global context: same roles for all, SysAdmin with TenantId = null
             using var scope = _serviceProvider.CreateAsyncScope();
-            scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext = new MultiTenantContext<InteractiveTenantInfo>
-            {
-                TenantInfo = GlobalContext,
-            };
+            scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext = new MultiTenantContext<InteractiveTenantInfo>(GlobalContext);
 
             await scope.ServiceProvider.GetRequiredService<ApplicationDbSeeder>().InitializeDatabaseAsync(cancellationToken);
         }

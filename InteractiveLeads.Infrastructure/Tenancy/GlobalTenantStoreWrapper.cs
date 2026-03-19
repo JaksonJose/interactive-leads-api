@@ -1,5 +1,5 @@
 using Finbuckle.MultiTenant.Abstractions;
-using Finbuckle.MultiTenant.EntityFrameworkCore.Stores.EFCoreStore;
+using Finbuckle.MultiTenant.EntityFrameworkCore.Stores;
 using InteractiveLeads.Infrastructure.Constants;
 using InteractiveLeads.Infrastructure.Context.Tenancy;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
@@ -32,25 +32,25 @@ namespace InteractiveLeads.Infrastructure.Tenancy
         public Task<IEnumerable<InteractiveTenantInfo>> GetAllAsync(int skip, int take)
             => _inner.GetAllAsync(skip, take);
 
-        public async Task<InteractiveTenantInfo?> TryGetAsync(string id)
+        public async Task<InteractiveTenantInfo?> GetAsync(string id)
         {
             if (string.IsNullOrEmpty(id) || id == TenancyConstants.GlobalTenantIdentifier)
                 return GlobalTenantInfo;
 
-            return await _inner.TryGetAsync(id);
+            return await _inner.GetAsync(id);
         }
 
-        public Task<InteractiveTenantInfo?> TryGetByIdentifierAsync(string identifier)
+        public Task<InteractiveTenantInfo?> GetByIdentifierAsync(string identifier)
         {
             if (string.IsNullOrEmpty(identifier) || identifier == TenancyConstants.GlobalTenantIdentifier)
                 return Task.FromResult<InteractiveTenantInfo?>(GlobalTenantInfo);
-            return _inner.TryGetByIdentifierAsync(identifier);
+            return _inner.GetByIdentifierAsync(identifier);
         }
 
-        public Task<bool> TryAddAsync(InteractiveTenantInfo tenantInfo) => _inner.TryAddAsync(tenantInfo);
+        public Task<bool> AddAsync(InteractiveTenantInfo tenantInfo) => _inner.AddAsync(tenantInfo);
 
-        public Task<bool> TryUpdateAsync(InteractiveTenantInfo tenantInfo) => _inner.TryUpdateAsync(tenantInfo);
+        public Task<bool> UpdateAsync(InteractiveTenantInfo tenantInfo) => _inner.UpdateAsync(tenantInfo);
 
-        public Task<bool> TryRemoveAsync(string id) => _inner.TryRemoveAsync(id);
+        public Task<bool> RemoveAsync(string id) => _inner.RemoveAsync(id);
     }
 }

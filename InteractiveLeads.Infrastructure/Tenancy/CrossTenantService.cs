@@ -113,10 +113,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
                 
                 // Switch to the target tenant context within the scope
                 var scopeTenantContextSetter = scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>();
-                scopeTenantContextSetter.MultiTenantContext = new MultiTenantContext<InteractiveTenantInfo>
-                {
-                    TenantInfo = targetTenant
-                };
+                scopeTenantContextSetter.MultiTenantContext = new MultiTenantContext<InteractiveTenantInfo>(targetTenant);
 
                 _logger.LogInformation("Executing cross-tenant operation for user {UserId} from tenant '{OriginalTenantId}' to tenant '{TargetTenantId}'", 
                     currentUserId, originalTenantContext?.TenantInfo?.Id, tenantId);
@@ -172,21 +169,6 @@ namespace InteractiveLeads.Infrastructure.Tenancy
         }
 
         /// <summary>
-        /// Executes an operation in the context of a specific tenant (legacy method for backward compatibility).
-        /// </summary>
-        /// <param name="tenantId">The ID of the tenant to execute the operation in.</param>
-        /// <param name="operation">The operation to execute.</param>
-        /// <returns>A task representing the asynchronous operation.</returns>
-        [Obsolete("Use the overload that accepts IServiceProvider parameter for better DbContext management")]
-        public async Task ExecuteInTenantContextAsync(string tenantId, Func<Task> operation)
-        {
-            await ExecuteInTenantContextAsync(tenantId, async (serviceProvider) =>
-            {
-                await operation();
-            });
-        }
-
-        /// <summary>
         /// Executes an operation in the context of a specific tenant without current-user authorization (e.g. account activation by token).
         /// </summary>
         public async Task ExecuteInTenantContextForSystemAsync(string tenantId, Func<IServiceProvider, Task> operation)
@@ -215,10 +197,7 @@ namespace InteractiveLeads.Infrastructure.Tenancy
 
             using var scope = _serviceScopeFactory.CreateScope();
             var scopeTenantContextSetter = scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>();
-            scopeTenantContextSetter.MultiTenantContext = new MultiTenantContext<InteractiveTenantInfo>
-            {
-                TenantInfo = targetTenant
-            };
+            scopeTenantContextSetter.MultiTenantContext = new MultiTenantContext<InteractiveTenantInfo>(targetTenant);
 
             await operation(scope.ServiceProvider);
         }
