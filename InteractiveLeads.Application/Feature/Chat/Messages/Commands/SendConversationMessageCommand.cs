@@ -3,6 +3,7 @@ using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Chat;
 using InteractiveLeads.Application.Realtime.Models;
 using InteractiveLeads.Application.Realtime.Services;
+using InteractiveLeads.Application.Interfaces.HttpRequests;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Feature.Chat.Messages;
 using InteractiveLeads.Application.Responses;
@@ -23,8 +24,12 @@ public sealed class SendConversationMessageCommand : IRequest<IResponse>
 public sealed class SendConversationMessageCommandHandler(
     IApplicationDbContext db,
     ICurrentUserService currentUserService,
-    IRealtimeService realtimeService) : IRequestHandler<SendConversationMessageCommand, IResponse>
+    IRealtimeService realtimeService,
+    IExternalApiHttpClientFactory externalApiHttpClientFactory) : IRequestHandler<SendConversationMessageCommand, IResponse>
 {
+    private const string MessageSenderApiName = "MessageSender";
+    private const string SendMessagePath = "webhook-test/enviar-mensagem";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -55,6 +60,7 @@ public sealed class SendConversationMessageCommandHandler(
         var conversation = await db.Conversations
             .Include(c => c.Inbox)
             .Include(c => c.Integration)
+            .Include(c => c.Contact)
             .Where(c => c.Id == request.ConversationId && c.CompanyId == companyId)
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -126,6 +132,35 @@ public sealed class SendConversationMessageCommandHandler(
                 Direction = existingMessage.Direction == MessageDirection.Inbound ? "inbound" : "outbound",
                 CreatedAt = existingMessage.CreatedAt
             });
+        }
+
+        var phone = (conversation.Contact.Phone ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            var response = new ResultResponse();
+            response.AddErrorMessage("Contact phone is required for outbound external delivery.", "chat.message.phone_required");
+            throw new BadRequestException(response);
+        }
+
+        var externalApiResponse = await externalApiHttpClientFactory
+            .Create(MessageSenderApiName)
+            .PostAsync(
+                SendMessagePath,
+                new
+                {
+                    phone,
+                    message = content,
+                    externalMessageId,
+                    conversationId = conversation.Id.ToString()
+                });
+
+        if (externalApiResponse.HasAnyErrorMessage)
+        {
+            var response = new ResultResponse();
+            response.AddErrorMessage("External provider rejected message delivery.", "chat.message.external_send_failed");
+            foreach (var item in externalApiResponse.Messages)
+                response.Messages.Add(item);
+            throw new BadRequestException(response);
         }
 
         var metadataJson = JsonSerializer.Serialize(

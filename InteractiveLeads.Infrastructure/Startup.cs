@@ -1,33 +1,38 @@
 using Finbuckle.MultiTenant;
 using InteractiveLeads.Application;
+using InteractiveLeads.Application.Interfaces.HttpRequests;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
+using InteractiveLeads.Infrastructure.Configuration;
 using InteractiveLeads.Infrastructure.Context.Application;
 using InteractiveLeads.Infrastructure.Context.Tenancy;
 using InteractiveLeads.Infrastructure.Context.Tenancy.Interfaces;
-using InteractiveLeads.Infrastructure.Identity.Models;
-using InteractiveLeads.Infrastructure.Identity.Roles;
-using InteractiveLeads.Infrastructure.Identity.Tokens;
+using InteractiveLeads.Infrastructure.HttpRequests.Authentications;
+using InteractiveLeads.Infrastructure.HttpRequests.Handlers;
+using InteractiveLeads.Infrastructure.HttpRequests;
 using InteractiveLeads.Infrastructure.Identity;
 using InteractiveLeads.Infrastructure.Identity.Activation;
 using InteractiveLeads.Infrastructure.Identity.Impersonation;
+using InteractiveLeads.Infrastructure.Identity.Models;
+using InteractiveLeads.Infrastructure.Identity.Roles;
+using InteractiveLeads.Infrastructure.Identity.Tokens;
 using InteractiveLeads.Infrastructure.Identity.Users;
 using InteractiveLeads.Infrastructure.OpenApi;
 using InteractiveLeads.Infrastructure.Tenancy;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
-using InteractiveLeads.Infrastructure.Configuration;
 using InteractiveLeads.Infrastructure.Tenancy.Strategies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.IdentityModel.Tokens;
 using NSwag;
 using NSwag.Generation.Processors.Security;
+using Polly;
 using System.Net;
 using System.Security.Claims;
 using System.Text;
@@ -90,6 +95,11 @@ namespace InteractiveLeads.Infrastructure
             services.AddScoped<ICrossTenantService, CrossTenantService>();
             services.AddScoped<ICrossTenantAuthorizationService, CrossTenantAuthorizationService>();
             services.AddScoped<ICurrentUserService, CurrentUserService>();
+            services.AddScoped<IResponseHandler, DefaultResponseHandler>();
+            services.AddScoped<IResponseHandlerProvider, ResponseHandlerProvider>();
+            services.AddScoped<IExternalApiHttpClientFactory, ExternalApiHttpClientFactory>();
+
+            services.AddExternalApiHttpClients(config);
 
             services.AddOpenApiDocumentation(config);
 
@@ -301,6 +311,59 @@ namespace InteractiveLeads.Infrastructure
             });
 
             return app;
+        }
+
+        private static IServiceCollection AddExternalApiHttpClients(this IServiceCollection services, IConfiguration configuration)
+        {
+            var integrationSection = configuration.GetSection("Integration");
+            if (integrationSection?.GetChildren() == null) return services;
+
+            foreach (var child in integrationSection.GetChildren())
+            {
+                var apiName = child.Key;
+                var url = child["Url"];
+                if (string.IsNullOrEmpty(url)) continue;
+
+                var baseAddress = new Uri(url.TrimEnd('/') + "/");
+                var authType = child["AuthType"]?.Trim();
+                var username = child["Username"];
+                var password = child["Password"];
+                var isBearerLogin = child.GetValue<bool>("BearerLogin")
+                    || string.Equals(authType, "BearerLogin", StringComparison.OrdinalIgnoreCase)
+                    || (string.IsNullOrEmpty(authType) && !string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password));
+
+                if (isBearerLogin)
+                    services.AddHttpClient($"{apiName}.Login", client => client.BaseAddress = baseAddress);
+
+                var clientBuilder = services.AddHttpClient(apiName, client => client.BaseAddress = baseAddress);
+                if (isBearerLogin)
+                {
+                    clientBuilder.AddHttpMessageHandler(sp => new BearerLoginAuthHandler(
+                        sp.GetRequiredService<IConfiguration>(),
+                        sp.GetRequiredService<IHttpClientFactory>(),
+                        sp.GetRequiredService<IResponseHandlerProvider>(),
+                        apiName));
+                }
+
+                clientBuilder.AddStandardResilienceHandler(ConfigureResilience);
+            }
+
+            return services;
+        }
+
+        private static void ConfigureResilience(HttpStandardResilienceOptions options)
+        {
+            options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(10);
+
+            // Retry
+            options.Retry.MaxRetryAttempts = 3;
+            options.Retry.Delay = TimeSpan.FromSeconds(2);
+            options.Retry.BackoffType = DelayBackoffType.Exponential;
+
+            // Circuit break
+            options.CircuitBreaker.FailureRatio = 0.5;
+            options.CircuitBreaker.MinimumThroughput = 10;
+            options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(30);
         }
     }
 }

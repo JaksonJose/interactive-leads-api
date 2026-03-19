@@ -88,6 +88,18 @@ namespace InteractiveLeads.Application.Responses
             return this;
         }
 
+        public BaseResponse AddExceptionMessage(string message, string code = "")
+        {
+            Messages.Add(new Message() { Text = message, Code = code, Type = MessageType.Exception });
+            return this;
+        }
+
+        public BaseResponse AddFatalMessage(string message, string code = "")
+        {
+            Messages.Add(new Message() { Text = message, Code = code, Type = MessageType.Fatal });
+            return this;
+        }
+
         private bool HasMessageType(MessageType messageType)
         {
             return Messages.Any(message => message.Type == messageType);
