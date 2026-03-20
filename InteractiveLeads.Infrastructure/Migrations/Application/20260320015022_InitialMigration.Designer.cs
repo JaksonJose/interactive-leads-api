@@ -12,15 +12,15 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace InteractiveLeads.Infrastructure.Migrations.Application
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260318122505_AddInboxMemberCanBeAssigned")]
-    partial class AddInboxMemberCanBeAssigned
+    [Migration("20260320015022_InitialMigration")]
+    partial class InitialMigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.9")
+                .HasAnnotation("ProductVersion", "10.0.5")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -674,10 +674,15 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     b.HasKey("Id");
 
                     b.HasIndex("NormalizedName")
-                        .HasDatabaseName("RoleNameIndex")
                         .HasFilter("\"NormalizedName\" IS NOT NULL");
 
+                    b.HasIndex("NormalizedName", "TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("RoleNameIndex");
+
                     b.ToTable("Roles", "Identity");
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("InteractiveLeads.Infrastructure.Identity.Models.ApplicationUser", b =>
@@ -770,12 +775,12 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
 
-                    b.HasIndex("NormalizedUserName")
-                        .IsUnique()
-                        .HasDatabaseName("UserNameIndex");
-
                     b.HasIndex("TenantId")
                         .HasDatabaseName("IX_Users_TenantId");
+
+                    b.HasIndex("NormalizedUserName", "TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("UserNameIndex");
 
                     b.HasIndex("TenantId", "Email")
                         .IsUnique()
@@ -817,8 +822,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                         .HasDefaultValue(false);
 
                     b.Property<string>("TenantId")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
                     b.Property<string>("Token")
                         .IsRequired()
@@ -903,8 +907,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                         .HasColumnType("text");
 
                     b.Property<string>("TenantId")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
@@ -930,8 +933,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                         .HasColumnType("text");
 
                     b.Property<string>("TenantId")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
@@ -954,8 +956,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                         .HasColumnType("uuid");
 
                     b.Property<string>("TenantId")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
                     b.HasKey("UserId", "RoleId");
 
@@ -978,8 +979,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                         .HasColumnType("text");
 
                     b.Property<string>("TenantId")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
                     b.Property<string>("Value")
                         .HasColumnType("text");

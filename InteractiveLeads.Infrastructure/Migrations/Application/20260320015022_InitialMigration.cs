@@ -147,7 +147,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     IsRevoked = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
                     DeviceInfo = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
                     IpAddress = table.Column<string>(type: "character varying(45)", maxLength: 45, nullable: true),
-                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    TenantId = table.Column<string>(type: "text", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'"),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'"),
                     CreatedBy = table.Column<Guid>(type: "uuid", nullable: true),
@@ -175,7 +175,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
                     ClaimType = table.Column<string>(type: "text", nullable: true),
                     ClaimValue = table.Column<string>(type: "text", nullable: true),
-                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true)
+                    TenantId = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -198,7 +198,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     ProviderKey = table.Column<string>(type: "text", nullable: false),
                     ProviderDisplayName = table.Column<string>(type: "text", nullable: true),
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true)
+                    TenantId = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -219,7 +219,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                 {
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
                     RoleId = table.Column<Guid>(type: "uuid", nullable: false),
-                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true)
+                    TenantId = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -249,7 +249,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     LoginProvider = table.Column<string>(type: "text", nullable: false),
                     Name = table.Column<string>(type: "text", nullable: false),
                     Value = table.Column<string>(type: "text", nullable: true),
-                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true)
+                    TenantId = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -346,6 +346,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     UserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
                     Role = table.Column<int>(type: "integer", nullable: true),
                     IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    CanBeAssigned = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
                     JoinedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'")
                 },
                 constraints: table =>
@@ -860,6 +861,13 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                 column: "SenderUserId");
 
             migrationBuilder.CreateIndex(
+                name: "UX_Message_ExternalMessageId",
+                schema: "Crm",
+                table: "Message",
+                column: "ExternalMessageId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_MessageMedia_MessageId",
                 schema: "Crm",
                 table: "MessageMedia",
@@ -890,11 +898,18 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "RoleNameIndex",
+                name: "IX_Roles_NormalizedName",
                 schema: "Identity",
                 table: "Roles",
                 column: "NormalizedName",
                 filter: "\"NormalizedName\" IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "RoleNameIndex",
+                schema: "Identity",
+                table: "Roles",
+                columns: new[] { "NormalizedName", "TenantId" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Tenant_Identifier",
@@ -944,7 +959,7 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                 name: "UserNameIndex",
                 schema: "Identity",
                 table: "Users",
-                column: "NormalizedUserName",
+                columns: new[] { "NormalizedUserName", "TenantId" },
                 unique: true);
         }
 

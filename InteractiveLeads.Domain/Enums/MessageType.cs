@@ -9,6 +9,7 @@ public enum MessageType
     Document = 5,
     Sticker = 6,
     Template = 7,
-    Reaction = 8
+    Reaction = 8,
+    Reply = 9
 }
 

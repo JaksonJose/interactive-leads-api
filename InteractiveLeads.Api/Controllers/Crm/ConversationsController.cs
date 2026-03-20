@@ -89,7 +89,13 @@ public sealed class ConversationsController : BaseApiController
         {
             ConversationId = conversationId,
             Content = request.Content,
-            ExternalMessageId = request.ExternalMessageId
+            ExternalMessageId = request.ExternalMessageId,
+            Type = request.Type,
+            MediaUrl = request.MediaUrl,
+            Caption = request.Caption,
+            ReactionEmoji = request.ReactionEmoji,
+            ReactionMessageId = request.ReactionMessageId,
+            ReplyToMessageId = request.ReplyToMessageId
         });
 
         return Ok(response);

@@ -97,6 +97,7 @@ namespace InteractiveLeads.Infrastructure
             services.AddScoped<ICrossTenantService, CrossTenantService>();
             services.AddScoped<ICrossTenantAuthorizationService, CrossTenantAuthorizationService>();
             services.AddScoped<ICurrentUserService, CurrentUserService>();
+            services.AddScoped<IN8nClient, N8nHttpClient>();
             services.AddScoped<IResponseHandler, DefaultResponseHandler>();
             services.AddScoped<IResponseHandlerProvider, ResponseHandlerProvider>();
             services.AddScoped<IExternalApiHttpClientFactory, ExternalApiHttpClientFactory>();

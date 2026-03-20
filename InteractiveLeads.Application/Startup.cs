@@ -1,6 +1,8 @@
 using FluentValidation;
+using InteractiveLeads.Application.Feature.Chat.Messages.Services;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Integrations.Settings;
+using InteractiveLeads.Application.Interfaces;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
@@ -39,6 +41,7 @@ namespace InteractiveLeads.Application
 
             services.AddScoped<IIntegrationSettingsResolver, IntegrationSettingsResolver>();
             services.AddScoped<IIntegrationExternalIdentifierResolver, IntegrationExternalIdentifierResolver>();
+            services.AddScoped<IMessageService, MessageService>();
 
             return services;
         }
