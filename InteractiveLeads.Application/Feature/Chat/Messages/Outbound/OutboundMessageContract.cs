@@ -23,6 +23,7 @@ public sealed record OutboundContactContract(
 
 public sealed record OutboundMessageBodyContract(
     [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("clientMessageId")] string ClientMessageId,
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("content")] object Content);
 

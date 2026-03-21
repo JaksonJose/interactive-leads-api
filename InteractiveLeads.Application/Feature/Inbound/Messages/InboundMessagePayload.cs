@@ -4,6 +4,9 @@ public sealed class InboundMessagePayload
 {
     public string Id { get; set; } = string.Empty;
 
+    /// <summary>Internal API message id (<c>Message.Id</c>) echoed from outbound <c>payload.clientMessageId</c> for send confirmation.</summary>
+    public string? ClientMessageId { get; set; }
+
     public long Timestamp { get; set; }
 
     public string Direction { get; set; } = "inbound";

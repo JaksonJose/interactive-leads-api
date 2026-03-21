@@ -129,6 +129,54 @@ public sealed class ProcessInboundEventCommandHandler(
 
                 var companyId = integration.CompanyId;
 
+                Guid? outboundAckClientGuid = null;
+                if (!string.IsNullOrWhiteSpace(messagePayload.ClientMessageId) &&
+                    Guid.TryParse(messagePayload.ClientMessageId.Trim(), out var parsedClientId))
+                    outboundAckClientGuid = parsedClientId;
+
+                if (outboundAckClientGuid.HasValue)
+                {
+                    var ackClientId = outboundAckClientGuid.Value;
+                    var outboundForAck = await (
+                        from m in db.Messages
+                        join c in db.Conversations on m.ConversationId equals c.Id
+                        where m.Id == ackClientId
+                              && m.Direction == MessageDirection.Outbound
+                              && c.IntegrationId == integration.Id
+                              && c.CompanyId == companyId
+                        select m).SingleOrDefaultAsync(cancellationToken);
+
+                    if (outboundForAck is not null)
+                    {
+                        var providerIdTaken = await db.Messages
+                            .AsNoTracking()
+                            .AnyAsync(
+                                m => m.ExternalMessageId == messagePayload.Id && m.Id != outboundForAck.Id,
+                                cancellationToken);
+
+                        var metadataJsonAck = JsonSerializer.Serialize(request.Event, JsonOptions);
+                        outboundForAck.Status = MessageStatus.Sent;
+                        outboundForAck.Metadata = metadataJsonAck;
+                        if (!providerIdTaken)
+                            outboundForAck.ExternalMessageId = messagePayload.Id;
+
+                        await db.SaveChangesAsync(cancellationToken);
+                        await tx.CommitAsync(cancellationToken);
+
+                        SetSuccess(result, InboundProcessingOutcome.Persisted, "updated_outbound_by_client_message_id");
+                        return;
+                    }
+
+                    tenantLogger.LogWarning(
+                        "Inbound outbound ack: no message for clientMessageId {ClientMessageId} integrationId {IntegrationId} externalIdentifier {ExternalIdentifier} providerMessageId {ProviderMessageId}",
+                        messagePayload.ClientMessageId,
+                        integration.Id,
+                        externalIdentifier,
+                        messagePayload.Id);
+                    SetPermanent(result, "outbound_ack_message_not_found");
+                    return;
+                }
+
                 var phone = request.Event.Identifications?.Contact?.PhoneNumber?.Trim() ?? string.Empty;
                 var name = request.Event.Identifications?.Contact?.Name?.Trim() ?? string.Empty;
 

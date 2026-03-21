@@ -11,6 +11,7 @@ internal static class OutboundMessageContractMapper
         Conversation conversation,
         string normalizedPhoneNumber,
         string messageId,
+        Guid clientMessageId,
         MessageType messageType,
         string content,
         string? mediaUrl,
@@ -32,6 +33,7 @@ internal static class OutboundMessageContractMapper
                 PhoneNumber: normalizedPhoneNumber),
             Payload: new OutboundMessageBodyContract(
                 Id: messageId,
+                ClientMessageId: clientMessageId.ToString("D"),
                 Type: messageTypeName,
                 Content: BuildContent(messageType, content, mediaUrl, caption, reactionEmoji, reactionMessageId, replyToMessageId)),
             Metadata: new OutboundMetadataContract(

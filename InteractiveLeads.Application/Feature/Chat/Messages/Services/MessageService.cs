@@ -127,6 +127,7 @@ public sealed class MessageService(
             conversation,
             normalizedPhone,
             idempotencyMessageId,
+            message.Id,
             messageType,
             request.Content?.Trim() ?? string.Empty,
             request.MediaUrl?.Trim(),

@@ -55,8 +55,8 @@ Mensagens que esgotam retries + redeliveries vão para a fila de **erro** MassTr
 
 ## Formato das mensagens (MassTransit + System.Text.Json)
 
-- **Inbound** (`InboundIntegrationEvent`): propriedades na raiz — `provider`, `eventType`, `identifications`, `payload`.
-- **Outbound** (`OutboundMessageDispatch`): envelope MassTransit com propriedade `message` contendo `OutboundMessageContract` (`provider`, `eventType`, `tenantId`, `channelId`, `auth`, `contact`, `payload`, `metadata`). Em `auth` (WhatsApp): `webhookVerifyToken`, `phoneNumberId`, `businessAccountId` (sem `type` nem `accessToken`). O corpo enviável (`id`, `type`, `content`) está em `payload`; para mensagem de texto, `content` usa `{ "body": "..." }`.
+- **Inbound** (`InboundIntegrationEvent`): propriedades na raiz — `provider`, `eventType`, `identifications`, `payload`. Confirmação de envio: em `payload`, `id` = id da mensagem no WhatsApp e `clientMessageId` = mesmo GUID enviado no outbound — a API **atualiza** a mensagem outbound existente (`ExternalMessageId`, `status`, `metadata`), sem criar nova linha. Pode omitir `type`, `timestamp`, `text`, etc.; não exige `identifications.contact` nesse caso. Se `clientMessageId` não existir, resposta permanente `outbound_ack_message_not_found`.
+- **Outbound** (`OutboundMessageDispatch`): envelope MassTransit com propriedade `message` contendo `OutboundMessageContract` (`provider`, `eventType`, `tenantId`, `channelId`, `auth`, `contact`, `payload`, `metadata`). Em `auth` (WhatsApp): `webhookVerifyToken`, `phoneNumberId`, `businessAccountId` (sem `type` nem `accessToken`). O corpo enviável (`id`, `clientMessageId`, `type`, `content`) está em `payload` — `clientMessageId` é o GUID interno da mensagem na API (único por envio); para texto, `content` usa `{ "body": "..." }`.
 - **Unprocessed** (`InboundUnprocessedDispatch`, opcional): `reasonCode`, `provider`, `externalIdentifier`, `messageId`, `rawEventJson`, `occurredAt`.
 
 ## Outcomes (`InboundProcessingOutcome`)
