@@ -67,6 +67,9 @@ namespace InteractiveLeads.Api.Middleware
         {
             return ex switch
             {
+                BadRequestException bre when bre.Response != null => bre.Response,
+                BadRequestException => new ResultResponse().AddErrorMessage("Bad request", "general.bad_request"),
+                
                 ConflictException ce when ce.Response != null => ce.Response,
                 ConflictException => new ResultResponse().AddErrorMessage("Conflict detected", "general.conflict"),
                 
@@ -95,6 +98,7 @@ namespace InteractiveLeads.Api.Middleware
         {
             return ex switch
             {
+                BadRequestException bre => bre.StatusCode,
                 ConflictException ce => ce.StatusCode,
                 NotFoundException nfe => nfe.StatusCode,
                 ForbiddenException fe => fe.StatusCode,

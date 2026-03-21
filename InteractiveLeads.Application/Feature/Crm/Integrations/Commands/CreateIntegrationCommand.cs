@@ -171,13 +171,13 @@ public sealed class CreateIntegrationCommandHandler(
             await integrationLookupRepository.UpsertAsync(
                 finbuckleTenantId, integration.Id, provider, externalIdentifier, cancellationToken);
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException ex)
         {
             db.Integrations.Remove(integration);
             await db.SaveChangesAsync(cancellationToken);
             var raceResponse = new ResultResponse();
             raceResponse.AddErrorMessage(
-                "This external identifier is already registered.",
+                ex.Message,
                 "integrations.external_identifier_global_conflict");
             throw new BadRequestException(raceResponse);
         }

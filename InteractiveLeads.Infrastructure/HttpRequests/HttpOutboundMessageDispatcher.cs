@@ -46,7 +46,7 @@ public sealed class HttpOutboundMessageDispatcher(
                 (int)httpResponse.StatusCode,
                 payload.Provider,
                 payload.ChannelId,
-                payload.Message.Id,
+                payload.Payload.Id,
                 body);
 
             response.AddErrorMessage("External HTTP channel rejected outbound message.", "chat.message.outbound_http_rejected");
@@ -63,7 +63,7 @@ public sealed class HttpOutboundMessageDispatcher(
                 "HTTP outbound dispatch threw for provider {Provider}, channel {ChannelId}, messageId {MessageId}",
                 payload.Provider,
                 payload.ChannelId,
-                payload.Message.Id);
+                payload.Payload.Id);
             response.AddExceptionMessage("Error while dispatching outbound message over HTTP.", "chat.message.outbound_http_dispatch_error");
             return response;
         }

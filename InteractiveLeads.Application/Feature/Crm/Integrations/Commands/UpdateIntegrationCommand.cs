@@ -197,11 +197,13 @@ public sealed class UpdateIntegrationCommandHandler(
             await integrationLookupRepository.UpsertAsync(
                 finbuckleTenantId, integration.Id, provider, externalIdentifier, cancellationToken);
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException ex)
         {
+            // Repository throws with a concrete reason (e.g. identifier already mapped).
+            // Preserve it so clients/logs identify the failure; do not replace with a generic message.
             var raceResponse = new ResultResponse();
             raceResponse.AddErrorMessage(
-                "Could not update integration mapping. The external identifier may be in use.",
+                ex.Message,
                 "integrations.external_identifier_global_conflict");
             throw new BadRequestException(raceResponse);
         }

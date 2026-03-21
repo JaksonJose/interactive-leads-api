@@ -36,8 +36,10 @@ public sealed class IntegrationLookupRepository(TenantDbContext context)
             context.IntegrationLookups.Remove(existingForIntegration);
 
         var taken = await context.IntegrationLookups
-            .FirstOrDefaultAsync(
-                x => x.IntegrationType == type && x.ExternalIdentifier == externalIdentifier,
+            .FirstOrDefaultAsync(         
+                x => x.IntegrationType == type
+                     && x.ExternalIdentifier == externalIdentifier
+                     && x.IntegrationId != integrationId,
                 cancellationToken);
         if (taken != null)
             throw new InvalidOperationException(

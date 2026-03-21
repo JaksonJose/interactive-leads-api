@@ -8,17 +8,16 @@ public sealed record OutboundMessageContract(
     [property: JsonPropertyName("tenantId")] string TenantId,
     [property: JsonPropertyName("channelId")] string ChannelId,
     [property: JsonPropertyName("auth")] OutboundAuthContract? Auth,
-    [property: JsonPropertyName("recipient")] OutboundRecipientContract Recipient,
-    [property: JsonPropertyName("message")] OutboundMessageBodyContract Message,
+    [property: JsonPropertyName("contact")] OutboundContactContract Contact,
+    [property: JsonPropertyName("payload")] OutboundMessageBodyContract Payload,
     [property: JsonPropertyName("metadata")] OutboundMetadataContract Metadata);
 
 public sealed record OutboundAuthContract(
-    [property: JsonPropertyName("type")] string Type,
-    [property: JsonPropertyName("accessToken")] string AccessToken,
+    [property: JsonPropertyName("webhookVerifyToken")] string WebhookVerifyToken,
     [property: JsonPropertyName("phoneNumberId")] string PhoneNumberId,
     [property: JsonPropertyName("businessAccountId")] string BusinessAccountId);
 
-public sealed record OutboundRecipientContract(
+public sealed record OutboundContactContract(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("phoneNumber")] string PhoneNumber);
 
@@ -32,7 +31,7 @@ public sealed record OutboundMetadataContract(
     [property: JsonPropertyName("replyToMessageId")] string? ReplyToMessageId);
 
 public sealed record OutboundTextContentContract(
-    [property: JsonPropertyName("text")] string Text);
+    [property: JsonPropertyName("body")] string Body);
 
 public sealed record OutboundImageContentContract(
     [property: JsonPropertyName("url")] string Url,

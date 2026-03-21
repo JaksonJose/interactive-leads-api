@@ -29,7 +29,7 @@ public sealed class RabbitMqOutboundMessageDispatcher(
                 "RabbitMQ outbound dispatch failed for provider {Provider}, channel {ChannelId}, messageId {MessageId}",
                 payload.Provider,
                 payload.ChannelId,
-                payload.Message.Id);
+                payload.Payload.Id);
             response.AddExceptionMessage(
                 "Error while dispatching outbound message to the message broker.",
                 "chat.message.outbound_broker_dispatch_error");

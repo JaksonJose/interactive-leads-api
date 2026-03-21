@@ -27,10 +27,10 @@ internal static class OutboundMessageContractMapper
             TenantId: tenantId,
             ChannelId: conversation.Integration.ExternalIdentifier,
             Auth: BuildAuth(authSettings),
-            Recipient: new OutboundRecipientContract(
+            Contact: new OutboundContactContract(
                 Name: conversation.Contact.Name,
                 PhoneNumber: normalizedPhoneNumber),
-            Message: new OutboundMessageBodyContract(
+            Payload: new OutboundMessageBodyContract(
                 Id: messageId,
                 Type: messageTypeName,
                 Content: BuildContent(messageType, content, mediaUrl, caption, reactionEmoji, reactionMessageId, replyToMessageId)),
@@ -47,8 +47,7 @@ internal static class OutboundMessageContractMapper
             return null;
 
         return new OutboundAuthContract(
-            Type: "bearer",
-            AccessToken: settings.AccessToken,
+            WebhookVerifyToken: settings.WebhookVerifyToken,
             PhoneNumberId: settings.PhoneNumberId,
             BusinessAccountId: settings.BusinessAccountId);
     }

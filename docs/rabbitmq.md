@@ -56,7 +56,7 @@ Mensagens que esgotam retries + redeliveries vão para a fila de **erro** MassTr
 ## Formato das mensagens (MassTransit + System.Text.Json)
 
 - **Inbound** (`InboundIntegrationEvent`): propriedades na raiz — `provider`, `eventType`, `identifications`, `payload`.
-- **Outbound** (`OutboundMessageDispatch`): propriedade `message` (`OutboundMessageContract`).
+- **Outbound** (`OutboundMessageDispatch`): envelope MassTransit com propriedade `message` contendo `OutboundMessageContract` (`provider`, `eventType`, `tenantId`, `channelId`, `auth`, `contact`, `payload`, `metadata`). Em `auth` (WhatsApp): `webhookVerifyToken`, `phoneNumberId`, `businessAccountId` (sem `type` nem `accessToken`). O corpo enviável (`id`, `type`, `content`) está em `payload`; para mensagem de texto, `content` usa `{ "body": "..." }`.
 - **Unprocessed** (`InboundUnprocessedDispatch`, opcional): `reasonCode`, `provider`, `externalIdentifier`, `messageId`, `rawEventJson`, `occurredAt`.
 
 ## Outcomes (`InboundProcessingOutcome`)
