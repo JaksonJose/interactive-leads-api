@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using InteractiveLeads.Application.Integrations.Settings;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
@@ -23,7 +24,9 @@ public sealed class ProcessWebhookEventCommandHandler(
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        // WhatsApp / bridges often send unix seconds as JSON strings (e.g. "1774048761").
+        NumberHandling = JsonNumberHandling.AllowReadingFromString
     };
 
     public async Task<IResponse> Handle(ProcessWebhookEventCommand request, CancellationToken cancellationToken)
@@ -114,6 +117,7 @@ public sealed class ProcessWebhookEventCommandHandler(
                         lookup.IntegrationId,
                         externalIdentifier,
                         messagePayload.Id);
+                    result.Data!.Reason = "integration_missing_in_tenant";
                     return;
                 }
 
@@ -129,6 +133,7 @@ public sealed class ProcessWebhookEventCommandHandler(
                         integration.Id,
                         externalIdentifier,
                         messagePayload.Id);
+                    result.Data!.Reason = "missing_contact_phone";
                     return;
                 }
 
@@ -237,6 +242,9 @@ public sealed class ProcessWebhookEventCommandHandler(
                     await db.SaveChangesAsync(cancellationToken);
                     await tx.CommitAsync(cancellationToken);
 
+                    result.Data!.Processed = true;
+                    result.Data!.Reason = "duplicate_ignored";
+
                     if (movedToTop)
                     {
                         var lastMessage = ResolveContent(messagePayload);
@@ -297,6 +305,9 @@ public sealed class ProcessWebhookEventCommandHandler(
                 await db.SaveChangesAsync(cancellationToken);
                 await tx.CommitAsync(cancellationToken);
 
+                result.Data!.Processed = true;
+                result.Data!.Reason = "processed";
+
                 var messageCreatedEvent = new RealtimeEvent<MessageCreatedPayloadDto>
                 {
                     Type = "message.created",
@@ -356,8 +367,6 @@ public sealed class ProcessWebhookEventCommandHandler(
             });
         });
 
-        result.Data!.Processed = true;
-        result.Data!.Reason = "processed";
         return result;
     }
 

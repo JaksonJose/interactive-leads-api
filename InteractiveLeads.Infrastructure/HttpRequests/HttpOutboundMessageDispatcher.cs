@@ -7,9 +7,10 @@ using Microsoft.Extensions.Logging;
 
 namespace InteractiveLeads.Infrastructure.HttpRequests;
 
-public sealed class N8nHttpClient(
+/// <summary>POSTs outbound payloads to the configured Integration:MessageSender HTTP base URL.</summary>
+public sealed class HttpOutboundMessageDispatcher(
     IHttpClientFactory httpClientFactory,
-    ILogger<N8nHttpClient> logger) : IN8nClient
+    ILogger<HttpOutboundMessageDispatcher> logger) : IOutboundMessageDispatcher
 {
     private const string HttpClientName = "MessageSender";
     private const string SendPath = "webhook-test/send-message";
@@ -41,14 +42,14 @@ public sealed class N8nHttpClient(
 
             var body = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
             logger.LogError(
-                "n8n outbound dispatch failed with status {StatusCode}, provider {Provider}, channel {ChannelId}, messageId {MessageId}, body {Body}",
+                "HTTP outbound dispatch failed with status {StatusCode}, provider {Provider}, channel {ChannelId}, messageId {MessageId}, body {Body}",
                 (int)httpResponse.StatusCode,
                 payload.Provider,
                 payload.ChannelId,
                 payload.Message.Id,
                 body);
 
-            response.AddErrorMessage("n8n rejected outbound message.", "chat.message.n8n_rejected");
+            response.AddErrorMessage("External HTTP channel rejected outbound message.", "chat.message.outbound_http_rejected");
             return response;
         }
         catch (OperationCanceledException)
@@ -59,11 +60,11 @@ public sealed class N8nHttpClient(
         {
             logger.LogError(
                 ex,
-                "n8n outbound dispatch threw an exception for provider {Provider}, channel {ChannelId}, messageId {MessageId}",
+                "HTTP outbound dispatch threw for provider {Provider}, channel {ChannelId}, messageId {MessageId}",
                 payload.Provider,
                 payload.ChannelId,
                 payload.Message.Id);
-            response.AddExceptionMessage("Error while dispatching outbound message to n8n.", "chat.message.n8n_dispatch_error");
+            response.AddExceptionMessage("Error while dispatching outbound message over HTTP.", "chat.message.outbound_http_dispatch_error");
             return response;
         }
     }

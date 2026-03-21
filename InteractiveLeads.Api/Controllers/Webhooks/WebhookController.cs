@@ -29,4 +29,3 @@ public sealed class WebhookController(ISender sender) : ControllerBase
         return Ok(response);
     }
 }
-

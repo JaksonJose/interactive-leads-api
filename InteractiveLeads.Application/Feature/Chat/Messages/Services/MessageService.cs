@@ -19,7 +19,7 @@ public sealed class MessageService(
     ICurrentUserService currentUserService,
     IRealtimeService realtimeService,
     IIntegrationSettingsResolver integrationSettingsResolver,
-    IN8nClient n8nClient,
+    IOutboundMessageDispatcher outboundDispatcher,
     ILogger<MessageService> logger) : IMessageService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -136,7 +136,7 @@ public sealed class MessageService(
             request.ReplyToMessageId,
             whatsappSettings);
 
-        var dispatchResult = await n8nClient.SendMessageAsync(payload, cancellationToken);
+        var dispatchResult = await outboundDispatcher.SendMessageAsync(payload, cancellationToken);
         if (dispatchResult.HasAnyErrorMessage)
         {
             message.Status = MessageStatus.Failed;

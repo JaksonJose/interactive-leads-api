@@ -12,6 +12,7 @@ using InteractiveLeads.Infrastructure.Context.Tenancy.Interfaces;
 using InteractiveLeads.Infrastructure.HttpRequests.Authentications;
 using InteractiveLeads.Infrastructure.HttpRequests.Handlers;
 using InteractiveLeads.Infrastructure.HttpRequests;
+using InteractiveLeads.Infrastructure.Messaging;
 using InteractiveLeads.Infrastructure.Identity;
 using InteractiveLeads.Infrastructure.Identity.Activation;
 using InteractiveLeads.Infrastructure.Identity.Impersonation;
@@ -97,7 +98,23 @@ namespace InteractiveLeads.Infrastructure
             services.AddScoped<ICrossTenantService, CrossTenantService>();
             services.AddScoped<ICrossTenantAuthorizationService, CrossTenantAuthorizationService>();
             services.AddScoped<ICurrentUserService, CurrentUserService>();
-            services.AddScoped<IN8nClient, N8nHttpClient>();
+
+            services.Configure<MessageSenderRoutingSettings>(config.GetSection("Integration").GetSection("MessageSender"));
+
+            var rabbitMqSettings = config.GetSection(RabbitMqSettings.SectionName).Get<RabbitMqSettings>() ?? new RabbitMqSettings();
+            var messageSenderRouting = config.GetSection("Integration").GetSection("MessageSender")
+                .Get<MessageSenderRoutingSettings>() ?? new MessageSenderRoutingSettings();
+
+            if (rabbitMqSettings.Enabled)
+            {
+                services.AddInteractiveLeadsMassTransit(config);
+                services.AddScoped<IOutboundMessagePublisher, RabbitMqOutboundMessagePublisher>();
+            }
+
+            if (!rabbitMqSettings.Enabled || messageSenderRouting.UseHttpFallback)
+                services.AddScoped<IOutboundMessageDispatcher, HttpOutboundMessageDispatcher>();
+            else
+                services.AddScoped<IOutboundMessageDispatcher, RabbitMqOutboundMessageDispatcher>();
             services.AddScoped<IResponseHandler, DefaultResponseHandler>();
             services.AddScoped<IResponseHandlerProvider, ResponseHandlerProvider>();
             services.AddScoped<IExternalApiHttpClientFactory, ExternalApiHttpClientFactory>();
