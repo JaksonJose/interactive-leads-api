@@ -60,11 +60,19 @@ public static class MassTransitServiceCollectionExtensions
                     if (settings.UseQuorumQueues && e is IRabbitMqQueueConfigurator inboundQueue)
                         inboundQueue.SetQuorumQueue(null);
 
-                    e.ConfigureConsumer<InboundIntegrationEventConsumer>(context);
-                    e.UseMessageRetry(r => r.Intervals(
-                        TimeSpan.FromMilliseconds(200),
-                        TimeSpan.FromSeconds(1),
-                        TimeSpan.FromSeconds(5)));
+                    e.ConfigureConsumer<InboundIntegrationEventConsumer>(context, c =>
+                    {
+                        // Second-level retry: requires RabbitMQ delayed message exchange plugin, or use a broker that supports it.
+                        c.UseDelayedRedelivery(r => r.Intervals(
+                            TimeSpan.FromSeconds(30),
+                            TimeSpan.FromMinutes(2),
+                            TimeSpan.FromMinutes(10)));
+
+                        c.UseMessageRetry(r => r.Intervals(
+                            TimeSpan.FromMilliseconds(200),
+                            TimeSpan.FromSeconds(1),
+                            TimeSpan.FromSeconds(5)));
+                    });
                 });
 
                 cfg.Publish<OutboundMessageDispatch>(p =>

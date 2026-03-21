@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using InteractiveLeads.Application.Feature.Inbound;
 using InteractiveLeads.Application.Integrations.Settings;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
@@ -9,29 +10,33 @@ using InteractiveLeads.Domain.Entities;
 using InteractiveLeads.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace InteractiveLeads.Application.Feature.Webhooks.Messages;
+namespace InteractiveLeads.Application.Feature.Inbound.Messages;
 
-public sealed class ProcessWebhookEventCommandHandler(
+public sealed class ProcessInboundEventCommandHandler(
     IIntegrationExternalIdentifierLookupRepository integrationLookupRepository,
     ICrossTenantService crossTenantService,
     IRealtimeService realtimeService,
-    ILogger<ProcessWebhookEventCommandHandler> logger)
-    : IRequestHandler<ProcessWebhookEventCommand, IResponse>
+    ILogger<ProcessInboundEventCommandHandler> logger)
+    : IRequestHandler<ProcessInboundEventCommand, IResponse>
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        // WhatsApp / bridges often send unix seconds as JSON strings (e.g. "1774048761").
         NumberHandling = JsonNumberHandling.AllowReadingFromString
     };
 
-    public async Task<IResponse> Handle(ProcessWebhookEventCommand request, CancellationToken cancellationToken)
+    public async Task<IResponse> Handle(ProcessInboundEventCommand request, CancellationToken cancellationToken)
     {
-        var result = new SingleResponse<WebhookProcessingResultDto>(new WebhookProcessingResultDto { Processed = false });
+        var result = new SingleResponse<InboundProcessingResultDto>(new InboundProcessingResultDto
+        {
+            Processed = false,
+            Outcome = InboundProcessingOutcome.Unknown
+        });
 
         var provider = request.Event.Provider?.Trim();
         var eventType = request.Event.EventType?.Trim();
@@ -41,40 +46,40 @@ public sealed class ProcessWebhookEventCommandHandler(
             string.IsNullOrWhiteSpace(eventType) ||
             string.IsNullOrWhiteSpace(externalIdentifier))
         {
-            result.Data!.Reason = "invalid_payload";
+            SetPermanent(result, "invalid_payload");
             return result;
         }
 
         if (!TryMapProvider(provider, out var integrationType))
         {
-            logger.LogWarning("Webhook ignored: unsupported provider {Provider}", provider);
-            result.Data!.Reason = "unsupported_provider";
+            logger.LogWarning("Inbound event ignored: unsupported provider {Provider}", provider);
+            SetPermanent(result, "unsupported_provider");
             return result;
         }
 
         if (!eventType.Equals("message", StringComparison.OrdinalIgnoreCase))
         {
-            logger.LogInformation("Webhook received but not implemented for eventType {EventType}", eventType);
-            result.Data!.Reason = "event_type_not_implemented";
+            logger.LogInformation("Inbound event received but not implemented for eventType {EventType}", eventType);
+            SetPermanent(result, "event_type_not_implemented");
             return result;
         }
 
-        WebhookMessagePayload? messagePayload;
+        InboundMessagePayload? messagePayload;
 
         try
         {
-            messagePayload = request.Event.Payload.Deserialize<WebhookMessagePayload>(JsonOptions);
+            messagePayload = request.Event.Payload.Deserialize<InboundMessagePayload>(JsonOptions);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Webhook ignored: failed to deserialize message payload");
-            result.Data!.Reason = "invalid_message_payload";
+            logger.LogWarning(ex, "Inbound event ignored: failed to deserialize message payload");
+            SetPermanent(result, "invalid_message_payload");
             return result;
         }
 
         if (messagePayload == null || string.IsNullOrWhiteSpace(messagePayload.Id))
         {
-            result.Data!.Reason = "missing_message_id";
+            SetPermanent(result, "missing_message_id");
             return result;
         }
 
@@ -86,12 +91,12 @@ public sealed class ProcessWebhookEventCommandHandler(
         if (lookup == null)
         {
             logger.LogWarning(
-                "Webhook ignored: integration lookup not found for provider {Provider} externalIdentifier {ExternalIdentifier} messageId {MessageId}",
+                "Inbound event: integration lookup not found for provider {Provider} externalIdentifier {ExternalIdentifier} messageId {MessageId}",
                 provider,
                 externalIdentifier,
                 messagePayload.Id);
 
-            result.Data!.Reason = "integration_not_found";
+            ThrowOrTransientRetry(request, result, "integration_not_found");
             return result;
         }
 
@@ -99,7 +104,7 @@ public sealed class ProcessWebhookEventCommandHandler(
         {
             var db = sp.GetRequiredService<IApplicationDbContext>();
             var settingsResolver = sp.GetRequiredService<IIntegrationSettingsResolver>();
-            var tenantLogger = sp.GetRequiredService<ILogger<ProcessWebhookEventCommandHandler>>();
+            var tenantLogger = sp.GetRequiredService<ILogger<ProcessInboundEventCommandHandler>>();
 
             var executionStrategy = db.Database.CreateExecutionStrategy();
             await executionStrategy.ExecuteAsync(async () =>
@@ -112,28 +117,29 @@ public sealed class ProcessWebhookEventCommandHandler(
                 if (integration == null)
                 {
                     tenantLogger.LogWarning(
-                        "Webhook ignored: integration not found in tenant db. tenantId {TenantId} integrationId {IntegrationId} externalIdentifier {ExternalIdentifier} messageId {MessageId}",
+                        "Inbound event: integration not found in tenant db. tenantId {TenantId} integrationId {IntegrationId} externalIdentifier {ExternalIdentifier} messageId {MessageId}",
                         lookup.TenantId,
                         lookup.IntegrationId,
                         externalIdentifier,
                         messagePayload.Id);
-                    result.Data!.Reason = "integration_missing_in_tenant";
+
+                    ThrowOrTransientRetry(request, result, "integration_missing_in_tenant");
                     return;
                 }
 
                 var companyId = integration.CompanyId;
 
-                var phone = request.Event.Identifications.Contact?.PhoneNumber?.Trim() ?? string.Empty;
-                var name = request.Event.Identifications.Contact?.Name?.Trim() ?? string.Empty;
+                var phone = request.Event.Identifications?.Contact?.PhoneNumber?.Trim() ?? string.Empty;
+                var name = request.Event.Identifications?.Contact?.Name?.Trim() ?? string.Empty;
 
                 if (string.IsNullOrWhiteSpace(phone))
                 {
                     tenantLogger.LogWarning(
-                        "Webhook ignored: missing contact phoneNumber. integrationId {IntegrationId} externalIdentifier {ExternalIdentifier} messageId {MessageId}",
+                        "Inbound event ignored: missing contact phoneNumber. integrationId {IntegrationId} externalIdentifier {ExternalIdentifier} messageId {MessageId}",
                         integration.Id,
                         externalIdentifier,
                         messagePayload.Id);
-                    result.Data!.Reason = "missing_contact_phone";
+                    SetPermanent(result, "missing_contact_phone");
                     return;
                 }
 
@@ -159,9 +165,6 @@ public sealed class ProcessWebhookEventCommandHandler(
                     ? DateTimeOffset.FromUnixTimeSeconds(messagePayload.Timestamp)
                     : DateTimeOffset.UtcNow;
 
-                // Prefer reusing the most recent conversation for the contact+integration.
-                // New incoming/outgoing messages should "revive" a closed conversation rather than creating duplicates.
-                var isNewConversation = false;
                 var conversation = await db.Conversations
                     .OrderByDescending(c => c.CreatedAt)
                     .FirstOrDefaultAsync(
@@ -172,7 +175,6 @@ public sealed class ProcessWebhookEventCommandHandler(
 
                 if (conversation == null)
                 {
-                    isNewConversation = true;
                     var inboxId = await ResolveInboxIdAsync(
                         db,
                         settingsResolver,
@@ -227,51 +229,19 @@ public sealed class ProcessWebhookEventCommandHandler(
 
                 if (exists)
                 {
-                    tenantLogger.LogInformation(
-                        "Webhook duplicate message ignored. integrationId {IntegrationId} externalIdentifier {ExternalIdentifier} messageId {MessageId}",
+                    await CommitDuplicateAsync(
+                        db,
+                        realtimeService,
+                        result,
+                        lookup.TenantId,
                         integration.Id,
                         externalIdentifier,
-                        messagePayload.Id);
-
-                    // Even if we already have the message, ensure conversation's LastMessageAt is not stale.
-                    var movedToTop = conversation.LastMessageAt < eventTimestamp;
-                    if (movedToTop)
-                        conversation.LastMessageAt = eventTimestamp;
-                    conversation.Status = ConversationStatus.Open;
-
-                    await db.SaveChangesAsync(cancellationToken);
-                    await tx.CommitAsync(cancellationToken);
-
-                    result.Data!.Processed = true;
-                    result.Data!.Reason = "duplicate_ignored";
-
-                    if (movedToTop)
-                    {
-                        var lastMessage = ResolveContent(messagePayload);
-
-                        var movedEventDuplicate = new RealtimeEvent<ConversationMovedToTopPayloadDto>
-                        {
-                            Type = "conversation.moved_to_top",
-                            TenantId = lookup.TenantId,
-                            Timestamp = DateTime.UtcNow,
-                            Payload = new ConversationMovedToTopPayloadDto
-                            {
-                                Id = conversation.Id,
-                                LastMessage = lastMessage,
-                                LastMessageAt = conversation.LastMessageAt
-                            }
-                        };
-
-                        try
-                        {
-                            await realtimeService.SendToInboxAsync(conversation.InboxId.ToString(), movedEventDuplicate);
-                        }
-                        catch (Exception ex)
-                        {
-                            tenantLogger.LogWarning(ex, "Failed to send moved_to_top event via SignalR.");
-                        }
-                    }
-
+                        messagePayload,
+                        eventTimestamp,
+                        conversation,
+                        tenantLogger,
+                        tx,
+                        cancellationToken);
                     return;
                 }
 
@@ -302,11 +272,42 @@ public sealed class ProcessWebhookEventCommandHandler(
                     conversation.LastMessageAt = eventTimestamp;
                 conversation.Status = ConversationStatus.Open;
 
-                await db.SaveChangesAsync(cancellationToken);
+                try
+                {
+                    await db.SaveChangesAsync(cancellationToken);
+                }
+                catch (DbUpdateException ex) when (IsUniqueExternalMessageIdViolation(ex))
+                {
+                    tenantLogger.LogInformation(
+                        ex,
+                        "Inbound idempotent race on ExternalMessageId; reconciling as duplicate. messageId {MessageId}",
+                        messagePayload.Id);
+
+                    await tx.RollbackAsync(cancellationToken);
+
+                    await using var tx2 = await db.Database.BeginTransactionAsync(cancellationToken);
+                    conversation = await db.Conversations
+                        .FirstAsync(c => c.Id == conversation.Id, cancellationToken);
+
+                    await CommitDuplicateAsync(
+                        db,
+                        realtimeService,
+                        result,
+                        lookup.TenantId,
+                        integration.Id,
+                        externalIdentifier,
+                        messagePayload,
+                        eventTimestamp,
+                        conversation,
+                        tenantLogger,
+                        tx2,
+                        cancellationToken);
+                    return;
+                }
+
                 await tx.CommitAsync(cancellationToken);
 
-                result.Data!.Processed = true;
-                result.Data!.Reason = "processed";
+                SetSuccess(result, InboundProcessingOutcome.Persisted, "processed");
 
                 var messageCreatedEvent = new RealtimeEvent<MessageCreatedPayloadDto>
                 {
@@ -323,9 +324,6 @@ public sealed class ProcessWebhookEventCommandHandler(
                     }
                 };
 
-                // Always notify the inbox list after inserting a new message.
-                // This keeps `lastMessage` and `lastMessageAt` in sync on the UI,
-                // even if LastMessageAt didn't advance strictly (timestamp equality).
                 var movedEvent = new RealtimeEvent<ConversationMovedToTopPayloadDto>
                 {
                     Type = "conversation.moved_to_top",
@@ -358,7 +356,7 @@ public sealed class ProcessWebhookEventCommandHandler(
                 }
 
                 tenantLogger.LogInformation(
-                    "Webhook message processed. integrationId {IntegrationId} externalIdentifier {ExternalIdentifier} messageId {MessageId} conversationId {ConversationId} contactId {ContactId}",
+                    "Inbound message persisted. integrationId {IntegrationId} externalIdentifier {ExternalIdentifier} messageId {MessageId} conversationId {ConversationId} contactId {ContactId}",
                     integration.Id,
                     externalIdentifier,
                     messagePayload.Id,
@@ -368,6 +366,101 @@ public sealed class ProcessWebhookEventCommandHandler(
         });
 
         return result;
+    }
+
+    private static void SetPermanent(SingleResponse<InboundProcessingResultDto> result, string reason)
+    {
+        result.Data!.Outcome = InboundProcessingOutcome.PermanentRejected;
+        result.Data!.Reason = reason;
+        result.Data!.Processed = false;
+    }
+
+    private static void SetSuccess(
+        SingleResponse<InboundProcessingResultDto> result,
+        InboundProcessingOutcome outcome,
+        string reason)
+    {
+        result.Data!.Outcome = outcome;
+        result.Data!.Reason = reason;
+        result.Data!.Processed = true;
+    }
+
+    private static void ThrowOrTransientRetry(
+        ProcessInboundEventCommand request,
+        SingleResponse<InboundProcessingResultDto> result,
+        string reasonCode)
+    {
+        if (request.ReliableMessaging)
+            throw new InboundTransientException(reasonCode);
+
+        result.Data!.Outcome = InboundProcessingOutcome.TransientRetry;
+        result.Data!.Reason = reasonCode;
+        result.Data!.Processed = false;
+    }
+
+    private static bool IsUniqueExternalMessageIdViolation(DbUpdateException ex)
+    {
+        var msg = ex.InnerException?.Message ?? ex.Message;
+        return msg.Contains("UX_Message_ExternalMessageId", StringComparison.OrdinalIgnoreCase)
+               || msg.Contains("IX_Message_ExternalMessageId", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task CommitDuplicateAsync(
+        IApplicationDbContext db,
+        IRealtimeService realtimeService,
+        SingleResponse<InboundProcessingResultDto> result,
+        string tenantId,
+        Guid integrationId,
+        string externalIdentifier,
+        InboundMessagePayload messagePayload,
+        DateTimeOffset eventTimestamp,
+        Conversation conversation,
+        ILogger tenantLogger,
+        IDbContextTransaction tx,
+        CancellationToken cancellationToken)
+    {
+        tenantLogger.LogInformation(
+            "Inbound duplicate message ignored. integrationId {IntegrationId} externalIdentifier {ExternalIdentifier} messageId {MessageId}",
+            integrationId,
+            externalIdentifier,
+            messagePayload.Id);
+
+        var movedToTop = conversation.LastMessageAt < eventTimestamp;
+        if (movedToTop)
+            conversation.LastMessageAt = eventTimestamp;
+        conversation.Status = ConversationStatus.Open;
+
+        await db.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+
+        SetSuccess(result, InboundProcessingOutcome.DuplicateIgnored, "duplicate_ignored");
+
+        if (movedToTop)
+        {
+            var lastMessage = ResolveContent(messagePayload);
+
+            var movedEventDuplicate = new RealtimeEvent<ConversationMovedToTopPayloadDto>
+            {
+                Type = "conversation.moved_to_top",
+                TenantId = tenantId,
+                Timestamp = DateTime.UtcNow,
+                Payload = new ConversationMovedToTopPayloadDto
+                {
+                    Id = conversation.Id,
+                    LastMessage = lastMessage,
+                    LastMessageAt = conversation.LastMessageAt
+                }
+            };
+
+            try
+            {
+                await realtimeService.SendToInboxAsync(conversation.InboxId.ToString(), movedEventDuplicate);
+            }
+            catch (Exception ex)
+            {
+                tenantLogger.LogWarning(ex, "Failed to send moved_to_top event via SignalR.");
+            }
+        }
     }
 
     private static bool TryMapProvider(string provider, out IntegrationType type)
@@ -404,7 +497,7 @@ public sealed class ProcessWebhookEventCommandHandler(
         };
     }
 
-    private static string ResolveContent(WebhookMessagePayload payload)
+    private static string ResolveContent(InboundMessagePayload payload)
     {
         if (payload.Type.Equals("text", StringComparison.OrdinalIgnoreCase))
             return payload.Text?.Body?.Trim() ?? string.Empty;
@@ -462,4 +555,3 @@ public sealed class ProcessWebhookEventCommandHandler(
         return inbox.Id;
     }
 }
-

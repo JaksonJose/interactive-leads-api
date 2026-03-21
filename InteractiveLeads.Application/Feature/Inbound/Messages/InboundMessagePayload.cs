@@ -1,6 +1,6 @@
-namespace InteractiveLeads.Application.Feature.Webhooks.Messages;
+namespace InteractiveLeads.Application.Feature.Inbound.Messages;
 
-public sealed class WebhookMessagePayload
+public sealed class InboundMessagePayload
 {
     public string Id { get; set; } = string.Empty;
 
@@ -10,17 +10,17 @@ public sealed class WebhookMessagePayload
 
     public string Type { get; set; } = "text";
 
-    public WebhookTextPayload? Text { get; set; }
+    public InboundTextPayload? Text { get; set; }
 
-    public WebhookMediaPayload? Media { get; set; }
+    public InboundMediaPayload? Media { get; set; }
 }
 
-public sealed class WebhookTextPayload
+public sealed class InboundTextPayload
 {
     public string Body { get; set; } = string.Empty;
 }
 
-public sealed class WebhookMediaPayload
+public sealed class InboundMediaPayload
 {
     public string Url { get; set; } = string.Empty;
     public string? Caption { get; set; }
@@ -28,4 +28,3 @@ public sealed class WebhookMediaPayload
     public string? Sha256 { get; set; }
     public string? FileName { get; set; }
 }
-
