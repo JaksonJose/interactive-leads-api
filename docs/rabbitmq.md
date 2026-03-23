@@ -18,8 +18,8 @@ A integração externa (n8n, bridge, etc.) **publica** na fila `InboundQueueName
 #### Confiabilidade (ACK, retry, redelivery)
 
 - **Sucesso** (`InboundProcessingOutcome.Persisted` ou `DuplicateIgnored`): o consumer conclui sem exceção → **ACK**.
-- **Erro permanente** (`PermanentRejected`: payload inválido, tipo não suportado, telefone ausente, etc.): **sem exceção** → **ACK** (não retentar infinitamente). Opcionalmente `RabbitMq:ForwardPermanentRejectionsToUnprocessedQueue` envia cópia para `UnprocessedQueueName` (default `chat.unprocessed`).
-- **Erro transitório** (`integration_not_found`, `integration_missing_in_tenant`) ou falha técnica (EF/SQL): **`InboundTransientException`** ou exceção propagada → **NACK** / retentativas MassTransit.
+- **Erro permanente** (`PermanentRejected`: payload inválido, tipo não suportado, telefone ausente, integração não encontrada, status sem mensagem outbound correspondente `status_message_not_found`, etc.): **sem exceção** → **ACK** (não retentar infinitamente). Opcionalmente `RabbitMq:ForwardPermanentRejectionsToUnprocessedQueue` envia cópia para `UnprocessedQueueName` (default `chat.unprocessed`).
+- **Erro transitório**: falha técnica não tratada (EF/SQL, timeout, etc.) → exceção propagada → **NACK** / retentativas MassTransit. (`InboundTransientException` permanece disponível para uso futuro se algum fluxo precisar marcar retry explícito.)
 
 **Retry imediato** (no consumer): intervalos `200 ms`, `1 s`, `5 s`.
 
@@ -68,7 +68,7 @@ Mensagens que esgotam retries + redeliveries vão para a fila de **erro** MassTr
 | `PermanentRejected` | Dados inválidos / não suportado | Sim |
 | `TransientRetry` | Só com `ReliableMessaging: false` (ex.: futuro HTTP) | N/A |
 
-Com `ReliableMessaging: true`, cenários transitórios **lançam** exceção em vez de devolver `TransientRetry`.
+O handler hoje resolve cenários conhecidos como `PermanentRejected` ou sucesso; **exceções não tratadas** (ex.: EF) ainda propagam e geram retentativas no consumer.
 
 ## Stack Docker de referência
 

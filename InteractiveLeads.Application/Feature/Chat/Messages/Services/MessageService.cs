@@ -59,7 +59,7 @@ public sealed class MessageService(
         var existingMessage = await db.Messages
             .AsNoTracking()
             .Where(m => m.ExternalMessageId == idempotencyMessageId)
-            .Select(m => new { m.Id, m.Content, m.CreatedAt, m.Direction })
+            .Select(m => new { m.Id, m.Content, m.CreatedAt, m.Direction, m.Status })
             .SingleOrDefaultAsync(cancellationToken);
 
         if (existingMessage is not null)
@@ -74,7 +74,8 @@ public sealed class MessageService(
                 Id = existingMessage.Id,
                 Content = existingMessage.Content,
                 Direction = existingMessage.Direction == MessageDirection.Inbound ? "inbound" : "outbound",
-                CreatedAt = existingMessage.CreatedAt
+                CreatedAt = existingMessage.CreatedAt,
+                Status = MessageListItemDtoMapper.ToStatusString(existingMessage.Status)
             };
         }
 
@@ -177,7 +178,8 @@ public sealed class MessageService(
             Id = message.Id,
             Content = message.Content,
             Direction = "outbound",
-            CreatedAt = message.CreatedAt
+            CreatedAt = message.CreatedAt,
+            Status = MessageListItemDtoMapper.ToStatusString(message.Status)
         };
     }
 
@@ -194,7 +196,8 @@ public sealed class MessageService(
                 ConversationId = message.ConversationId,
                 Text = message.Content,
                 SenderId = message.SenderUserId?.ToString(),
-                CreatedAt = message.CreatedAt
+                CreatedAt = message.CreatedAt,
+                Status = MessageListItemDtoMapper.ToStatusString(message.Status)
             }
         };
 

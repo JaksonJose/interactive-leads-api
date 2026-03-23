@@ -19,7 +19,7 @@ public sealed class IntegrationSettingsResponse
 
     public string BusinessAccountId { get; set; } = string.Empty;
 
-    public string WebhookVerifyToken { get; set; } = string.Empty;
+    public string WebhookVerifyToken { get; set; } = WhatsAppWebhookDefaults.FixedVerifyToken;
 }
 
 public sealed class IntegrationByIdentifierResponse
@@ -129,7 +129,7 @@ public sealed class GetIntegrationByIdentifierQueryHandler(
                     AccessToken = "******",
                     PhoneNumberId = typedSettings.PhoneNumberId,
                     BusinessAccountId = typedSettings.BusinessAccountId,
-                    WebhookVerifyToken = typedSettings.WebhookVerifyToken
+                    WebhookVerifyToken = WhatsAppWebhookDefaults.FixedVerifyToken
                 }
             };
         });

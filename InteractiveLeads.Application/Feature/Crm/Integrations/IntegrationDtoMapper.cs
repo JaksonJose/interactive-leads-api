@@ -21,8 +21,7 @@ public static class IntegrationDtoMapper
                 {
                     accessToken = "******",
                     phoneNumberId = whatsapp.PhoneNumberId,
-                    businessAccountId = whatsapp.BusinessAccountId,
-                    webhookVerifyToken = whatsapp.WebhookVerifyToken
+                    businessAccountId = whatsapp.BusinessAccountId
                 },
                 _ => null
             };

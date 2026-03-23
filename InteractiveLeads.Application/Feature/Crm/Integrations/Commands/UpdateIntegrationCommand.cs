@@ -129,10 +129,7 @@ public sealed class UpdateIntegrationCommandHandler(
                     : incomingWhatsapp.PhoneNumberId,
                 BusinessAccountId = string.IsNullOrWhiteSpace(incomingWhatsapp.BusinessAccountId)
                     ? existingWhatsapp.BusinessAccountId
-                    : incomingWhatsapp.BusinessAccountId,
-                WebhookVerifyToken = string.IsNullOrWhiteSpace(incomingWhatsapp.WebhookVerifyToken)
-                    ? existingWhatsapp.WebhookVerifyToken
-                    : incomingWhatsapp.WebhookVerifyToken
+                    : incomingWhatsapp.BusinessAccountId
             };
         }
 

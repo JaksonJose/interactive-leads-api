@@ -49,7 +49,7 @@ internal static class OutboundMessageContractMapper
             return null;
 
         return new OutboundAuthContract(
-            WebhookVerifyToken: settings.WebhookVerifyToken,
+            WebhookVerifyToken: WhatsAppWebhookDefaults.FixedVerifyToken,
             PhoneNumberId: settings.PhoneNumberId,
             BusinessAccountId: settings.BusinessAccountId);
     }

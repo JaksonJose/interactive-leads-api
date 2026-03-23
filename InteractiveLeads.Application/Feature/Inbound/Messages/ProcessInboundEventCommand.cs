@@ -9,7 +9,7 @@ public sealed class ProcessInboundEventCommand : IRequest<IResponse>
     public NormalizedInboundEvent Event { get; set; } = new();
 
     /// <summary>
-    /// When true (RabbitMQ consumer), transient failures throw <see cref="InboundTransientException"/> instead of returning TransientRetry.
+    /// When true (RabbitMQ consumer), the handler avoids returning <see cref="InboundProcessingOutcome.TransientRetry"/> for known cases; unhandled exceptions still trigger retries.
     /// </summary>
     public bool ReliableMessaging { get; init; }
 }

@@ -57,7 +57,8 @@ public sealed class ListConversationMessagesQueryHandler(
                 Id = m.Id,
                 Content = m.Content,
                 Direction = m.Direction == MessageDirection.Inbound ? "inbound" : "outbound",
-                CreatedAt = m.CreatedAt
+                CreatedAt = m.CreatedAt,
+                Status = MessageListItemDtoMapper.ToStatusString(m.Status)
             })
             .ToListAsync(cancellationToken);
 

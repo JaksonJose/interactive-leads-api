@@ -13,9 +13,6 @@ public sealed class WhatsAppSettings
     [JsonPropertyName("businessAccountId")]
     public string BusinessAccountId { get; set; } = string.Empty;
 
-    [JsonPropertyName("webhookVerifyToken")]
-    public string WebhookVerifyToken { get; set; } = string.Empty;
-
     [JsonPropertyName("inboxId")]
     public Guid? InboxId { get; set; }
 }

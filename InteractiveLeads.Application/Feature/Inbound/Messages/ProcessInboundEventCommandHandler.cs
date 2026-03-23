@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using InteractiveLeads.Application.Feature.Chat.Messages;
 using InteractiveLeads.Application.Feature.Inbound;
 using InteractiveLeads.Application.Integrations.Settings;
 using InteractiveLeads.Application.Interfaces;
@@ -176,6 +177,14 @@ public sealed class ProcessInboundEventCommandHandler(
                         await tx.CommitAsync(cancellationToken);
 
                         SetSuccess(result, InboundProcessingOutcome.Persisted, "updated_outbound_by_client_message_id");
+
+                        await TryPublishMessageStatusUpdatedAsync(
+                            lookup.TenantId,
+                            outboundForAck.Id,
+                            outboundForAck.ConversationId,
+                            outboundForAck.Status,
+                            cancellationToken);
+
                         return;
                     }
 
@@ -380,7 +389,8 @@ public sealed class ProcessInboundEventCommandHandler(
                         ConversationId = message.ConversationId,
                         Text = message.Content,
                         SenderId = message.SenderUserId?.ToString(),
-                        CreatedAt = message.CreatedAt
+                        CreatedAt = message.CreatedAt,
+                        Status = MessageListItemDtoMapper.ToStatusString(message.Status)
                     }
                 };
 
@@ -521,7 +531,8 @@ public sealed class ProcessInboundEventCommandHandler(
                         "Inbound status: no outbound message for ExternalMessageId {MessageId} integrationId {IntegrationId}",
                         providerMessageId,
                         integration.Id);
-                    ThrowOrTransientRetry(request, result, "status_message_not_found");
+                    // Permanent: message may never exist (old events, wrong id); retry would not help.
+                    SetPermanent(result, "status_message_not_found");
                     return;
                 }
 
@@ -545,8 +556,45 @@ public sealed class ProcessInboundEventCommandHandler(
                     integration.Id,
                     providerMessageId,
                     newStatus);
+
+                await TryPublishMessageStatusUpdatedAsync(
+                    lookup.TenantId,
+                    message.Id,
+                    message.ConversationId,
+                    message.Status,
+                    cancellationToken);
             });
         });
+    }
+
+    private async Task TryPublishMessageStatusUpdatedAsync(
+        string tenantId,
+        Guid messageId,
+        Guid conversationId,
+        MessageStatus status,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var evt = new RealtimeEvent<MessageStatusUpdatedPayloadDto>
+            {
+                Type = "message.status_updated",
+                TenantId = tenantId,
+                Timestamp = DateTime.UtcNow,
+                Payload = new MessageStatusUpdatedPayloadDto
+                {
+                    Id = messageId,
+                    ConversationId = conversationId,
+                    Status = MessageListItemDtoMapper.ToStatusString(status)
+                }
+            };
+
+            await realtimeService.SendToConversationAsync(conversationId.ToString("D"), evt);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to send message.status_updated via SignalR.");
+        }
     }
 
     private static bool TryMapProviderStatus(string? status, out MessageStatus mapped)
@@ -611,19 +659,6 @@ public sealed class ProcessInboundEventCommandHandler(
         result.Data!.Outcome = outcome;
         result.Data!.Reason = reason;
         result.Data!.Processed = true;
-    }
-
-    private static void ThrowOrTransientRetry(
-        ProcessInboundEventCommand request,
-        SingleResponse<InboundProcessingResultDto> result,
-        string reasonCode)
-    {
-        if (request.ReliableMessaging)
-            throw new InboundTransientException(reasonCode);
-
-        result.Data!.Outcome = InboundProcessingOutcome.TransientRetry;
-        result.Data!.Reason = reasonCode;
-        result.Data!.Processed = false;
     }
 
     private static bool IsUniqueExternalMessageIdViolation(DbUpdateException ex)

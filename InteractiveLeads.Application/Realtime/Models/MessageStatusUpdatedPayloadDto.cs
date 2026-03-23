@@ -1,14 +1,10 @@
 namespace InteractiveLeads.Application.Realtime.Models;
 
-public class MessageCreatedPayloadDto
+public sealed class MessageStatusUpdatedPayloadDto
 {
     public Guid Id { get; set; }
     public Guid ConversationId { get; set; }
-    public string Text { get; set; } = string.Empty;
-    public string? SenderId { get; set; }
-    public DateTimeOffset CreatedAt { get; set; }
 
     /// <summary>Lowercase: pending, sent, delivered, read, failed.</summary>
     public string Status { get; set; } = "pending";
 }
-
