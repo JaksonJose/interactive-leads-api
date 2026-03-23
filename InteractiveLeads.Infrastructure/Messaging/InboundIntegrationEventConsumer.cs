@@ -126,9 +126,11 @@ public sealed class InboundIntegrationEventConsumer(
         {
             if (payload.ValueKind != JsonValueKind.Object)
                 return null;
-            if (!payload.TryGetProperty("id", out var idProp))
-                return null;
-            return idProp.GetString();
+            if (payload.TryGetProperty("id", out var idProp))
+                return idProp.GetString();
+            if (payload.TryGetProperty("messageId", out var messageIdProp))
+                return messageIdProp.GetString();
+            return null;
         }
         catch
         {

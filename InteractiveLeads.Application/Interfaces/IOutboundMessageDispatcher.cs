@@ -1,5 +1,4 @@
 using InteractiveLeads.Application.Feature.Chat.Messages.Outbound;
-using InteractiveLeads.Application.Responses;
 
 namespace InteractiveLeads.Application.Interfaces;
 
@@ -8,5 +7,6 @@ namespace InteractiveLeads.Application.Interfaces;
 /// </summary>
 public interface IOutboundMessageDispatcher
 {
-    Task<BaseResponse> SendMessageAsync(OutboundMessageContract payload, CancellationToken cancellationToken);
+    /// <returns>Transport outcome; see <see cref="OutboundDispatchOutcome.AdvanceToSentOnSuccess"/> for when the row becomes <c>Sent</c>.</returns>
+    Task<OutboundDispatchOutcome> SendMessageAsync(OutboundMessageContract payload, CancellationToken cancellationToken);
 }

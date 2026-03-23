@@ -57,6 +57,18 @@ public sealed class ProcessInboundEventCommandHandler(
             return result;
         }
 
+        if (eventType.Equals("status", StringComparison.OrdinalIgnoreCase))
+        {
+            await HandleStatusEventAsync(
+                request,
+                result,
+                provider,
+                integrationType,
+                externalIdentifier,
+                cancellationToken);
+            return result;
+        }
+
         if (!eventType.Equals("message", StringComparison.OrdinalIgnoreCase))
         {
             logger.LogInformation("Inbound event received but not implemented for eventType {EventType}", eventType);
@@ -96,7 +108,7 @@ public sealed class ProcessInboundEventCommandHandler(
                 externalIdentifier,
                 messagePayload.Id);
 
-            ThrowOrTransientRetry(request, result, "integration_not_found");
+            SetPermanent(result, "integration_not_found");
             return result;
         }
 
@@ -123,7 +135,7 @@ public sealed class ProcessInboundEventCommandHandler(
                         externalIdentifier,
                         messagePayload.Id);
 
-                    ThrowOrTransientRetry(request, result, "integration_missing_in_tenant");
+                    SetPermanent(result, "integration_missing_in_tenant");
                     return;
                 }
 
@@ -414,6 +426,174 @@ public sealed class ProcessInboundEventCommandHandler(
         });
 
         return result;
+    }
+
+    private async Task HandleStatusEventAsync(
+        ProcessInboundEventCommand request,
+        SingleResponse<InboundProcessingResultDto> result,
+        string provider,
+        IntegrationType integrationType,
+        string externalIdentifier,
+        CancellationToken cancellationToken)
+    {
+        InboundStatusPayload? statusPayload;
+        try
+        {
+            statusPayload = request.Event.Payload.Deserialize<InboundStatusPayload>(JsonOptions);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Inbound status event ignored: failed to deserialize payload");
+            SetPermanent(result, "invalid_status_payload");
+            return;
+        }
+
+        if (statusPayload == null || string.IsNullOrWhiteSpace(statusPayload.MessageId))
+        {
+            SetPermanent(result, "missing_message_id");
+            return;
+        }
+
+        if (!TryMapProviderStatus(statusPayload.Status, out var newStatus))
+        {
+            logger.LogWarning(
+                "Inbound status event ignored: unknown status {Status} for messageId {MessageId}",
+                statusPayload.Status,
+                statusPayload.MessageId);
+            SetPermanent(result, "unknown_status");
+            return;
+        }
+
+        var lookup = await integrationLookupRepository.GetByProviderAndExternalIdentifierAsync(
+            integrationType,
+            externalIdentifier,
+            cancellationToken);
+
+        if (lookup == null)
+        {
+            logger.LogWarning(
+                "Inbound status: integration lookup not found for provider {Provider} externalIdentifier {ExternalIdentifier} messageId {MessageId}",
+                provider,
+                externalIdentifier,
+                statusPayload.MessageId);
+            SetPermanent(result, "integration_not_found");
+            return;
+        }
+
+        await crossTenantService.ExecuteInTenantContextForSystemAsync(lookup.TenantId, async sp =>
+        {
+            var db = sp.GetRequiredService<IApplicationDbContext>();
+            var tenantLogger = sp.GetRequiredService<ILogger<ProcessInboundEventCommandHandler>>();
+
+            var executionStrategy = db.Database.CreateExecutionStrategy();
+            await executionStrategy.ExecuteAsync(async () =>
+            {
+                await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+
+                var integration = await db.Integrations
+                    .SingleOrDefaultAsync(i => i.Id == lookup.IntegrationId, cancellationToken);
+
+                if (integration == null)
+                {
+                    tenantLogger.LogWarning(
+                        "Inbound status: integration not found in tenant db. tenantId {TenantId} integrationId {IntegrationId}",
+                        lookup.TenantId,
+                        lookup.IntegrationId);
+                    SetPermanent(result, "integration_missing_in_tenant");
+                    return;
+                }
+
+                var companyId = integration.CompanyId;
+                var providerMessageId = statusPayload.MessageId.Trim();
+
+                var message = await (
+                    from m in db.Messages
+                    join c in db.Conversations on m.ConversationId equals c.Id
+                    where m.ExternalMessageId == providerMessageId
+                          && c.IntegrationId == integration.Id
+                          && c.CompanyId == companyId
+                          && m.Direction == MessageDirection.Outbound
+                    select m).SingleOrDefaultAsync(cancellationToken);
+
+                if (message == null)
+                {
+                    tenantLogger.LogWarning(
+                        "Inbound status: no outbound message for ExternalMessageId {MessageId} integrationId {IntegrationId}",
+                        providerMessageId,
+                        integration.Id);
+                    ThrowOrTransientRetry(request, result, "status_message_not_found");
+                    return;
+                }
+
+                if (!ShouldApplyStatusUpdate(message.Status, newStatus))
+                {
+                    await tx.CommitAsync(cancellationToken);
+                    SetSuccess(result, InboundProcessingOutcome.DuplicateIgnored, "status_not_advanced");
+                    return;
+                }
+
+                message.Status = newStatus;
+                message.Metadata = JsonSerializer.Serialize(request.Event, JsonOptions);
+
+                await db.SaveChangesAsync(cancellationToken);
+                await tx.CommitAsync(cancellationToken);
+
+                SetSuccess(result, InboundProcessingOutcome.Persisted, "status_updated");
+
+                tenantLogger.LogInformation(
+                    "Inbound status applied. integrationId {IntegrationId} externalMessageId {ExternalMessageId} status {Status}",
+                    integration.Id,
+                    providerMessageId,
+                    newStatus);
+            });
+        });
+    }
+
+    private static bool TryMapProviderStatus(string? status, out MessageStatus mapped)
+    {
+        mapped = default;
+        if (string.IsNullOrWhiteSpace(status))
+            return false;
+
+        switch (status.Trim().ToLowerInvariant())
+        {
+            case "sent":
+                mapped = MessageStatus.Sent;
+                return true;
+            case "delivered":
+                mapped = MessageStatus.Delivered;
+                return true;
+            case "read":
+                mapped = MessageStatus.Read;
+                return true;
+            case "failed":
+                mapped = MessageStatus.Failed;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static int StatusRank(MessageStatus status) =>
+        status switch
+        {
+            MessageStatus.Pending => 0,
+            MessageStatus.Sent => 1,
+            MessageStatus.Delivered => 2,
+            MessageStatus.Read => 3,
+            MessageStatus.Failed => 4,
+            _ => 0
+        };
+
+    private static bool ShouldApplyStatusUpdate(MessageStatus current, MessageStatus incoming)
+    {
+        if (incoming == MessageStatus.Failed)
+            return current != MessageStatus.Failed;
+
+        if (current == MessageStatus.Failed)
+            return false;
+
+        return StatusRank(incoming) > StatusRank(current);
     }
 
     private static void SetPermanent(SingleResponse<InboundProcessingResultDto> result, string reason)

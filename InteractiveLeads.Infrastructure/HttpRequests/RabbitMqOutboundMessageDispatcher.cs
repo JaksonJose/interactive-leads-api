@@ -10,13 +10,17 @@ public sealed class RabbitMqOutboundMessageDispatcher(
     IOutboundMessagePublisher outboundPublisher,
     ILogger<RabbitMqOutboundMessageDispatcher> logger) : IOutboundMessageDispatcher
 {
-    public async Task<BaseResponse> SendMessageAsync(OutboundMessageContract payload, CancellationToken cancellationToken)
+    public async Task<OutboundDispatchOutcome> SendMessageAsync(OutboundMessageContract payload, CancellationToken cancellationToken)
     {
         var response = new BaseResponse();
         try
         {
             await outboundPublisher.PublishAsync(payload, cancellationToken);
-            return response;
+            return new OutboundDispatchOutcome
+            {
+                Response = response,
+                AdvanceToSentOnSuccess = false
+            };
         }
         catch (OperationCanceledException)
         {
@@ -33,7 +37,7 @@ public sealed class RabbitMqOutboundMessageDispatcher(
             response.AddExceptionMessage(
                 "Error while dispatching outbound message to the message broker.",
                 "chat.message.outbound_broker_dispatch_error");
-            return response;
+            return new OutboundDispatchOutcome { Response = response };
         }
     }
 }

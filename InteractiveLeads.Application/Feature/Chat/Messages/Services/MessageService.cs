@@ -137,8 +137,8 @@ public sealed class MessageService(
             request.ReplyToMessageId,
             whatsappSettings);
 
-        var dispatchResult = await outboundDispatcher.SendMessageAsync(payload, cancellationToken);
-        if (dispatchResult.HasAnyErrorMessage)
+        var dispatchOutcome = await outboundDispatcher.SendMessageAsync(payload, cancellationToken);
+        if (dispatchOutcome.Response.HasAnyErrorMessage)
         {
             message.Status = MessageStatus.Failed;
             await db.SaveChangesAsync(cancellationToken);
@@ -151,18 +151,23 @@ public sealed class MessageService(
 
             var response = new ResultResponse();
             response.AddErrorMessage("External provider rejected message delivery.", "chat.message.external_send_failed");
-            foreach (var item in dispatchResult.Messages)
+            foreach (var item in dispatchOutcome.Response.Messages)
                 response.Messages.Add(item);
             throw new BadRequestException(response);
         }
 
-        message.Status = MessageStatus.Sent;
-        await db.SaveChangesAsync(cancellationToken);
+        if (dispatchOutcome.AdvanceToSentOnSuccess)
+        {
+            message.Status = MessageStatus.Sent;
+            await db.SaveChangesAsync(cancellationToken);
+        }
 
         await PublishRealtimeEventsAsync(conversation, message, tenantId);
 
         logger.LogInformation(
-            "Outbound message sent successfully for conversation {ConversationId}, message {MessageId}, externalId {ExternalMessageId}",
+            dispatchOutcome.AdvanceToSentOnSuccess
+                ? "Outbound message dispatched and marked sent for conversation {ConversationId}, message {MessageId}, externalId {ExternalMessageId}"
+                : "Outbound message queued (pending until provider ack) for conversation {ConversationId}, message {MessageId}, externalId {ExternalMessageId}",
             conversation.Id,
             message.Id,
             idempotencyMessageId);

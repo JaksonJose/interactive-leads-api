@@ -20,7 +20,7 @@ public sealed class HttpOutboundMessageDispatcher(
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public async Task<BaseResponse> SendMessageAsync(OutboundMessageContract payload, CancellationToken cancellationToken)
+    public async Task<OutboundDispatchOutcome> SendMessageAsync(OutboundMessageContract payload, CancellationToken cancellationToken)
     {
         var response = new BaseResponse();
         try
@@ -37,7 +37,7 @@ public sealed class HttpOutboundMessageDispatcher(
             using var httpResponse = await client.SendAsync(request, cancellationToken);
             if (httpResponse.IsSuccessStatusCode)
             {
-                return response;
+                return new OutboundDispatchOutcome { Response = response };
             }
 
             var body = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
@@ -50,7 +50,7 @@ public sealed class HttpOutboundMessageDispatcher(
                 body);
 
             response.AddErrorMessage("External HTTP channel rejected outbound message.", "chat.message.outbound_http_rejected");
-            return response;
+            return new OutboundDispatchOutcome { Response = response };
         }
         catch (OperationCanceledException)
         {
@@ -65,7 +65,7 @@ public sealed class HttpOutboundMessageDispatcher(
                 payload.ChannelId,
                 payload.Payload.Id);
             response.AddExceptionMessage("Error while dispatching outbound message over HTTP.", "chat.message.outbound_http_dispatch_error");
-            return response;
+            return new OutboundDispatchOutcome { Response = response };
         }
     }
 }
