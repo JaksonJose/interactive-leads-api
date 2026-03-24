@@ -405,7 +405,8 @@ public sealed class ProcessInboundEventCommandHandler(
                         MimeType = string.IsNullOrWhiteSpace(resolvedMedia.MimeType) ? null : resolvedMedia.MimeType.Trim(),
                         CreatedAt = message.CreatedAt,
                         Caption = string.IsNullOrWhiteSpace(resolvedMedia.Caption) ? null : resolvedMedia.Caption.Trim(),
-                        ExternalMessageId = messagePayload.Id
+                        ExternalMessageId = messagePayload.Id,
+                        OriginalFileName = string.IsNullOrWhiteSpace(resolvedMedia.FileName) ? null : resolvedMedia.FileName.Trim()
                     }, cancellationToken);
                 }
 
@@ -426,6 +427,7 @@ public sealed class ProcessInboundEventCommandHandler(
                             {
                                 Url = string.Empty,
                                 MimeType = (resolvedMedia.MimeType ?? string.Empty).Trim(),
+                                FileName = string.IsNullOrWhiteSpace(resolvedMedia.FileName) ? null : resolvedMedia.FileName.Trim(),
                                 Caption = string.IsNullOrWhiteSpace(resolvedMedia.Caption) ? null : resolvedMedia.Caption.Trim()
                             },
                         SenderId = message.SenderUserId?.ToString(),
@@ -876,6 +878,7 @@ public sealed class ProcessInboundEventCommandHandler(
             Url = url,
             MimeType = (media?.MimeType ?? string.Empty).Trim(),
             FileSize = 0,
+            FileName = string.IsNullOrWhiteSpace(media?.FileName) ? null : media!.FileName!.Trim(),
             Caption = string.IsNullOrWhiteSpace(media?.Caption) ? null : media!.Caption!.Trim()
         });
     }

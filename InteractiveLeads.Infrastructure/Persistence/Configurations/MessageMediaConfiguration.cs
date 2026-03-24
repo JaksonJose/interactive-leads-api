@@ -24,6 +24,9 @@ public class MessageMediaConfiguration : IEntityTypeConfiguration<MessageMedia>
         builder.Property(mm => mm.Caption)
             .HasMaxLength(1024);
 
+        builder.Property(mm => mm.FileName)
+            .HasMaxLength(512);
+
         builder.HasOne(mm => mm.Message)
             .WithMany(m => m.Media)
             .HasForeignKey(mm => mm.MessageId)

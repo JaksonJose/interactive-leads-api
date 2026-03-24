@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace InteractiveLeads.Application.Feature.Inbound.Messages;
 
 public sealed class InboundMessagePayload
@@ -51,5 +53,7 @@ public sealed class InboundMediaPayload
     public string? Caption { get; set; }
     public string? MimeType { get; set; }
     public string? Sha256 { get; set; }
+
+    [JsonPropertyName("filename")]
     public string? FileName { get; set; }
 }

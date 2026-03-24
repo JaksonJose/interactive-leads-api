@@ -60,6 +60,7 @@ public sealed class MediaProcessingRequestedConsumer(
                     MediaUrl = msg.TempUrl,
                     MediaType = msg.MediaType,
                     MimeType = msg.MimeType,
+                    OriginalFileName = msg.OriginalFileName,
                     ExternalMessageId = msg.ExternalMessageId
                 }, context.CancellationToken);
 
@@ -74,6 +75,7 @@ public sealed class MediaProcessingRequestedConsumer(
                         Url = mediaResult.OptimizedUrl ?? mediaResult.OriginalUrl,
                         MimeType = msg.MimeType ?? string.Empty,
                         FileSize = 0,
+                        FileName = string.IsNullOrWhiteSpace(msg.OriginalFileName) ? null : msg.OriginalFileName.Trim(),
                         Caption = msg.Caption
                     };
                     db.MessageMedia.Add(media);
@@ -83,6 +85,8 @@ public sealed class MediaProcessingRequestedConsumer(
                     media.Url = mediaResult.OptimizedUrl ?? mediaResult.OriginalUrl;
                     media.Caption = msg.Caption;
                     media.MimeType = msg.MimeType ?? media.MimeType;
+                    if (!string.IsNullOrWhiteSpace(msg.OriginalFileName))
+                        media.FileName = msg.OriginalFileName.Trim();
                 }
 
                 message.Metadata = JsonSerializer.Serialize(new
@@ -109,6 +113,7 @@ public sealed class MediaProcessingRequestedConsumer(
                             OptimizedUrl = mediaResult.OptimizedUrl,
                             ThumbnailUrl = mediaResult.ThumbnailUrl,
                             MimeType = msg.MimeType ?? string.Empty,
+                            FileName = media.FileName,
                             Caption = msg.Caption
                         }
                     }

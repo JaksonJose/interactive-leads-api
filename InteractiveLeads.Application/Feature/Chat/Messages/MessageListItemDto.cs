@@ -20,6 +20,7 @@ public sealed class MessageMediaListItemDto
     public string? OptimizedUrl { get; set; }
     public string? ThumbnailUrl { get; set; }
     public string MimeType { get; set; } = string.Empty;
+    public string? FileName { get; set; }
     public string? Caption { get; set; }
 }
 

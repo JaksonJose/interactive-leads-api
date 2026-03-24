@@ -12,4 +12,5 @@ public sealed class MediaProcessingRequested
     public DateTimeOffset CreatedAt { get; set; }
     public string? Caption { get; set; }
     public string? ExternalMessageId { get; set; }
+    public string? OriginalFileName { get; set; }
 }
