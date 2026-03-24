@@ -1,3 +1,4 @@
+using InteractiveLeads.Application.Feature.Chat.Media;
 using InteractiveLeads.Application.Feature.Inbound.Media;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Infrastructure.Configuration;
@@ -51,6 +52,28 @@ public sealed class ImageProcessor(
                 new() { Name = "thumbnail", Url = thumb.PublicUrl, ContentType = thumb.ContentType }
             ]
         };
+    }
+
+    /// <inheritdoc />
+    public async Task<OutboundWhatsAppImageEncodingResult> EncodeForWhatsAppDeliveryAsync(
+        Stream source,
+        string sourceMimeType,
+        CancellationToken cancellationToken)
+    {
+        using var image = await Image.LoadAsync(source, cancellationToken);
+        var req = new ProcessMediaRequest { MimeType = sourceMimeType };
+        var usePng = ShouldEncodeOriginalAsPng(req, image);
+        var stream = new MemoryStream();
+        if (usePng)
+        {
+            await image.SaveAsPngAsync(stream, cancellationToken);
+            stream.Position = 0;
+            return new OutboundWhatsAppImageEncodingResult(stream, "image/png", ".png");
+        }
+
+        await image.SaveAsJpegAsync(stream, new JpegEncoder { Quality = 92 }, cancellationToken);
+        stream.Position = 0;
+        return new OutboundWhatsAppImageEncodingResult(stream, "image/jpeg", ".jpg");
     }
 
     /// <summary>

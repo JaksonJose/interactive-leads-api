@@ -95,7 +95,8 @@ public sealed partial class ConversationMediaUploadService(
             _ => _options.MaxDocumentBytes
         };
 
-        if (request.ContentLength > maxBytes)
+        // Images are validated after normalization (JPEG/PNG); encoded output can differ in size from the upload.
+        if (category != "image" && request.ContentLength > maxBytes)
         {
             var response = new ResultResponse();
             response.AddErrorMessage("File exceeds the maximum allowed size for this media type.", "chat.media.file_too_large");
@@ -279,8 +280,8 @@ public sealed partial class ConversationMediaUploadService(
         OutboundAudioTranscodeSourceMimeTypes.Any(m => string.Equals(m, mime, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// Stores the file <b>unchanged</b> in S3 (<see cref="ConversationMediaUploadResultDto.Url"/> → RabbitMQ / WhatsApp).
-    /// Runs <see cref="IImageProcessor"/> afterwards only to produce CRM WebP variants (optional; failures do not fail upload).
+    /// Normalizes to JPEG or PNG for WhatsApp, stores that in S3 (<see cref="ConversationMediaUploadResultDto.Url"/>).
+    /// Runs <see cref="IImageProcessor"/> afterwards for CRM WebP variants (optional; failures do not fail upload).
     /// </summary>
     private async Task<ConversationMediaUploadResultDto> UploadImageRawForDeliveryAndProcessVariantsForCrmAsync(
         UploadConversationMediaRequest request,
@@ -300,70 +301,99 @@ public sealed partial class ConversationMediaUploadService(
             throw new BadRequestException(empty);
         }
 
-        var unique = Guid.NewGuid().ToString("N");
-        var rawKey = $"{root}/{tenantSegment}/{InboundStyleMediaFolder("image")}/{unique}_{safeName}";
         buffer.Position = 0;
-        var rawDescriptor = await storageGateway.UploadAsync(rawKey, buffer, effectiveMime, cancellationToken);
-
-        string? optimizedUrl = null;
-        string? thumbnailUrl = null;
-
-        buffer.Position = 0;
-        string hash;
+        OutboundWhatsAppImageEncodingResult encoded;
         try
         {
-            hash = await contentInspector.ComputeSha256Async(buffer, cancellationToken);
+            encoded = await imageProcessor.EncodeForWhatsAppDeliveryAsync(buffer, effectiveMime, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "Failed to hash outbound image for CRM variants");
+            logger.LogError(ex, "Outbound image encoding failed for {Mime}", effectiveMime);
+            var response = new ResultResponse();
+            response.AddErrorMessage(
+                "Could not process this image. Use JPEG, PNG, or WebP.",
+                "chat.media.image_encode_failed");
+            throw new BadRequestException(response);
+        }
+
+        await using (encoded)
+        {
+            if (encoded.Stream.Length > _options.MaxImageBytes)
+            {
+                var response = new ResultResponse();
+                response.AddErrorMessage(
+                    "File exceeds the maximum allowed size for this media type.",
+                    "chat.media.file_too_large");
+                throw new BadRequestException(response);
+            }
+
+            var deliveryFileName = Path.ChangeExtension(safeName, encoded.FileExtension.TrimStart('.'));
+            var unique = Guid.NewGuid().ToString("N");
+            var rawKey = $"{root}/{tenantSegment}/{InboundStyleMediaFolder("image")}/{unique}_{deliveryFileName}";
+            encoded.Stream.Position = 0;
+            var rawDescriptor = await storageGateway.UploadAsync(rawKey, encoded.Stream, encoded.ContentType, cancellationToken);
+
+            string? optimizedUrl = null;
+            string? thumbnailUrl = null;
+
+            encoded.Stream.Position = 0;
+            string hash;
+            try
+            {
+                hash = await contentInspector.ComputeSha256Async(encoded.Stream, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to hash outbound image for CRM variants");
+                return new ConversationMediaUploadResultDto
+                {
+                    Url = rawDescriptor.PublicUrl,
+                    ObjectKey = rawDescriptor.ObjectKey,
+                    FileName = deliveryFileName,
+                    MimeType = encoded.ContentType,
+                    SizeBytes = encoded.Stream.Length,
+                    MediaType = "image",
+                    OriginalUrl = rawDescriptor.PublicUrl
+                };
+            }
+
+            encoded.Stream.Position = 0;
+            try
+            {
+                var result = await imageProcessor.ProcessAsync(
+                    encoded.Stream,
+                    new ProcessMediaRequest
+                    {
+                        TenantId = tenantSegment,
+                        MediaUrl = string.Empty,
+                        MediaType = "image",
+                        MimeType = encoded.ContentType,
+                        OriginalFileName = deliveryFileName
+                    },
+                    hash,
+                    cancellationToken);
+                optimizedUrl = result.OptimizedUrl;
+                thumbnailUrl = result.ThumbnailUrl;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "CRM image variants skipped; outbound image was stored successfully");
+            }
+
             return new ConversationMediaUploadResultDto
             {
                 Url = rawDescriptor.PublicUrl,
                 ObjectKey = rawDescriptor.ObjectKey,
-                FileName = safeName,
-                MimeType = effectiveMime,
-                SizeBytes = buffer.Length,
+                FileName = deliveryFileName,
+                MimeType = encoded.ContentType,
+                SizeBytes = encoded.Stream.Length,
                 MediaType = "image",
-                OriginalUrl = rawDescriptor.PublicUrl
+                OriginalUrl = rawDescriptor.PublicUrl,
+                OptimizedUrl = optimizedUrl,
+                ThumbnailUrl = thumbnailUrl
             };
         }
-
-        buffer.Position = 0;
-        try
-        {
-            var result = await imageProcessor.ProcessAsync(
-                buffer,
-                new ProcessMediaRequest
-                {
-                    TenantId = tenantSegment,
-                    MediaUrl = string.Empty,
-                    MediaType = "image",
-                    MimeType = effectiveMime,
-                    OriginalFileName = safeName
-                },
-                hash,
-                cancellationToken);
-            optimizedUrl = result.OptimizedUrl;
-            thumbnailUrl = result.ThumbnailUrl;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "CRM image variants skipped; raw outbound file was stored successfully");
-        }
-
-        return new ConversationMediaUploadResultDto
-        {
-            Url = rawDescriptor.PublicUrl,
-            ObjectKey = rawDescriptor.ObjectKey,
-            FileName = safeName,
-            MimeType = effectiveMime,
-            SizeBytes = buffer.Length,
-            MediaType = "image",
-            OriginalUrl = rawDescriptor.PublicUrl,
-            OptimizedUrl = optimizedUrl,
-            ThumbnailUrl = thumbnailUrl
-        };
     }
 
     private void ValidateAgainstAllowList(string category, string mime)
@@ -472,7 +502,6 @@ public sealed partial class ConversationMediaUploadService(
         ".wav" => "audio/wav",
         ".webm" => "audio/webm",
         ".mp4" or ".m4v" => "video/mp4",
-        ".mov" => "video/quicktime",
         ".3gp" or ".3gpp" => "video/3gpp",
         _ => null
     };

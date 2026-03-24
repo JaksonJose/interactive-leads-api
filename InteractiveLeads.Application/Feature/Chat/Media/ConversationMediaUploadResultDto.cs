@@ -2,7 +2,7 @@ namespace InteractiveLeads.Application.Feature.Chat.Media;
 
 public sealed class ConversationMediaUploadResultDto
 {
-    /// <summary>Public URL of the file as stored for channel delivery (raw bytes, no processing).</summary>
+    /// <summary>Public URL of the file as stored for channel delivery (images: normalized JPEG/PNG).</summary>
     public string Url { get; set; } = string.Empty;
     /// <summary>S3 object key for <see cref="Url"/>.</summary>
     public string ObjectKey { get; set; } = string.Empty;

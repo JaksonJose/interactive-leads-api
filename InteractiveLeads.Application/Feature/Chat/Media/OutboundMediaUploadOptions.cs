@@ -11,14 +11,17 @@ public sealed class OutboundMediaUploadOptions
     /// </summary>
     public string StorageRootPrefix { get; set; } = "whatsapp";
 
-    public long MaxImageBytes { get; set; } = 16 * 1024 * 1024;
+    /// <summary>WhatsApp Cloud API image limit (~5 MB).</summary>
+    public long MaxImageBytes { get; set; } = 5 * 1024 * 1024;
     public long MaxDocumentBytes { get; set; } = 100 * 1024 * 1024;
     public long MaxAudioBytes { get; set; } = 16 * 1024 * 1024;
-    public long MaxVideoBytes { get; set; } = 100 * 1024 * 1024;
+    /// <summary>WhatsApp Cloud API video limit (~16 MB).</summary>
+    public long MaxVideoBytes { get; set; } = 16 * 1024 * 1024;
 
     /// <summary>FFmpeg binary for converting WebM, WAV, M4A/MP4 audio to Ogg Opus (WhatsApp-friendly). Default <c>ffmpeg</c> (PATH).</summary>
     public string FfmpegExecutable { get; set; } = "ffmpeg";
 
+    /// <summary>Accepted uploads; WebP and other decodable rasters are normalized to JPEG/PNG before delivery.</summary>
     public string[] AllowedImageMimeTypes { get; set; } =
     [
         "image/jpeg",
@@ -46,11 +49,10 @@ public sealed class OutboundMediaUploadOptions
         "audio/amr"
     ];
 
+    /// <summary>WhatsApp-supported video containers (MP4, 3GP).</summary>
     public string[] AllowedVideoMimeTypes { get; set; } =
     [
         "video/mp4",
-        "video/3gpp",
-        "video/quicktime",
-        "video/webm"
+        "video/3gpp"
     ];
 }
