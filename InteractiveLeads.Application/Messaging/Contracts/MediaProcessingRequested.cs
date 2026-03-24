@@ -13,4 +13,8 @@ public sealed class MediaProcessingRequested
     public string? Caption { get; set; }
     public string? ExternalMessageId { get; set; }
     public string? OriginalFileName { get; set; }
+
+    public bool Animated { get; set; }
+
+    public bool Voice { get; set; }
 }

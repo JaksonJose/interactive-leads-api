@@ -65,6 +65,8 @@ public sealed class ListConversationMessagesQueryHandler(
                         Url = x.Url,
                         MimeType = x.MimeType,
                         FileName = x.FileName,
+                        Animated = x.Animated,
+                        Voice = x.Voice,
                         Caption = x.Caption
                     })
                     .FirstOrDefault(),

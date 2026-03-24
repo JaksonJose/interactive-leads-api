@@ -21,6 +21,13 @@ public sealed class MessageMediaListItemDto
     public string? ThumbnailUrl { get; set; }
     public string MimeType { get; set; } = string.Empty;
     public string? FileName { get; set; }
+
+    /// <summary>Sticker: animated when true.</summary>
+    public bool Animated { get; set; }
+
+    /// <summary>Audio: voice note when true.</summary>
+    public bool Voice { get; set; }
+
     public string? Caption { get; set; }
 }
 

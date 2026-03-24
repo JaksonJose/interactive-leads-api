@@ -56,4 +56,12 @@ public sealed class InboundMediaPayload
 
     [JsonPropertyName("filename")]
     public string? FileName { get; set; }
+
+    /// <summary>Sticker: animated webp/video sticker when true.</summary>
+    [JsonPropertyName("animated")]
+    public bool Animated { get; set; }
+
+    /// <summary>Audio: WhatsApp voice note (PTT) when true.</summary>
+    [JsonPropertyName("voice")]
+    public bool Voice { get; set; }
 }

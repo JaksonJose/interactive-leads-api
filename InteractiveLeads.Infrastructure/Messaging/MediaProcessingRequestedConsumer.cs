@@ -76,6 +76,8 @@ public sealed class MediaProcessingRequestedConsumer(
                         MimeType = msg.MimeType ?? string.Empty,
                         FileSize = 0,
                         FileName = string.IsNullOrWhiteSpace(msg.OriginalFileName) ? null : msg.OriginalFileName.Trim(),
+                        Animated = msg.Animated,
+                        Voice = msg.Voice,
                         Caption = msg.Caption
                     };
                     db.MessageMedia.Add(media);
@@ -114,6 +116,8 @@ public sealed class MediaProcessingRequestedConsumer(
                             ThumbnailUrl = mediaResult.ThumbnailUrl,
                             MimeType = msg.MimeType ?? string.Empty,
                             FileName = media.FileName,
+                            Animated = media.Animated,
+                            Voice = media.Voice,
                             Caption = msg.Caption
                         }
                     }
