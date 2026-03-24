@@ -25,13 +25,25 @@ public class MessageConfiguration : IEntityTypeConfiguration<Message>
             .HasColumnType("jsonb")
             .IsRequired(false);
 
+        builder.Property(m => m.MessageDate)
+            .HasColumnType("timestamp with time zone")
+            .IsRequired();
+
         builder.Property(m => m.CreatedAt)
+            .HasColumnType("timestamp with time zone")
+            .HasDefaultValueSql("now() at time zone 'utc'")
+            .IsRequired();
+
+        builder.Property(m => m.UpdatedAt)
             .HasColumnType("timestamp with time zone")
             .HasDefaultValueSql("now() at time zone 'utc'")
             .IsRequired();
 
         builder.HasIndex(m => m.ConversationId)
             .HasDatabaseName("IX_Message_ConversationId");
+
+        builder.HasIndex(m => new { m.ConversationId, m.MessageDate })
+            .HasDatabaseName("IX_Message_ConversationId_MessageDate");
 
         builder.HasIndex(m => m.ExternalMessageId)
             .IsUnique()

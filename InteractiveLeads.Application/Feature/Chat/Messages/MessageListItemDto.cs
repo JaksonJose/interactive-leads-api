@@ -7,7 +7,15 @@ public sealed class MessageListItemDto
     public string Type { get; set; } = "text";
     public MessageMediaListItemDto? Media { get; set; }
     public string Direction { get; set; } = string.Empty;
+
+    /// <summary>When the message event occurred (channel time).</summary>
+    public DateTimeOffset MessageDate { get; set; }
+
+    /// <summary>When this message row was first saved in the CRM.</summary>
     public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>When this message row was last updated.</summary>
+    public DateTimeOffset UpdatedAt { get; set; }
 
     /// <summary>Lowercase: pending, sent, delivered, read, failed.</summary>
     public string Status { get; set; } = "pending";

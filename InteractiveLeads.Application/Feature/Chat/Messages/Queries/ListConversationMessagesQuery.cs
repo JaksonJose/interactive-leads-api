@@ -12,7 +12,7 @@ namespace InteractiveLeads.Application.Feature.Chat.Messages.Queries;
 public sealed class ListConversationMessagesQuery : IRequest<IResponse>
 {
     public Guid ConversationId { get; set; }
-    public DateTimeOffset? BeforeCreatedAt { get; set; }
+    public DateTimeOffset? BeforeMessageDate { get; set; }
     public int PageSize { get; set; } = 30;
 }
 
@@ -45,13 +45,13 @@ public sealed class ListConversationMessagesQueryHandler(
             .AsNoTracking()
             .Where(m => m.ConversationId == request.ConversationId);
 
-        if (request.BeforeCreatedAt.HasValue)
+        if (request.BeforeMessageDate.HasValue)
         {
-            messagesQuery = messagesQuery.Where(m => m.CreatedAt < request.BeforeCreatedAt.Value);
+            messagesQuery = messagesQuery.Where(m => m.MessageDate < request.BeforeMessageDate.Value);
         }
 
         var rawItems = await messagesQuery
-            .OrderByDescending(m => m.CreatedAt)
+            .OrderByDescending(m => m.MessageDate)
             .Take(pageSize + 1)
             .Select(m => new
             {
@@ -71,7 +71,9 @@ public sealed class ListConversationMessagesQueryHandler(
                     })
                     .FirstOrDefault(),
                 Direction = m.Direction == MessageDirection.Inbound ? "inbound" : "outbound",
+                m.MessageDate,
                 m.CreatedAt,
+                m.UpdatedAt,
                 Status = MessageListItemDtoMapper.ToStatusString(m.Status),
                 m.Metadata
             })
@@ -92,7 +94,9 @@ public sealed class ListConversationMessagesQueryHandler(
                     Type = m.Type,
                     Media = media,
                     Direction = m.Direction,
+                    MessageDate = m.MessageDate,
                     CreatedAt = m.CreatedAt,
+                    UpdatedAt = m.UpdatedAt,
                     Status = m.Status,
                     MediaProcessingStatus = processingStatus
                 };
@@ -107,11 +111,11 @@ public sealed class ListConversationMessagesQueryHandler(
 
         // Order chronologically (oldest first) for chat UI
         items = items
-            .OrderBy(m => m.CreatedAt)
+            .OrderBy(m => m.MessageDate)
             .ToList();
 
         var nextCursor = hasMore
-            ? items.Min(m => m.CreatedAt)
+            ? items.Min(m => m.MessageDate)
             : (DateTimeOffset?)null;
 
         var response = new CursorListResponse<MessageListItemDto>(items, hasMore, nextCursor);

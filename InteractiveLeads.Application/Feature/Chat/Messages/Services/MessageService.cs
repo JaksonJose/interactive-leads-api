@@ -59,7 +59,7 @@ public sealed class MessageService(
         var existingMessage = await db.Messages
             .AsNoTracking()
             .Where(m => m.ExternalMessageId == idempotencyMessageId)
-            .Select(m => new { m.Id, m.Content, m.CreatedAt, m.Direction, m.Status })
+            .Select(m => new { m.Id, m.Content, m.MessageDate, m.CreatedAt, m.UpdatedAt, m.Direction, m.Status })
             .SingleOrDefaultAsync(cancellationToken);
 
         if (existingMessage is not null)
@@ -76,7 +76,9 @@ public sealed class MessageService(
                 Type = "text",
                 Media = null,
                 Direction = existingMessage.Direction == MessageDirection.Inbound ? "inbound" : "outbound",
+                MessageDate = existingMessage.MessageDate,
                 CreatedAt = existingMessage.CreatedAt,
+                UpdatedAt = existingMessage.UpdatedAt,
                 Status = MessageListItemDtoMapper.ToStatusString(existingMessage.Status)
             };
         }
@@ -92,7 +94,10 @@ public sealed class MessageService(
             throw new BadRequestException(response);
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var persistNow = DateTimeOffset.UtcNow;
+        var messageDate = request.ClientTimestamp is { } ts && ts > 0
+            ? DateTimeOffset.FromUnixTimeSeconds(ts)
+            : persistNow;
         var senderUserId = Guid.TryParse(currentUserService.GetUserId(), out var userGuid) ? userGuid : (Guid?)null;
         var metadataJson = BuildMessageMetadataJson(conversation, request, idempotencyMessageId);
         var messageContent = ResolvePersistedMessageContent(request, messageType);
@@ -109,14 +114,16 @@ public sealed class MessageService(
             Status = MessageStatus.Pending,
             Metadata = metadataJson,
             SenderUserId = senderUserId,
-            CreatedAt = now
+            MessageDate = messageDate,
+            CreatedAt = persistNow,
+            UpdatedAt = persistNow
         };
 
         db.Messages.Add(message);
         conversation.Status = ConversationStatus.Open;
         conversation.LastMessage = message.Content;
-        if (conversation.LastMessageAt < now)
-            conversation.LastMessageAt = now;
+        if (conversation.LastMessageAt < messageDate)
+            conversation.LastMessageAt = messageDate;
         await db.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
@@ -145,6 +152,7 @@ public sealed class MessageService(
         if (dispatchOutcome.Response.HasAnyErrorMessage)
         {
             message.Status = MessageStatus.Failed;
+            message.UpdatedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(cancellationToken);
 
             logger.LogError(
@@ -163,6 +171,7 @@ public sealed class MessageService(
         if (dispatchOutcome.AdvanceToSentOnSuccess)
         {
             message.Status = MessageStatus.Sent;
+            message.UpdatedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(cancellationToken);
         }
 
@@ -183,7 +192,9 @@ public sealed class MessageService(
             Type = message.Type.ToString().ToLowerInvariant(),
             Media = null,
             Direction = "outbound",
+            MessageDate = message.MessageDate,
             CreatedAt = message.CreatedAt,
+            UpdatedAt = message.UpdatedAt,
             Status = MessageListItemDtoMapper.ToStatusString(message.Status)
         };
     }
@@ -203,7 +214,8 @@ public sealed class MessageService(
                 Type = message.Type.ToString().ToLowerInvariant(),
                 Media = null,
                 SenderId = message.SenderUserId?.ToString(),
-                CreatedAt = message.CreatedAt,
+                MessageDate = message.MessageDate,
+                CreatedAt = message.MessageDate,
                 Status = MessageListItemDtoMapper.ToStatusString(message.Status),
                 MediaProcessingStatus = "completed"
             }

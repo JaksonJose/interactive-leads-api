@@ -173,6 +173,7 @@ public sealed class ProcessInboundEventCommandHandler(
                         var metadataJsonAck = JsonSerializer.Serialize(request.Event, JsonOptions);
                         outboundForAck.Status = MessageStatus.Sent;
                         outboundForAck.Metadata = metadataJsonAck;
+                        outboundForAck.UpdatedAt = DateTimeOffset.UtcNow;
                         if (!providerIdTaken)
                             outboundForAck.ExternalMessageId = messagePayload.Id;
 
@@ -330,6 +331,7 @@ public sealed class ProcessInboundEventCommandHandler(
                     mediaProcessingStatus
                 }, JsonOptions);
 
+                var persistNow = DateTimeOffset.UtcNow;
                 var message = new Message
                 {
                     Id = Guid.NewGuid(),
@@ -342,7 +344,9 @@ public sealed class ProcessInboundEventCommandHandler(
                     Status = MessageStatus.Sent,
                     Metadata = metadataJson,
                     SenderUserId = null,
-                    CreatedAt = eventTimestamp
+                    MessageDate = eventTimestamp,
+                    CreatedAt = persistNow,
+                    UpdatedAt = persistNow
                 };
 
                 db.Messages.Add(message);
@@ -403,7 +407,7 @@ public sealed class ProcessInboundEventCommandHandler(
                         MediaType = messagePayload.Type,
                         TempUrl = resolvedMedia.Url.Trim(),
                         MimeType = string.IsNullOrWhiteSpace(resolvedMedia.MimeType) ? null : resolvedMedia.MimeType.Trim(),
-                        CreatedAt = message.CreatedAt,
+                        MessageDate = message.MessageDate,
                         Caption = string.IsNullOrWhiteSpace(resolvedMedia.Caption) ? null : resolvedMedia.Caption.Trim(),
                         ExternalMessageId = messagePayload.Id,
                         OriginalFileName = string.IsNullOrWhiteSpace(resolvedMedia.FileName) ? null : resolvedMedia.FileName.Trim(),
@@ -433,7 +437,8 @@ public sealed class ProcessInboundEventCommandHandler(
                                 Caption = string.IsNullOrWhiteSpace(resolvedMedia.Caption) ? null : resolvedMedia.Caption.Trim()
                             },
                         SenderId = message.SenderUserId?.ToString(),
-                        CreatedAt = message.CreatedAt,
+                        MessageDate = message.MessageDate,
+                        CreatedAt = message.MessageDate,
                         Status = MessageListItemDtoMapper.ToStatusString(message.Status),
                         MediaProcessingStatus = mediaProcessingStatus
                     }
@@ -615,6 +620,7 @@ public sealed class ProcessInboundEventCommandHandler(
 
                 message.Status = newStatus;
                 message.Metadata = JsonSerializer.Serialize(request.Event, JsonOptions);
+                message.UpdatedAt = DateTimeOffset.UtcNow;
 
                 await db.SaveChangesAsync(cancellationToken);
                 await tx.CommitAsync(cancellationToken);

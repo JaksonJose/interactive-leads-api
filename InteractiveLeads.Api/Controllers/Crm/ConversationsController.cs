@@ -63,12 +63,12 @@ public sealed class ConversationsController : BaseApiController
     /// </summary>
     [HttpGet("{conversationId:guid}/messages")]
     [OpenApiOperation("List conversation messages with cursor pagination")]
-    public async Task<IActionResult> ListMessagesAsync(Guid conversationId, [FromQuery] DateTimeOffset? beforeCreatedAt, [FromQuery] int pageSize = 30)
+    public async Task<IActionResult> ListMessagesAsync(Guid conversationId, [FromQuery] DateTimeOffset? beforeMessageDate, [FromQuery] int pageSize = 30)
     {
         var response = await Sender.Send(new ListConversationMessagesQuery
         {
             ConversationId = conversationId,
-            BeforeCreatedAt = beforeCreatedAt,
+            BeforeMessageDate = beforeMessageDate,
             PageSize = pageSize
         });
 

@@ -97,6 +97,8 @@ public sealed class MediaProcessingRequestedConsumer(
                     mediaProcessing = mediaResult
                 });
 
+                message.UpdatedAt = DateTimeOffset.UtcNow;
+
                 await db.SaveChangesAsync(context.CancellationToken);
 
                 var evt = new RealtimeEvent<MessageUpdatedPayloadDto>
@@ -142,6 +144,7 @@ public sealed class MediaProcessingRequestedConsumer(
                     mediaProcessingStatus = "failed",
                     error = ex.Message
                 });
+                message.UpdatedAt = DateTimeOffset.UtcNow;
                 await db.SaveChangesAsync(context.CancellationToken);
 
                 var evt = new RealtimeEvent<MessageUpdatedPayloadDto>

@@ -14,7 +14,15 @@ public class Message
     public MessageStatus Status { get; set; }
     public string? Metadata { get; set; }
     public Guid? SenderUserId { get; set; }
+
+    /// <summary>When the message event occurred on the channel (from provider payload or send time).</summary>
+    public DateTimeOffset MessageDate { get; set; }
+
+    /// <summary>When this row was first persisted in the CRM.</summary>
     public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>When this row was last updated (status, metadata, media, etc.).</summary>
+    public DateTimeOffset UpdatedAt { get; set; }
 
     public Conversation Conversation { get; set; } = default!;
     public Message? ReplyToMessage { get; set; }
