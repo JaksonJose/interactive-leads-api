@@ -16,6 +16,28 @@ public sealed class InboundMessagePayload
     public InboundTextPayload? Text { get; set; }
 
     public InboundMediaPayload? Media { get; set; }
+
+    public InboundMediaPayload? Image { get; set; }
+    public InboundMediaPayload? Video { get; set; }
+    public InboundMediaPayload? Audio { get; set; }
+    public InboundMediaPayload? Document { get; set; }
+    public InboundMediaPayload? Sticker { get; set; }
+
+    public InboundMediaPayload? ResolveMedia()
+    {
+        if (Media is not null)
+            return Media;
+
+        return Type.Trim().ToLowerInvariant() switch
+        {
+            "image" => Image,
+            "video" => Video,
+            "audio" => Audio,
+            "document" => Document,
+            "sticker" => Sticker,
+            _ => null
+        };
+    }
 }
 
 public sealed class InboundTextPayload

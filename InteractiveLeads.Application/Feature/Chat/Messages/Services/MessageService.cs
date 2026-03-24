@@ -73,6 +73,8 @@ public sealed class MessageService(
             {
                 Id = existingMessage.Id,
                 Content = existingMessage.Content,
+                Type = "text",
+                Media = null,
                 Direction = existingMessage.Direction == MessageDirection.Inbound ? "inbound" : "outbound",
                 CreatedAt = existingMessage.CreatedAt,
                 Status = MessageListItemDtoMapper.ToStatusString(existingMessage.Status)
@@ -112,6 +114,7 @@ public sealed class MessageService(
 
         db.Messages.Add(message);
         conversation.Status = ConversationStatus.Open;
+        conversation.LastMessage = message.Content;
         if (conversation.LastMessageAt < now)
             conversation.LastMessageAt = now;
         await db.SaveChangesAsync(cancellationToken);
@@ -177,6 +180,8 @@ public sealed class MessageService(
         {
             Id = message.Id,
             Content = message.Content,
+            Type = message.Type.ToString().ToLowerInvariant(),
+            Media = null,
             Direction = "outbound",
             CreatedAt = message.CreatedAt,
             Status = MessageListItemDtoMapper.ToStatusString(message.Status)
@@ -195,9 +200,12 @@ public sealed class MessageService(
                 Id = message.Id,
                 ConversationId = message.ConversationId,
                 Text = message.Content,
+                Type = message.Type.ToString().ToLowerInvariant(),
+                Media = null,
                 SenderId = message.SenderUserId?.ToString(),
                 CreatedAt = message.CreatedAt,
-                Status = MessageListItemDtoMapper.ToStatusString(message.Status)
+                Status = MessageListItemDtoMapper.ToStatusString(message.Status),
+                MediaProcessingStatus = "completed"
             }
         };
 

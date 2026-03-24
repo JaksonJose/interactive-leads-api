@@ -1,3 +1,6 @@
+using Amazon;
+using Amazon.Runtime;
+using Amazon.S3;
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.AspNetCore.Extensions;
 using Finbuckle.MultiTenant.Extensions;
@@ -13,6 +16,8 @@ using InteractiveLeads.Infrastructure.HttpRequests.Authentications;
 using InteractiveLeads.Infrastructure.HttpRequests.Handlers;
 using InteractiveLeads.Infrastructure.HttpRequests;
 using InteractiveLeads.Infrastructure.Messaging;
+using InteractiveLeads.Infrastructure.Media;
+using InteractiveLeads.Infrastructure.Media.Processors;
 using InteractiveLeads.Infrastructure.Identity;
 using InteractiveLeads.Infrastructure.Identity.Activation;
 using InteractiveLeads.Infrastructure.Identity.Impersonation;
@@ -24,6 +29,7 @@ using InteractiveLeads.Infrastructure.OpenApi;
 using InteractiveLeads.Infrastructure.Tenancy;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
 using InteractiveLeads.Infrastructure.Tenancy.Strategies;
+using InteractiveLeads.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -54,6 +60,23 @@ namespace InteractiveLeads.Infrastructure
 
         public static IServiceCollection AddInfraestructureServices(this IServiceCollection services, IConfiguration config)
         {
+            services.Configure<MediaProcessingOptions>(config.GetSection(MediaProcessingOptions.SectionName));
+            services.AddSingleton<IAmazonS3>(sp =>
+            {
+                var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MediaProcessingOptions>>().Value;
+                var region = RegionEndpoint.GetBySystemName(options.AwsRegion);
+
+                if (!string.IsNullOrWhiteSpace(options.AwsAccessKeyId) &&
+                    !string.IsNullOrWhiteSpace(options.AwsSecretAccessKey))
+                {
+                    var creds = new BasicAWSCredentials(options.AwsAccessKeyId, options.AwsSecretAccessKey);
+                    return new AmazonS3Client(creds, region);
+                }
+
+                // Fallback to default provider chain (env vars, profiles, IAM role).
+                return new AmazonS3Client(region);
+            });
+
             services.AddDbContext<TenantDbContext>(options =>
             {
                 options.UseNpgsql(config.GetConnectionString("DefaultConnection"),
@@ -93,6 +116,12 @@ namespace InteractiveLeads.Infrastructure
             services.AddScoped<IActivationTokenLookupRepository, ActivationTokenLookupRepository>();
             services.AddScoped<IIntegrationExternalIdentifierLookupRepository, IntegrationLookupRepository>();
             services.AddScoped<IUserActivationService, UserActivationService>();
+            services.AddScoped<IMediaProcessor, MediaProcessorService>();
+            services.AddScoped<IImageProcessor, ImageProcessor>();
+            services.AddScoped<IVideoProcessor, VideoProcessor>();
+            services.AddScoped<IAudioProcessor, AudioProcessor>();
+            services.AddScoped<IMediaStorageGateway, S3MediaStorageGateway>();
+            services.AddScoped<IMediaContentInspector, MediaContentInspector>();
 
             // Register cross-tenant services
             services.AddScoped<ICrossTenantService, CrossTenantService>();
@@ -109,7 +138,10 @@ namespace InteractiveLeads.Infrastructure
             {
                 services.AddInteractiveLeadsMassTransit(config);
                 services.AddScoped<IOutboundMessagePublisher, RabbitMqOutboundMessagePublisher>();
+                services.AddScoped<IMediaProcessingJobPublisher, MediaProcessingJobPublisher>();
             }
+            else
+                services.AddScoped<IMediaProcessingJobPublisher, NoopMediaProcessingJobPublisher>();
 
             if (!rabbitMqSettings.Enabled || messageSenderRouting.UseHttpFallback)
                 services.AddScoped<IOutboundMessageDispatcher, HttpOutboundMessageDispatcher>();

@@ -5,6 +5,7 @@ using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace InteractiveLeads.Application.Feature.Chat.Messages.Queries;
 
@@ -49,18 +50,51 @@ public sealed class ListConversationMessagesQueryHandler(
             messagesQuery = messagesQuery.Where(m => m.CreatedAt < request.BeforeCreatedAt.Value);
         }
 
-        var items = await messagesQuery
+        var rawItems = await messagesQuery
             .OrderByDescending(m => m.CreatedAt)
             .Take(pageSize + 1)
-            .Select(m => new MessageListItemDto
+            .Select(m => new
             {
-                Id = m.Id,
-                Content = m.Content,
+                m.Id,
+                m.Content,
+                Type = m.Type.ToString().ToLowerInvariant(),
+                Media = m.Media
+                    .OrderBy(x => x.Id)
+                    .Select(x => new MessageMediaListItemDto
+                    {
+                        Url = x.Url,
+                        MimeType = x.MimeType,
+                        Caption = x.Caption
+                    })
+                    .FirstOrDefault(),
                 Direction = m.Direction == MessageDirection.Inbound ? "inbound" : "outbound",
-                CreatedAt = m.CreatedAt,
-                Status = MessageListItemDtoMapper.ToStatusString(m.Status)
+                m.CreatedAt,
+                Status = MessageListItemDtoMapper.ToStatusString(m.Status),
+                m.Metadata
             })
             .ToListAsync(cancellationToken);
+
+        var items = rawItems
+            .Select(m =>
+            {
+                var processingStatus = ReadMediaProcessingStatus(m.Metadata);
+                var media = m.Media;
+                if (processingStatus == "processing" && media is not null)
+                    media.Url = string.Empty;
+
+                return new MessageListItemDto
+                {
+                    Id = m.Id,
+                    Content = m.Content,
+                    Type = m.Type,
+                    Media = media,
+                    Direction = m.Direction,
+                    CreatedAt = m.CreatedAt,
+                    Status = m.Status,
+                    MediaProcessingStatus = processingStatus
+                };
+            })
+            .ToList();
 
         var hasMore = items.Count > pageSize;
         if (hasMore)
@@ -79,6 +113,24 @@ public sealed class ListConversationMessagesQueryHandler(
 
         var response = new CursorListResponse<MessageListItemDto>(items, hasMore, nextCursor);
         return response;
+    }
+
+    private static string? ReadMediaProcessingStatus(string? metadata)
+    {
+        if (string.IsNullOrWhiteSpace(metadata))
+            return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(metadata);
+            if (!doc.RootElement.TryGetProperty("mediaProcessingStatus", out var status))
+                return null;
+            var value = status.GetString()?.Trim().ToLowerInvariant();
+            return value is "processing" or "completed" or "failed" ? value : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }
 

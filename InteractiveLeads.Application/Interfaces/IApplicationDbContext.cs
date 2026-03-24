@@ -18,6 +18,7 @@ public interface IApplicationDbContext
     DbSet<ConversationAssignment> ConversationAssignments { get; }
     DbSet<ConversationInboxMovement> ConversationInboxMovements { get; }
     DbSet<Message> Messages { get; }
+    DbSet<MessageMedia> MessageMedia { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

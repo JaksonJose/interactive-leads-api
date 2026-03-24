@@ -20,6 +20,7 @@ public static class MassTransitServiceCollectionExtensions
         services.AddMassTransit(x =>
         {
             x.AddConsumer<InboundIntegrationEventConsumer>();
+            x.AddConsumer<MediaProcessingRequestedConsumer>();
 
             x.UsingRabbitMq((context, cfg) =>
             {
@@ -67,6 +68,25 @@ public static class MassTransitServiceCollectionExtensions
                             TimeSpan.FromSeconds(30),
                             TimeSpan.FromMinutes(2),
                             TimeSpan.FromMinutes(10)));
+
+                        c.UseMessageRetry(r => r.Intervals(
+                            TimeSpan.FromMilliseconds(200),
+                            TimeSpan.FromSeconds(1),
+                            TimeSpan.FromSeconds(5)));
+                    });
+                });
+
+                cfg.ReceiveEndpoint(settings.MediaProcessingQueueName, e =>
+                {
+                    if (settings.UseQuorumQueues && e is IRabbitMqQueueConfigurator mediaQueue)
+                        mediaQueue.SetQuorumQueue(null);
+
+                    e.ConfigureConsumer<MediaProcessingRequestedConsumer>(context, c =>
+                    {
+                        c.UseDelayedRedelivery(r => r.Intervals(
+                            TimeSpan.FromSeconds(10),
+                            TimeSpan.FromSeconds(30),
+                            TimeSpan.FromMinutes(2)));
 
                         c.UseMessageRetry(r => r.Intervals(
                             TimeSpan.FromMilliseconds(200),

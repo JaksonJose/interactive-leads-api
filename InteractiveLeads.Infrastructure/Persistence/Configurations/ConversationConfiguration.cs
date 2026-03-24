@@ -23,6 +23,10 @@ public class ConversationConfiguration : IEntityTypeConfiguration<Conversation>
             .HasDefaultValue(0)
             .IsRequired();
 
+        builder.Property(c => c.LastMessage)
+            .HasColumnType("text")
+            .IsRequired();
+
         builder.Property(c => c.LastMessageAt)
             .HasColumnType("timestamp with time zone")
             .IsRequired();

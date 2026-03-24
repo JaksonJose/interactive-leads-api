@@ -2,8 +2,10 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using InteractiveLeads.Application.Feature.Chat.Messages;
 using InteractiveLeads.Application.Feature.Inbound;
+using InteractiveLeads.Application.Feature.Inbound.Media;
 using InteractiveLeads.Application.Integrations.Settings;
 using InteractiveLeads.Application.Interfaces;
+using InteractiveLeads.Application.Messaging.Contracts;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Application.Realtime.Models;
 using InteractiveLeads.Application.Realtime.Services;
@@ -21,6 +23,7 @@ public sealed class ProcessInboundEventCommandHandler(
     IIntegrationExternalIdentifierLookupRepository integrationLookupRepository,
     ICrossTenantService crossTenantService,
     IRealtimeService realtimeService,
+    IMediaProcessingJobPublisher mediaProcessingJobPublisher,
     ILogger<ProcessInboundEventCommandHandler> logger)
     : IRequestHandler<ProcessInboundEventCommand, IResponse>
 {
@@ -262,6 +265,7 @@ public sealed class ProcessInboundEventCommandHandler(
                         AssignedAt = null,
                         Priority = 0,
                         Status = ConversationStatus.Open,
+                        LastMessage = string.Empty,
                         LastMessageAt = eventTimestamp,
                         CreatedAt = DateTimeOffset.UtcNow
                     };
@@ -317,8 +321,14 @@ public sealed class ProcessInboundEventCommandHandler(
                 var messageType = MapMessageType(messagePayload.Type);
                 var direction = MapDirection(messagePayload.Direction);
                 var content = ResolveContent(messagePayload);
+                var resolvedMedia = messagePayload.ResolveMedia();
+                var mediaProcessingStatus = IsAsyncMediaType(messageType) ? "processing" : "completed";
 
-                var metadataJson = JsonSerializer.Serialize(request.Event, JsonOptions);
+                var metadataJson = JsonSerializer.Serialize(new
+                {
+                    inboundEvent = request.Event,
+                    mediaProcessingStatus
+                }, JsonOptions);
 
                 var message = new Message
                 {
@@ -336,7 +346,9 @@ public sealed class ProcessInboundEventCommandHandler(
                 };
 
                 db.Messages.Add(message);
+                TryAttachInboundMedia(message, messagePayload, db);
 
+                conversation.LastMessage = content;
                 if (conversation.LastMessageAt < eventTimestamp)
                     conversation.LastMessageAt = eventTimestamp;
                 conversation.Status = ConversationStatus.Open;
@@ -378,6 +390,25 @@ public sealed class ProcessInboundEventCommandHandler(
 
                 SetSuccess(result, InboundProcessingOutcome.Persisted, "processed");
 
+                if (resolvedMedia is not null &&
+                    !string.IsNullOrWhiteSpace(resolvedMedia.Url) &&
+                    IsAsyncMediaType(messageType))
+                {
+                    await mediaProcessingJobPublisher.PublishAsync(new MediaProcessingRequested
+                    {
+                        TenantId = lookup.TenantId,
+                        MessageId = message.Id,
+                        ConversationId = message.ConversationId,
+                        IntegrationId = integration.Id,
+                        MediaType = messagePayload.Type,
+                        TempUrl = resolvedMedia.Url.Trim(),
+                        MimeType = string.IsNullOrWhiteSpace(resolvedMedia.MimeType) ? null : resolvedMedia.MimeType.Trim(),
+                        CreatedAt = message.CreatedAt,
+                        Caption = string.IsNullOrWhiteSpace(resolvedMedia.Caption) ? null : resolvedMedia.Caption.Trim(),
+                        ExternalMessageId = messagePayload.Id
+                    }, cancellationToken);
+                }
+
                 var messageCreatedEvent = new RealtimeEvent<MessageCreatedPayloadDto>
                 {
                     Type = "message.created",
@@ -388,9 +419,19 @@ public sealed class ProcessInboundEventCommandHandler(
                         Id = message.Id,
                         ConversationId = message.ConversationId,
                         Text = message.Content,
+                        Type = message.Type.ToString().ToLowerInvariant(),
+                        Media = resolvedMedia is null
+                            ? null
+                            : new MessageMediaListItemDto
+                            {
+                                Url = string.Empty,
+                                MimeType = (resolvedMedia.MimeType ?? string.Empty).Trim(),
+                                Caption = string.IsNullOrWhiteSpace(resolvedMedia.Caption) ? null : resolvedMedia.Caption.Trim()
+                            },
                         SenderId = message.SenderUserId?.ToString(),
                         CreatedAt = message.CreatedAt,
-                        Status = MessageListItemDtoMapper.ToStatusString(message.Status)
+                        Status = MessageListItemDtoMapper.ToStatusString(message.Status),
+                        MediaProcessingStatus = mediaProcessingStatus
                     }
                 };
 
@@ -727,8 +768,12 @@ public sealed class ProcessInboundEventCommandHandler(
             messagePayload.Id);
 
         var movedToTop = conversation.LastMessageAt < eventTimestamp;
+        var lastMessage = ResolveContent(messagePayload);
         if (movedToTop)
+        {
             conversation.LastMessageAt = eventTimestamp;
+            conversation.LastMessage = lastMessage;
+        }
         conversation.Status = ConversationStatus.Open;
 
         await db.SaveChangesAsync(cancellationToken);
@@ -738,8 +783,6 @@ public sealed class ProcessInboundEventCommandHandler(
 
         if (movedToTop)
         {
-            var lastMessage = ResolveContent(messagePayload);
-
             var movedEventDuplicate = new RealtimeEvent<ConversationMovedToTopPayloadDto>
             {
                 Type = "conversation.moved_to_top",
@@ -798,15 +841,72 @@ public sealed class ProcessInboundEventCommandHandler(
         };
     }
 
+    private static MediaType? MapMediaType(string? type)
+    {
+        return type?.Trim().ToLowerInvariant() switch
+        {
+            "image" => MediaType.Image,
+            "video" => MediaType.Video,
+            "audio" => MediaType.Audio,
+            "document" => MediaType.Document,
+            "sticker" => MediaType.Sticker,
+            _ => null
+        };
+    }
+
+    private static void TryAttachInboundMedia(
+        Message message,
+        InboundMessagePayload payload,
+        IApplicationDbContext db)
+    {
+        var mediaType = MapMediaType(payload.Type);
+        if (!mediaType.HasValue)
+            return;
+
+        var media = payload.ResolveMedia();
+        var url = media?.Url?.Trim();
+        if (string.IsNullOrWhiteSpace(url))
+            return;
+
+        db.MessageMedia.Add(new MessageMedia
+        {
+            Id = Guid.NewGuid(),
+            MessageId = message.Id,
+            MediaType = mediaType.Value,
+            Url = url,
+            MimeType = (media?.MimeType ?? string.Empty).Trim(),
+            FileSize = 0,
+            Caption = string.IsNullOrWhiteSpace(media?.Caption) ? null : media!.Caption!.Trim()
+        });
+    }
+
     private static string ResolveContent(InboundMessagePayload payload)
     {
         if (payload.Type.Equals("text", StringComparison.OrdinalIgnoreCase))
             return payload.Text?.Body?.Trim() ?? string.Empty;
 
-        return payload.Media?.Caption?.Trim()
-               ?? payload.Media?.Url?.Trim()
-               ?? string.Empty;
+        var caption = payload.ResolveMedia()?.Caption?.Trim();
+        if (!string.IsNullOrWhiteSpace(caption))
+            return caption;
+
+        return ResolveMediaPlaceholder(payload.Type);
     }
+
+    private static string ResolveMediaPlaceholder(string? type)
+    {
+        return type?.Trim().ToLowerInvariant() switch
+        {
+            "image" => "[Image]",
+            "video" => "[Video]",
+            "audio" => "[Audio]",
+            "document" => "[Document]",
+            "sticker" => "[Sticker]",
+            _ => "[Media]"
+        };
+    }
+
+    private static bool IsAsyncMediaType(MessageType type) =>
+        type is MessageType.Image or MessageType.Video or MessageType.Audio or MessageType.Document or MessageType.Sticker;
 
     private static async Task<Guid> ResolveInboxIdAsync(
         IApplicationDbContext db,

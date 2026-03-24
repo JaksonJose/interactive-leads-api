@@ -52,6 +52,7 @@ public sealed class RabbitMqSettings
 
     /// <summary>Optional queue for operator review of permanently rejected inbound events.</summary>
     public string UnprocessedQueueName { get; set; } = "chat.unprocessed";
+    public string MediaProcessingQueueName { get; set; } = "media.processing";
 
     /// <summary>When true, publish a copy of the event to <see cref="UnprocessedQueueName"/> on permanent rejection.</summary>
     public bool ForwardPermanentRejectionsToUnprocessedQueue { get; set; }

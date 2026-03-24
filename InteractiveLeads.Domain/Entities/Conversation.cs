@@ -13,6 +13,7 @@ public class Conversation
     public Guid? AssignedAgentId { get; set; }
     public DateTimeOffset? AssignedAt { get; set; }
     public int Priority { get; set; }
+    public string LastMessage { get; set; } = string.Empty;
     public DateTimeOffset LastMessageAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 

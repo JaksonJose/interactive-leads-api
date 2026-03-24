@@ -93,10 +93,7 @@ public sealed class PagedInboxConversationsQueryHandler(
                 InboxId = c.InboxId,
                 ContactId = c.ContactId,
                 ContactName = c.Contact.Name,
-                LastMessage = c.Messages
-                    .OrderByDescending(m => m.CreatedAt)
-                    .Select(m => m.Content)
-                    .FirstOrDefault() ?? string.Empty,
+                LastMessage = c.LastMessage,
                 LastMessageAt = c.LastMessageAt,
                 CreatedAt = c.CreatedAt,
                 InboxName = c.Inbox.Name,
