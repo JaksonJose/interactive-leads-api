@@ -12,8 +12,10 @@ public sealed record OutboundMessageContract(
     [property: JsonPropertyName("payload")] OutboundMessageBodyContract Payload,
     [property: JsonPropertyName("metadata")] OutboundMetadataContract Metadata);
 
+/// <summary>WhatsApp Cloud API credentials. <c>webhookVerifyToken</c> mirrors <c>accessToken</c> for older n8n bindings.</summary>
 public sealed record OutboundAuthContract(
     [property: JsonPropertyName("webhookVerifyToken")] string WebhookVerifyToken,
+    [property: JsonPropertyName("accessToken")] string AccessToken,
     [property: JsonPropertyName("phoneNumberId")] string PhoneNumberId,
     [property: JsonPropertyName("businessAccountId")] string BusinessAccountId);
 

@@ -48,10 +48,13 @@ internal static class OutboundMessageContractMapper
         if (settings is null)
             return null;
 
+        var accessToken = (settings.AccessToken ?? string.Empty).Trim();
+
         return new OutboundAuthContract(
-            WebhookVerifyToken: WhatsAppWebhookDefaults.FixedVerifyToken,
-            PhoneNumberId: settings.PhoneNumberId,
-            BusinessAccountId: settings.BusinessAccountId);
+            WebhookVerifyToken: accessToken,
+            AccessToken: accessToken,
+            PhoneNumberId: (settings.PhoneNumberId ?? string.Empty).Trim(),
+            BusinessAccountId: (settings.BusinessAccountId ?? string.Empty).Trim());
     }
 
     private static object BuildContent(

@@ -447,6 +447,7 @@ public sealed class ProcessInboundEventCommandHandler(
         CancellationToken cancellationToken)
     {
         InboundStatusPayload? statusPayload;
+
         try
         {
             statusPayload = request.Event.Payload.Deserialize<InboundStatusPayload>(JsonOptions);
@@ -458,7 +459,20 @@ public sealed class ProcessInboundEventCommandHandler(
             return;
         }
 
-        if (statusPayload == null || string.IsNullOrWhiteSpace(statusPayload.MessageId))
+        if (statusPayload == null)
+        {
+            SetPermanent(result, "missing_message_id");
+            return;
+        }
+
+        var providerMessageId = ResolveStatusProviderMessageId(statusPayload);
+        Guid? clientMessageId = null;
+        if (string.IsNullOrWhiteSpace(providerMessageId) &&
+            !string.IsNullOrWhiteSpace(statusPayload.ClientMessageId) &&
+            Guid.TryParse(statusPayload.ClientMessageId.Trim(), out var parsedClient))
+            clientMessageId = parsedClient;
+
+        if (string.IsNullOrWhiteSpace(providerMessageId) && clientMessageId is null)
         {
             SetPermanent(result, "missing_message_id");
             return;
@@ -467,9 +481,10 @@ public sealed class ProcessInboundEventCommandHandler(
         if (!TryMapProviderStatus(statusPayload.Status, out var newStatus))
         {
             logger.LogWarning(
-                "Inbound status event ignored: unknown status {Status} for messageId {MessageId}",
+                "Inbound status event ignored: unknown status {Status} for providerMessageId {ProviderMessageId} clientMessageId {ClientMessageId}",
                 statusPayload.Status,
-                statusPayload.MessageId);
+                providerMessageId,
+                clientMessageId);
             SetPermanent(result, "unknown_status");
             return;
         }
@@ -482,10 +497,11 @@ public sealed class ProcessInboundEventCommandHandler(
         if (lookup == null)
         {
             logger.LogWarning(
-                "Inbound status: integration lookup not found for provider {Provider} externalIdentifier {ExternalIdentifier} messageId {MessageId}",
+                "Inbound status: integration lookup not found for provider {Provider} externalIdentifier {ExternalIdentifier} providerMessageId {ProviderMessageId} clientMessageId {ClientMessageId}",
                 provider,
                 externalIdentifier,
-                statusPayload.MessageId);
+                providerMessageId,
+                clientMessageId);
             SetPermanent(result, "integration_not_found");
             return;
         }
@@ -514,22 +530,31 @@ public sealed class ProcessInboundEventCommandHandler(
                 }
 
                 var companyId = integration.CompanyId;
-                var providerMessageId = statusPayload.MessageId.Trim();
 
-                var message = await (
-                    from m in db.Messages
-                    join c in db.Conversations on m.ConversationId equals c.Id
-                    where m.ExternalMessageId == providerMessageId
-                          && c.IntegrationId == integration.Id
-                          && c.CompanyId == companyId
-                          && m.Direction == MessageDirection.Outbound
-                    select m).SingleOrDefaultAsync(cancellationToken);
+                var message = clientMessageId.HasValue
+                    ? await (
+                        from m in db.Messages
+                        join c in db.Conversations on m.ConversationId equals c.Id
+                        where m.Id == clientMessageId.Value
+                              && c.IntegrationId == integration.Id
+                              && c.CompanyId == companyId
+                              && m.Direction == MessageDirection.Outbound
+                        select m).SingleOrDefaultAsync(cancellationToken)
+                    : await (
+                        from m in db.Messages
+                        join c in db.Conversations on m.ConversationId equals c.Id
+                        where m.ExternalMessageId == providerMessageId!.Trim()
+                              && c.IntegrationId == integration.Id
+                              && c.CompanyId == companyId
+                              && m.Direction == MessageDirection.Outbound
+                        select m).SingleOrDefaultAsync(cancellationToken);
 
                 if (message == null)
                 {
                     tenantLogger.LogWarning(
-                        "Inbound status: no outbound message for ExternalMessageId {MessageId} integrationId {IntegrationId}",
+                        "Inbound status: no outbound message for ExternalMessageId {ExternalMessageId} clientMessageId {ClientMessageId} integrationId {IntegrationId}",
                         providerMessageId,
+                        clientMessageId,
                         integration.Id);
                     // Permanent: message may never exist (old events, wrong id); retry would not help.
                     SetPermanent(result, "status_message_not_found");
@@ -552,9 +577,10 @@ public sealed class ProcessInboundEventCommandHandler(
                 SetSuccess(result, InboundProcessingOutcome.Persisted, "status_updated");
 
                 tenantLogger.LogInformation(
-                    "Inbound status applied. integrationId {IntegrationId} externalMessageId {ExternalMessageId} status {Status}",
+                    "Inbound status applied. integrationId {IntegrationId} externalMessageId {ExternalMessageId} clientMessageId {ClientMessageId} status {Status}",
                     integration.Id,
-                    providerMessageId,
+                    message.ExternalMessageId,
+                    message.Id,
                     newStatus);
 
                 await TryPublishMessageStatusUpdatedAsync(
@@ -595,6 +621,18 @@ public sealed class ProcessInboundEventCommandHandler(
         {
             logger.LogWarning(ex, "Failed to send message.status_updated via SignalR.");
         }
+    }
+
+    private static string? ResolveStatusProviderMessageId(InboundStatusPayload payload)
+    {
+        foreach (var candidate in new[] { payload.MessageId, payload.Id })
+        {
+            var t = candidate?.Trim();
+            if (!string.IsNullOrWhiteSpace(t))
+                return t;
+        }
+
+        return null;
     }
 
     private static bool TryMapProviderStatus(string? status, out MessageStatus mapped)
