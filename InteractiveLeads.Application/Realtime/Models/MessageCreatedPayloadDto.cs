@@ -10,6 +10,8 @@ public class MessageCreatedPayloadDto
     public string Type { get; set; } = "text";
     public MessageMediaListItemDto? Media { get; set; }
     public string? SenderId { get; set; }
+    /// <summary>Client idempotency id (same as <see cref="Domain.Entities.Message.ExternalMessageId"/>).</summary>
+    public string? ExternalMessageId { get; set; }
 
     /// <summary>When the message event occurred (channel time).</summary>
     public DateTimeOffset MessageDate { get; set; }

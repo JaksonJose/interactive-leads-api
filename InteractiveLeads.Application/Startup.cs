@@ -1,4 +1,5 @@
 using FluentValidation;
+using InteractiveLeads.Application.Feature.Chat.Media;
 using InteractiveLeads.Application.Feature.Chat.Messages.Services;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Integrations.Settings;
@@ -42,6 +43,7 @@ namespace InteractiveLeads.Application
             services.AddScoped<IIntegrationSettingsResolver, IntegrationSettingsResolver>();
             services.AddScoped<IIntegrationExternalIdentifierResolver, IntegrationExternalIdentifierResolver>();
             services.AddScoped<IMessageService, MessageService>();
+            services.AddScoped<IConversationMediaUploadService, ConversationMediaUploadService>();
 
             return services;
         }

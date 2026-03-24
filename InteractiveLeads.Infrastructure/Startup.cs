@@ -30,6 +30,7 @@ using InteractiveLeads.Infrastructure.Tenancy;
 using InteractiveLeads.Infrastructure.Tenancy.Models;
 using InteractiveLeads.Infrastructure.Tenancy.Strategies;
 using InteractiveLeads.Infrastructure.Storage;
+using InteractiveLeads.Application.Feature.Chat.Media;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -61,6 +62,8 @@ namespace InteractiveLeads.Infrastructure
         public static IServiceCollection AddInfraestructureServices(this IServiceCollection services, IConfiguration config)
         {
             services.Configure<MediaProcessingOptions>(config.GetSection(MediaProcessingOptions.SectionName));
+            services.Configure<OutboundMediaUploadOptions>(config.GetSection(OutboundMediaUploadOptions.SectionName));
+            services.AddSingleton<Microsoft.Extensions.Options.IConfigureOptions<OutboundMediaUploadOptions>, OutboundMediaUploadStorageRootConfigure>();
             services.AddSingleton<IAmazonS3>(sp =>
             {
                 var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MediaProcessingOptions>>().Value;

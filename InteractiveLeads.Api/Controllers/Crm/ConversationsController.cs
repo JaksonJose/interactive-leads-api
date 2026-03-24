@@ -5,6 +5,9 @@ using InteractiveLeads.Application.Feature.Chat.Conversations.Queries;
 using InteractiveLeads.Application.Feature.Chat.Messages.Commands;
 using InteractiveLeads.Application.Feature.Chat.Messages;
 using InteractiveLeads.Application.Feature.Chat.Messages.Queries;
+using InteractiveLeads.Application.Feature.Chat.Media;
+using InteractiveLeads.Application.Interfaces;
+using InteractiveLeads.Application.Responses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NSwag.Annotations;
@@ -15,8 +18,9 @@ namespace InteractiveLeads.Api.Controllers.Crm;
 /// Chat/CRM API: Conversations listing and inbox moves.
 /// </summary>
 [Authorize(Roles = "Owner,Manager,Agent")]
-public sealed class ConversationsController : BaseApiController
+public sealed class ConversationsController(IConversationMediaUploadService conversationMediaUpload) : BaseApiController
 {
+    private readonly IConversationMediaUploadService _conversationMediaUpload = conversationMediaUpload;
     /// <summary>List conversations in an inbox (Agent can only access inboxes where is an active member).</summary>
     [HttpGet("/api/v1/inboxes/{inboxId:guid}/conversations")]
     [OpenApiOperation("List inbox conversations")]
@@ -93,12 +97,47 @@ public sealed class ConversationsController : BaseApiController
             Type = request.Type,
             MediaUrl = request.MediaUrl,
             Caption = request.Caption,
+            MimeType = request.MimeType,
+            FileName = request.FileName,
+            MediaOriginalUrl = request.MediaOriginalUrl,
+            MediaThumbnailUrl = request.MediaThumbnailUrl,
+            Voice = request.Voice,
             ReactionEmoji = request.ReactionEmoji,
             ReactionMessageId = request.ReactionMessageId,
             ReplyToMessageId = request.ReplyToMessageId
         });
 
         return Ok(response);
+    }
+
+    /// <summary>Upload a file for outbound WhatsApp media (S3). Client then POSTs /messages per item.</summary>
+    [HttpPost("{conversationId:guid}/media")]
+    [RequestSizeLimit(104_857_600)]
+    [Consumes("multipart/form-data")]
+    [OpenApiOperation("Upload conversation media file")]
+    public async Task<IActionResult> UploadConversationMediaAsync(
+        Guid conversationId,
+        [FromForm] IFormFile file,
+        [FromQuery] string? mediaType,
+        CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest();
+
+        await using var stream = file.OpenReadStream();
+        var dto = await _conversationMediaUpload.UploadAsync(
+            new UploadConversationMediaRequest
+            {
+                ConversationId = conversationId,
+                Content = stream,
+                FileName = file.FileName,
+                ContentType = file.ContentType ?? string.Empty,
+                ContentLength = file.Length,
+                MediaType = mediaType
+            },
+            cancellationToken);
+
+        return Ok(new SingleResponse<ConversationMediaUploadResultDto>(dto));
     }
 }
 

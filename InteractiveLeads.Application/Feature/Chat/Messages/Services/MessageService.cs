@@ -59,7 +59,29 @@ public sealed class MessageService(
         var existingMessage = await db.Messages
             .AsNoTracking()
             .Where(m => m.ExternalMessageId == idempotencyMessageId)
-            .Select(m => new { m.Id, m.Content, m.MessageDate, m.CreatedAt, m.UpdatedAt, m.Direction, m.Status })
+            .Select(m => new
+            {
+                m.Id,
+                m.Content,
+                Type = m.Type.ToString().ToLowerInvariant(),
+                Media = m.Media
+                    .OrderBy(x => x.Id)
+                    .Select(x => new MessageMediaListItemDto
+                    {
+                        Url = x.Url,
+                        MimeType = x.MimeType,
+                        FileName = x.FileName,
+                        Animated = x.Animated,
+                        Voice = x.Voice,
+                        Caption = x.Caption
+                    })
+                    .FirstOrDefault(),
+                m.MessageDate,
+                m.CreatedAt,
+                m.UpdatedAt,
+                m.Direction,
+                m.Status
+            })
             .SingleOrDefaultAsync(cancellationToken);
 
         if (existingMessage is not null)
@@ -73,8 +95,8 @@ public sealed class MessageService(
             {
                 Id = existingMessage.Id,
                 Content = existingMessage.Content,
-                Type = "text",
-                Media = null,
+                Type = existingMessage.Type,
+                Media = existingMessage.Media,
                 Direction = existingMessage.Direction == MessageDirection.Inbound ? "inbound" : "outbound",
                 MessageDate = existingMessage.MessageDate,
                 CreatedAt = existingMessage.CreatedAt,
@@ -120,6 +142,7 @@ public sealed class MessageService(
         };
 
         db.Messages.Add(message);
+        AddOutboundMessageMedia(message.Id, request, messageType);
         conversation.Status = ConversationStatus.Open;
         conversation.LastMessage = message.Content;
         if (conversation.LastMessageAt < messageDate)
@@ -143,6 +166,9 @@ public sealed class MessageService(
             request.Content?.Trim() ?? string.Empty,
             request.MediaUrl?.Trim(),
             request.Caption?.Trim(),
+            request.FileName?.Trim(),
+            request.MimeType?.Trim(),
+            request.Voice,
             request.ReactionEmoji?.Trim(),
             request.ReactionMessageId,
             request.ReplyToMessageId,
@@ -175,7 +201,8 @@ public sealed class MessageService(
             await db.SaveChangesAsync(cancellationToken);
         }
 
-        await PublishRealtimeEventsAsync(conversation, message, tenantId);
+        var outboundMediaDto = BuildOutboundMediaListItem(request, messageType);
+        await PublishRealtimeEventsAsync(conversation, message, tenantId, outboundMediaDto);
 
         logger.LogInformation(
             dispatchOutcome.AdvanceToSentOnSuccess
@@ -190,16 +217,84 @@ public sealed class MessageService(
             Id = message.Id,
             Content = message.Content,
             Type = message.Type.ToString().ToLowerInvariant(),
-            Media = null,
+            Media = outboundMediaDto,
             Direction = "outbound",
             MessageDate = message.MessageDate,
             CreatedAt = message.CreatedAt,
             UpdatedAt = message.UpdatedAt,
-            Status = MessageListItemDtoMapper.ToStatusString(message.Status)
+            Status = MessageListItemDtoMapper.ToStatusString(message.Status),
+            MediaProcessingStatus = "completed"
         };
     }
 
-    private async Task PublishRealtimeEventsAsync(Conversation conversation, Message message, string tenantId)
+    private void AddOutboundMessageMedia(
+        Guid messageId,
+        SendConversationMessageRequest request,
+        MessageType messageType)
+    {
+        var url = request.MediaUrl?.Trim();
+        if (string.IsNullOrWhiteSpace(url))
+            return;
+
+        var mediaType = ToMessageMediaType(messageType);
+        if (mediaType is null)
+            return;
+
+        db.MessageMedia.Add(new MessageMedia
+        {
+            Id = Guid.NewGuid(),
+            MessageId = messageId,
+            MediaType = mediaType.Value,
+            Url = url,
+            MimeType = (request.MimeType ?? string.Empty).Trim(),
+            FileSize = 0,
+            FileName = string.IsNullOrWhiteSpace(request.FileName) ? null : request.FileName.Trim(),
+            Animated = false,
+            Voice = request.Voice ?? false,
+            Caption = string.IsNullOrWhiteSpace(request.Caption) ? null : request.Caption.Trim()
+        });
+    }
+
+    private static MediaType? ToMessageMediaType(MessageType messageType) =>
+        messageType switch
+        {
+            MessageType.Image => MediaType.Image,
+            MessageType.Video => MediaType.Video,
+            MessageType.Audio => MediaType.Audio,
+            MessageType.Document => MediaType.Document,
+            _ => null
+        };
+
+    private static MessageMediaListItemDto? BuildOutboundMediaListItem(
+        SendConversationMessageRequest request,
+        MessageType messageType)
+    {
+        var url = request.MediaUrl?.Trim();
+        if (string.IsNullOrWhiteSpace(url))
+            return null;
+
+        if (ToMessageMediaType(messageType) is null)
+            return null;
+
+        return new MessageMediaListItemDto
+        {
+            Url = url,
+            OptimizedUrl = url,
+            ThumbnailUrl = string.IsNullOrWhiteSpace(request.MediaThumbnailUrl)
+                ? null
+                : request.MediaThumbnailUrl.Trim(),
+            MimeType = (request.MimeType ?? string.Empty).Trim(),
+            FileName = string.IsNullOrWhiteSpace(request.FileName) ? null : request.FileName.Trim(),
+            Voice = request.Voice ?? false,
+            Caption = string.IsNullOrWhiteSpace(request.Caption) ? null : request.Caption.Trim()
+        };
+    }
+
+    private async Task PublishRealtimeEventsAsync(
+        Conversation conversation,
+        Message message,
+        string tenantId,
+        MessageMediaListItemDto? media)
     {
         var messageCreatedEvent = new RealtimeEvent<MessageCreatedPayloadDto>
         {
@@ -212,8 +307,9 @@ public sealed class MessageService(
                 ConversationId = message.ConversationId,
                 Text = message.Content,
                 Type = message.Type.ToString().ToLowerInvariant(),
-                Media = null,
+                Media = media,
                 SenderId = message.SenderUserId?.ToString(),
+                ExternalMessageId = message.ExternalMessageId,
                 MessageDate = message.MessageDate,
                 CreatedAt = message.MessageDate,
                 Status = MessageListItemDtoMapper.ToStatusString(message.Status),
@@ -283,8 +379,19 @@ public sealed class MessageService(
     {
         return messageType switch
         {
-            MessageType.Image => request.Caption?.Trim() ?? request.MediaUrl?.Trim() ?? string.Empty,
-            MessageType.Video => request.Caption?.Trim() ?? request.MediaUrl?.Trim() ?? string.Empty,
+            MessageType.Image => request.Caption?.Trim()
+                ?? request.FileName?.Trim()
+                ?? string.Empty,
+            MessageType.Video => request.Caption?.Trim()
+                ?? request.FileName?.Trim()
+                ?? string.Empty,
+            MessageType.Document => request.Caption?.Trim()
+                ?? request.FileName?.Trim()
+                ?? request.MediaUrl?.Trim()
+                ?? string.Empty,
+            MessageType.Audio => request.Caption?.Trim()
+                ?? request.FileName?.Trim()
+                ?? string.Empty,
             MessageType.Reaction => request.ReactionEmoji?.Trim() ?? string.Empty,
             _ => request.Content?.Trim() ?? string.Empty
         };
@@ -300,7 +407,16 @@ public sealed class MessageService(
                 messageId,
                 messageType = request.Type?.Trim().ToLowerInvariant(),
                 mediaUrl = request.MediaUrl?.Trim(),
+                mediaOriginalUrl = string.IsNullOrWhiteSpace(request.MediaOriginalUrl)
+                    ? null
+                    : request.MediaOriginalUrl.Trim(),
+                mediaThumbnailUrl = string.IsNullOrWhiteSpace(request.MediaThumbnailUrl)
+                    ? null
+                    : request.MediaThumbnailUrl.Trim(),
                 caption = request.Caption?.Trim(),
+                fileName = request.FileName?.Trim(),
+                mimeType = request.MimeType?.Trim(),
+                voice = request.Voice,
                 reactionEmoji = request.ReactionEmoji?.Trim(),
                 reactionMessageId = request.ReactionMessageId,
                 replyToMessageId = request.ReplyToMessageId
@@ -337,6 +453,8 @@ public sealed class MessageService(
             "text" => MessageType.Text,
             "image" => MessageType.Image,
             "video" => MessageType.Video,
+            "audio" => MessageType.Audio,
+            "document" => MessageType.Document,
             "reaction" => MessageType.Reaction,
             "reply" => MessageType.Reply,
             _ => MessageType.Text

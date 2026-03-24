@@ -13,6 +13,11 @@ public sealed class SendConversationMessageCommand : IRequest<IResponse>
     public string Type { get; set; } = "text";
     public string? MediaUrl { get; set; }
     public string? Caption { get; set; }
+    public string? MimeType { get; set; }
+    public string? FileName { get; set; }
+    public string? MediaOriginalUrl { get; set; }
+    public string? MediaThumbnailUrl { get; set; }
+    public bool? Voice { get; set; }
     public string? ReactionEmoji { get; set; }
     public Guid? ReactionMessageId { get; set; }
     public Guid? ReplyToMessageId { get; set; }
@@ -32,6 +37,11 @@ public sealed class SendConversationMessageCommandHandler(
                 Type = request.Type,
                 MediaUrl = request.MediaUrl,
                 Caption = request.Caption,
+                MimeType = request.MimeType,
+                FileName = request.FileName,
+                MediaOriginalUrl = request.MediaOriginalUrl,
+                MediaThumbnailUrl = request.MediaThumbnailUrl,
+                Voice = request.Voice,
                 ReactionEmoji = request.ReactionEmoji,
                 ReactionMessageId = request.ReactionMessageId,
                 ReplyToMessageId = request.ReplyToMessageId

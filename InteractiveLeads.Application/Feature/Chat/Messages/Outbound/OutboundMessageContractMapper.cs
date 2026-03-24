@@ -16,6 +16,9 @@ internal static class OutboundMessageContractMapper
         string content,
         string? mediaUrl,
         string? caption,
+        string? fileName,
+        string? mimeType,
+        bool? voice,
         string? reactionEmoji,
         Guid? reactionMessageId,
         Guid? replyToMessageId,
@@ -35,7 +38,7 @@ internal static class OutboundMessageContractMapper
                 Id: messageId,
                 ClientMessageId: clientMessageId.ToString("D"),
                 Type: messageTypeName,
-                Content: BuildContent(messageType, content, mediaUrl, caption, reactionEmoji, reactionMessageId, replyToMessageId)),
+                Content: BuildContent(messageType, content, mediaUrl, caption, fileName, mimeType, voice, reactionEmoji, reactionMessageId, replyToMessageId)),
             Metadata: new OutboundMetadataContract(
                 ConversationId: conversation.Id.ToString(),
                 ReplyToMessageId: replyToMessageId?.ToString()));
@@ -51,7 +54,6 @@ internal static class OutboundMessageContractMapper
         var accessToken = (settings.AccessToken ?? string.Empty).Trim();
 
         return new OutboundAuthContract(
-            WebhookVerifyToken: accessToken,
             AccessToken: accessToken,
             PhoneNumberId: (settings.PhoneNumberId ?? string.Empty).Trim(),
             BusinessAccountId: (settings.BusinessAccountId ?? string.Empty).Trim());
@@ -62,6 +64,9 @@ internal static class OutboundMessageContractMapper
         string content,
         string? mediaUrl,
         string? caption,
+        string? fileName,
+        string? mimeType,
+        bool? voice,
         string? reactionEmoji,
         Guid? reactionMessageId,
         Guid? replyToMessageId)
@@ -70,6 +75,12 @@ internal static class OutboundMessageContractMapper
         {
             MessageType.Image => new OutboundImageContentContract(mediaUrl ?? string.Empty, caption),
             MessageType.Video => new OutboundVideoContentContract(mediaUrl ?? string.Empty, caption),
+            MessageType.Document => new OutboundDocumentContentContract(
+                mediaUrl ?? string.Empty,
+                caption,
+                (fileName ?? "file").Trim(),
+                string.IsNullOrWhiteSpace(mimeType) ? null : mimeType.Trim()),
+            MessageType.Audio => new OutboundAudioContentContract(mediaUrl ?? string.Empty, voice ?? false),
             MessageType.Reaction => new OutboundReactionContentContract(reactionEmoji ?? string.Empty, reactionMessageId?.ToString() ?? string.Empty),
             MessageType.Reply => new OutboundReplyContentContract(content, replyToMessageId?.ToString() ?? string.Empty),
             _ => new OutboundTextContentContract(content)

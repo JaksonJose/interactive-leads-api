@@ -12,9 +12,8 @@ public sealed record OutboundMessageContract(
     [property: JsonPropertyName("payload")] OutboundMessageBodyContract Payload,
     [property: JsonPropertyName("metadata")] OutboundMetadataContract Metadata);
 
-/// <summary>WhatsApp Cloud API credentials. <c>webhookVerifyToken</c> mirrors <c>accessToken</c> for older n8n bindings.</summary>
+/// <summary>WhatsApp Cloud API credentials sent with outbound messages.</summary>
 public sealed record OutboundAuthContract(
-    [property: JsonPropertyName("webhookVerifyToken")] string WebhookVerifyToken,
     [property: JsonPropertyName("accessToken")] string AccessToken,
     [property: JsonPropertyName("phoneNumberId")] string PhoneNumberId,
     [property: JsonPropertyName("businessAccountId")] string BusinessAccountId);
@@ -51,3 +50,13 @@ public sealed record OutboundReactionContentContract(
 public sealed record OutboundReplyContentContract(
     [property: JsonPropertyName("text")] string Text,
     [property: JsonPropertyName("messageId")] string MessageId);
+
+public sealed record OutboundDocumentContentContract(
+    [property: JsonPropertyName("url")] string Url,
+    [property: JsonPropertyName("caption")] string? Caption,
+    [property: JsonPropertyName("fileName")] string FileName,
+    [property: JsonPropertyName("mimeType")] string? MimeType);
+
+public sealed record OutboundAudioContentContract(
+    [property: JsonPropertyName("url")] string Url,
+    [property: JsonPropertyName("voice")] bool Voice);

@@ -1,5 +1,6 @@
 using InteractiveLeads.Api.Middleware;
 using InteractiveLeads.Application;
+using Microsoft.AspNetCore.Http.Features;
 using InteractiveLeads.Application.Realtime.Services;
 using InteractiveLeads.Api.Realtime.Hubs;
 using InteractiveLeads.Api.Realtime.Services;
@@ -20,6 +21,11 @@ builder.Services.AddCors(options =>
             .AllowCredentials()
             .AllowAnyMethod()
             .AllowAnyHeader());
+});
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 104_857_600;
 });
 
 builder.Services.AddControllers()

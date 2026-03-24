@@ -5,7 +5,8 @@ namespace InteractiveLeads.Application.Feature.Chat.Messages.Validators;
 
 public sealed class SendConversationMessageCommandValidator : AbstractValidator<SendConversationMessageCommand>
 {
-    private static readonly string[] SupportedTypes = ["text", "image", "video", "reaction", "reply"];
+    private static readonly string[] SupportedTypes =
+        ["text", "image", "video", "audio", "document", "reaction", "reply"];
 
     public SendConversationMessageCommandValidator()
     {
@@ -26,11 +27,22 @@ public sealed class SendConversationMessageCommandValidator : AbstractValidator<
                 .WithMessage("chat.message.content_required:Content is required.");
         });
 
-        When(x => IsType(x.Type, "image") || IsType(x.Type, "video"), () =>
+        When(x => IsType(x.Type, "image") || IsType(x.Type, "video") || IsType(x.Type, "audio"), () =>
         {
             RuleFor(x => x.MediaUrl)
                 .NotEmpty()
                 .WithMessage("chat.message.media_url_required:Media URL is required.");
+        });
+
+        When(x => IsType(x.Type, "document"), () =>
+        {
+            RuleFor(x => x.MediaUrl)
+                .NotEmpty()
+                .WithMessage("chat.message.media_url_required:Media URL is required.");
+
+            RuleFor(x => x.FileName)
+                .NotEmpty()
+                .WithMessage("chat.message.file_name_required:File name is required for documents.");
         });
 
         When(x => IsType(x.Type, "reaction"), () =>

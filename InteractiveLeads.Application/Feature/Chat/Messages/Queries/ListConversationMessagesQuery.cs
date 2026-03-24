@@ -86,6 +86,8 @@ public sealed class ListConversationMessagesQueryHandler(
                 var media = m.Media;
                 if (processingStatus == "processing" && media is not null)
                     media.Url = string.Empty;
+                else if (media is not null && m.Direction == "outbound")
+                    MergeOutboundImageMetadata(media, m.Metadata, m.Type);
 
                 return new MessageListItemDto
                 {
@@ -120,6 +122,33 @@ public sealed class ListConversationMessagesQueryHandler(
 
         var response = new CursorListResponse<MessageListItemDto>(items, hasMore, nextCursor);
         return response;
+    }
+
+    private static void MergeOutboundImageMetadata(MessageMediaListItemDto media, string? metadata, string messageType)
+    {
+        if (!string.Equals(messageType, "image", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(metadata))
+            return;
+
+        if (string.IsNullOrWhiteSpace(media.OptimizedUrl) && !string.IsNullOrWhiteSpace(media.Url))
+            media.OptimizedUrl = media.Url;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(metadata);
+            if (!doc.RootElement.TryGetProperty("outbound", out var outbound))
+                return;
+            if (outbound.TryGetProperty("mediaThumbnailUrl", out var thumb) && thumb.ValueKind == JsonValueKind.String)
+            {
+                var t = thumb.GetString();
+                if (!string.IsNullOrWhiteSpace(t))
+                    media.ThumbnailUrl = t;
+            }
+        }
+        catch
+        {
+            // ignore malformed metadata
+        }
     }
 
     private static string? ReadMediaProcessingStatus(string? metadata)
