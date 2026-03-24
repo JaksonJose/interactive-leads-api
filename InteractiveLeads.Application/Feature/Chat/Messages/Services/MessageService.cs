@@ -168,7 +168,6 @@ public sealed class MessageService(
             request.MediaUrl?.Trim(),
             request.Caption?.Trim(),
             request.FileName?.Trim(),
-            request.MimeType?.Trim(),
             request.Voice,
             request.ReactionEmoji?.Trim(),
             request.ReactionMessageId,
@@ -252,6 +251,18 @@ public sealed class MessageService(
                 persistedMime = "image/webp";
             }
         }
+        else if (messageType == MessageType.Audio)
+        {
+            var optimized = request.MediaOptimizedUrl?.Trim();
+            if (!string.IsNullOrWhiteSpace(optimized))
+            {
+                persistedUrl = optimized;
+                var om = request.MediaOptimizedMimeType?.Trim();
+                persistedMime = string.IsNullOrWhiteSpace(om)
+                    ? (request.MimeType ?? string.Empty).Trim()
+                    : om;
+            }
+        }
 
         db.MessageMedia.Add(new MessageMedia
         {
@@ -261,7 +272,7 @@ public sealed class MessageService(
             Url = persistedUrl,
             MimeType = persistedMime,
             FileSize = 0,
-            FileName = string.IsNullOrWhiteSpace(request.FileName) ? null : request.FileName.Trim(),
+            FileName = ResolveOutboundAudioFileNameForPersistence(request, messageType),
             Animated = false,
             Voice = request.Voice ?? false,
             Caption = string.IsNullOrWhiteSpace(request.Caption) ? null : request.Caption.Trim()
@@ -291,7 +302,12 @@ public sealed class MessageService(
 
         var optimized = request.MediaOptimizedUrl?.Trim();
         var displayUrl = !string.IsNullOrWhiteSpace(optimized) ? optimized : raw;
-        var displayMime = !string.IsNullOrWhiteSpace(optimized) ? "image/webp" : (request.MimeType ?? string.Empty).Trim();
+        var displayMime = (messageType, string.IsNullOrWhiteSpace(optimized)) switch
+        {
+            (MessageType.Image, false) => "image/webp",
+            (MessageType.Audio, false) => (request.MediaOptimizedMimeType ?? request.MimeType ?? "audio/mp4").Trim(),
+            _ => (request.MimeType ?? string.Empty).Trim()
+        };
 
         return new MessageMediaListItemDto
         {
@@ -300,8 +316,8 @@ public sealed class MessageService(
             ThumbnailUrl = string.IsNullOrWhiteSpace(request.MediaThumbnailUrl)
                 ? null
                 : request.MediaThumbnailUrl.Trim(),
-            MimeType = messageType == MessageType.Image ? displayMime : (request.MimeType ?? string.Empty).Trim(),
-            FileName = string.IsNullOrWhiteSpace(request.FileName) ? null : request.FileName.Trim(),
+            MimeType = displayMime,
+            FileName = ResolveOutboundAudioFileNameForPersistence(request, messageType),
             Voice = request.Voice ?? false,
             Caption = string.IsNullOrWhiteSpace(request.Caption) ? null : request.Caption.Trim()
         };
@@ -491,5 +507,19 @@ public sealed class MessageService(
             digits = digits[2..];
 
         return digits;
+    }
+
+    /// <summary>CRM row: for transcoded audio, store the M4A file name; otherwise the delivery file name.</summary>
+    private static string? ResolveOutboundAudioFileNameForPersistence(SendConversationMessageRequest request, MessageType messageType)
+    {
+        if (messageType == MessageType.Audio)
+        {
+            var optUrl = request.MediaOptimizedUrl?.Trim();
+            var optFn = request.MediaOptimizedFileName?.Trim();
+            if (!string.IsNullOrWhiteSpace(optUrl) && !string.IsNullOrWhiteSpace(optFn))
+                return optFn;
+        }
+
+        return string.IsNullOrWhiteSpace(request.FileName) ? null : request.FileName.Trim();
     }
 }

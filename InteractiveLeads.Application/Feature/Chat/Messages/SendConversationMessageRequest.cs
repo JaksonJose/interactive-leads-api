@@ -16,6 +16,10 @@ public sealed class SendConversationMessageRequest
     public string? FileName { get; set; }
     /// <summary>CRM/Web UI: optimized WebP URL from upload when present; stored on message media instead of <see cref="MediaUrl"/>.</summary>
     public string? MediaOptimizedUrl { get; set; }
+    /// <summary>For audio: MIME of <see cref="MediaOptimizedUrl"/> (e.g. <c>audio/mp4</c> for M4A CRM asset).</summary>
+    public string? MediaOptimizedMimeType { get; set; }
+    /// <summary>For audio: file name of the optimized asset (e.g. <c>.m4a</c>).</summary>
+    public string? MediaOptimizedFileName { get; set; }
     /// <summary>CRM / UI: thumbnail WebP URL from the pipeline.</summary>
     public string? MediaThumbnailUrl { get; set; }
     /// <summary>WhatsApp voice note when true; file audio when false.</summary>

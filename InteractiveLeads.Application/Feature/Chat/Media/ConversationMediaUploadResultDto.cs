@@ -17,5 +17,9 @@ public sealed class ConversationMediaUploadResultDto
     public string? OriginalUrl { get; set; }
     /// <summary>CRM / UI: WebP optimized variant when processing succeeded.</summary>
     public string? OptimizedUrl { get; set; }
+    /// <summary>For audio: MIME of <see cref="OptimizedUrl"/> (e.g. <c>audio/mp4</c> for M4A). Null when same asset as <see cref="Url"/>.</summary>
+    public string? OptimizedMimeType { get; set; }
+    /// <summary>For audio: file name of the optimized asset (e.g. <c>.m4a</c>).</summary>
+    public string? OptimizedFileName { get; set; }
     public string? ThumbnailUrl { get; set; }
 }

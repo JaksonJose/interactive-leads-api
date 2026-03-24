@@ -17,10 +17,21 @@ public sealed partial class ConversationMediaUploadService(
     ICurrentUserService currentUserService,
     IMediaStorageGateway storageGateway,
     IImageProcessor imageProcessor,
+    IOutboundAudioTranscoder outboundAudioTranscoder,
     IMediaContentInspector contentInspector,
     IOptions<OutboundMediaUploadOptions> options,
     ILogger<ConversationMediaUploadService> logger) : IConversationMediaUploadService
 {
+    private static readonly string[] OutboundAudioTranscodeSourceMimeTypes =
+    [
+        "audio/webm",
+        "audio/wav",
+        "audio/x-wav",
+        "audio/mp4",
+        "audio/x-m4a",
+        "audio/m4a"
+    ];
+
     private readonly OutboundMediaUploadOptions _options = options.Value;
 
     public async Task<ConversationMediaUploadResultDto> UploadAsync(
@@ -80,6 +91,7 @@ public sealed partial class ConversationMediaUploadService(
             "image" => _options.MaxImageBytes,
             "document" => _options.MaxDocumentBytes,
             "audio" => _options.MaxAudioBytes,
+            "video" => _options.MaxVideoBytes,
             _ => _options.MaxDocumentBytes
         };
 
@@ -104,6 +116,17 @@ public sealed partial class ConversationMediaUploadService(
                 cancellationToken);
         }
 
+        if (category == "audio")
+        {
+            return await UploadAudioForWhatsappAsync(
+                request,
+                safeName,
+                effectiveMime,
+                tenantSegment,
+                root,
+                cancellationToken);
+        }
+
         var unique = Guid.NewGuid().ToString("N");
         var mediaFolder = InboundStyleMediaFolder(category);
         var objectKey = $"{root}/{tenantSegment}/{mediaFolder}/{unique}_{safeName}";
@@ -120,6 +143,140 @@ public sealed partial class ConversationMediaUploadService(
             MediaType = category
         };
     }
+
+    /// <summary>
+    /// WhatsApp delivery: Ogg Opus. CRM/DB: M4A (AAC) as optimized when transcoding.
+    /// <see cref="ConversationMediaUploadResultDto.Url"/> is the file sent to the provider; <see cref="ConversationMediaUploadResultDto.OptimizedUrl"/> is persisted in the DB.
+    /// </summary>
+    private async Task<ConversationMediaUploadResultDto> UploadAudioForWhatsappAsync(
+        UploadConversationMediaRequest request,
+        string safeName,
+        string effectiveMime,
+        string tenantSegment,
+        string root,
+        CancellationToken cancellationToken)
+    {
+        await using var buffer = new MemoryStream();
+        await request.Content.CopyToAsync(buffer, cancellationToken);
+
+        if (buffer.Length == 0)
+        {
+            var empty = new ResultResponse();
+            empty.AddErrorMessage("File is empty.", "chat.media.empty_file");
+            throw new BadRequestException(empty);
+        }
+
+        if (buffer.Length > _options.MaxAudioBytes)
+        {
+            var response = new ResultResponse();
+            response.AddErrorMessage("File exceeds the maximum allowed size for this media type.", "chat.media.file_too_large");
+            throw new BadRequestException(response);
+        }
+
+        var unique = Guid.NewGuid().ToString("N");
+        var folder = InboundStyleMediaFolder("audio");
+
+        if (RequiresWhatsappAudioTranscode(effectiveMime))
+        {
+            buffer.Position = 0;
+            MemoryStream oggStream;
+            MemoryStream m4aStream;
+            try
+            {
+                oggStream = await outboundAudioTranscoder.TranscodeToOggOpusAsync(buffer, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex, "Outbound audio transcoding (Ogg) failed for {Mime}", effectiveMime);
+                var response = new ResultResponse();
+                response.AddErrorMessage(
+                    "Could not convert audio for WhatsApp. Install FFmpeg on the server or use Ogg/MP3.",
+                    "chat.media.transcode_failed");
+                throw new BadRequestException(response);
+            }
+
+            buffer.Position = 0;
+            try
+            {
+                m4aStream = await outboundAudioTranscoder.TranscodeToM4aAacAsync(buffer, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                await oggStream.DisposeAsync();
+                logger.LogError(ex, "Outbound audio transcoding (M4A) failed for {Mime}", effectiveMime);
+                var response = new ResultResponse();
+                response.AddErrorMessage(
+                    "Could not produce optimized audio (M4A). Install FFmpeg on the server.",
+                    "chat.media.transcode_failed");
+                throw new BadRequestException(response);
+            }
+
+            await using (oggStream)
+            await using (m4aStream)
+            {
+                if (oggStream.Length > _options.MaxAudioBytes || m4aStream.Length > _options.MaxAudioBytes)
+                {
+                    var response = new ResultResponse();
+                    response.AddErrorMessage("Converted audio exceeds the maximum allowed size.", "chat.media.file_too_large");
+                    throw new BadRequestException(response);
+                }
+
+                buffer.Position = 0;
+                var rawKey = $"{root}/{tenantSegment}/{folder}/{unique}_{safeName}";
+                var rawDescriptor = await storageGateway.UploadAsync(rawKey, buffer, effectiveMime, cancellationToken);
+
+                var deliveryFileName = Path.ChangeExtension(safeName, ".ogg");
+                if (string.IsNullOrEmpty(Path.GetExtension(deliveryFileName)))
+                    deliveryFileName = $"{Path.GetFileNameWithoutExtension(safeName)}.ogg";
+
+                var optimizedFileName = Path.ChangeExtension(safeName, ".m4a");
+                if (string.IsNullOrEmpty(Path.GetExtension(optimizedFileName)))
+                    optimizedFileName = $"{Path.GetFileNameWithoutExtension(safeName)}.m4a";
+
+                m4aStream.Position = 0;
+                var optimizedKey = $"{root}/{tenantSegment}/{folder}/{unique}_{optimizedFileName}";
+                var optimizedDescriptor = await storageGateway.UploadAsync(optimizedKey, m4aStream, "audio/mp4", cancellationToken);
+
+                oggStream.Position = 0;
+                var deliveryKey = $"{root}/{tenantSegment}/{folder}/{unique}_{deliveryFileName}";
+                var descriptor = await storageGateway.UploadAsync(deliveryKey, oggStream, "audio/ogg", cancellationToken);
+
+                return new ConversationMediaUploadResultDto
+                {
+                    Url = descriptor.PublicUrl,
+                    ObjectKey = descriptor.ObjectKey,
+                    FileName = deliveryFileName,
+                    MimeType = "audio/ogg",
+                    SizeBytes = oggStream.Length,
+                    MediaType = "audio",
+                    OriginalUrl = rawDescriptor.PublicUrl,
+                    OptimizedUrl = optimizedDescriptor.PublicUrl,
+                    OptimizedMimeType = "audio/mp4",
+                    OptimizedFileName = optimizedFileName
+                };
+            }
+        }
+
+        buffer.Position = 0;
+        var deliveryKeyDirect = $"{root}/{tenantSegment}/{folder}/{unique}_{safeName}";
+        var directDescriptor = await storageGateway.UploadAsync(deliveryKeyDirect, buffer, effectiveMime, cancellationToken);
+
+        return new ConversationMediaUploadResultDto
+        {
+            Url = directDescriptor.PublicUrl,
+            ObjectKey = directDescriptor.ObjectKey,
+            FileName = safeName,
+            MimeType = effectiveMime,
+            SizeBytes = buffer.Length,
+            MediaType = "audio",
+            OptimizedUrl = directDescriptor.PublicUrl,
+            OptimizedMimeType = null,
+            OptimizedFileName = null
+        };
+    }
+
+    private static bool RequiresWhatsappAudioTranscode(string mime) =>
+        OutboundAudioTranscodeSourceMimeTypes.Any(m => string.Equals(m, mime, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Stores the file <b>unchanged</b> in S3 (<see cref="ConversationMediaUploadResultDto.Url"/> → RabbitMQ / WhatsApp).
@@ -215,7 +372,8 @@ public sealed partial class ConversationMediaUploadService(
         {
             "image" => _options.AllowedImageMimeTypes,
             "document" => _options.AllowedDocumentMimeTypes,
-            "audio" => _options.AllowedAudioMimeTypes,
+            "audio" => _options.AllowedAudioMimeTypes.Concat(OutboundAudioTranscodeSourceMimeTypes),
+            "video" => _options.AllowedVideoMimeTypes,
             _ => _options.AllowedDocumentMimeTypes
         };
 
@@ -260,7 +418,7 @@ public sealed partial class ConversationMediaUploadService(
             }
         }
 
-        if (hint is "image" or "document" or "audio")
+        if (hint is "image" or "document" or "audio" or "video")
         {
             var response = new ResultResponse();
             response.AddErrorMessage("Could not determine file type. Use a recognized extension or Content-Type.", "chat.media.type_unknown");
@@ -281,6 +439,12 @@ public sealed partial class ConversationMediaUploadService(
 
         if (_options.AllowedAudioMimeTypes.Any(m => string.Equals(m, mime, StringComparison.OrdinalIgnoreCase)))
             return ("audio", mime);
+
+        if (OutboundAudioTranscodeSourceMimeTypes.Any(m => string.Equals(m, mime, StringComparison.OrdinalIgnoreCase)))
+            return ("audio", mime);
+
+        if (_options.AllowedVideoMimeTypes.Any(m => string.Equals(m, mime, StringComparison.OrdinalIgnoreCase)))
+            return ("video", mime);
 
         if (_options.AllowedDocumentMimeTypes.Any(m => string.Equals(m, mime, StringComparison.OrdinalIgnoreCase)))
             return ("document", mime);
@@ -303,8 +467,13 @@ public sealed partial class ConversationMediaUploadService(
         ".ogg" => "audio/ogg",
         ".mp3" => "audio/mpeg",
         ".m4a" => "audio/mp4",
+        ".aac" => "audio/aac",
+        ".amr" => "audio/amr",
         ".wav" => "audio/wav",
         ".webm" => "audio/webm",
+        ".mp4" or ".m4v" => "video/mp4",
+        ".mov" => "video/quicktime",
+        ".3gp" or ".3gpp" => "video/3gpp",
         _ => null
     };
 
@@ -314,6 +483,7 @@ public sealed partial class ConversationMediaUploadService(
         {
             "image" => "images",
             "audio" => "audios",
+            "video" => "videos",
             _ => "documents"
         };
 

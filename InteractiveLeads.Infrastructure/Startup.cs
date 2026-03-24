@@ -123,6 +123,7 @@ namespace InteractiveLeads.Infrastructure
             services.AddScoped<IImageProcessor, ImageProcessor>();
             services.AddScoped<IVideoProcessor, VideoProcessor>();
             services.AddScoped<IAudioProcessor, AudioProcessor>();
+            services.AddSingleton<IOutboundAudioTranscoder, FfmpegOutboundAudioTranscoder>();
             services.AddScoped<IMediaStorageGateway, S3MediaStorageGateway>();
             services.AddScoped<IMediaContentInspector, MediaContentInspector>();
 

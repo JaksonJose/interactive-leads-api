@@ -54,8 +54,7 @@ public sealed record OutboundReplyContentContract(
 public sealed record OutboundDocumentContentContract(
     [property: JsonPropertyName("url")] string Url,
     [property: JsonPropertyName("caption")] string? Caption,
-    [property: JsonPropertyName("fileName")] string FileName,
-    [property: JsonPropertyName("mimeType")] string? MimeType);
+    [property: JsonPropertyName("fileName")] string FileName);
 
 public sealed record OutboundAudioContentContract(
     [property: JsonPropertyName("url")] string Url,

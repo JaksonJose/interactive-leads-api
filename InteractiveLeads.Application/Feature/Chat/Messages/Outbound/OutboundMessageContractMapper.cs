@@ -17,7 +17,6 @@ internal static class OutboundMessageContractMapper
         string? mediaUrl,
         string? caption,
         string? fileName,
-        string? mimeType,
         bool? voice,
         string? reactionEmoji,
         Guid? reactionMessageId,
@@ -38,7 +37,7 @@ internal static class OutboundMessageContractMapper
                 Id: messageId,
                 ClientMessageId: clientMessageId.ToString("D"),
                 Type: messageTypeName,
-                Content: BuildContent(messageType, content, mediaUrl, caption, fileName, mimeType, voice, reactionEmoji, reactionMessageId, replyToMessageId)),
+                Content: BuildContent(messageType, content, mediaUrl, caption, fileName, voice, reactionEmoji, reactionMessageId, replyToMessageId)),
             Metadata: new OutboundMetadataContract(
                 ConversationId: conversation.Id.ToString(),
                 ReplyToMessageId: replyToMessageId?.ToString()));
@@ -65,7 +64,6 @@ internal static class OutboundMessageContractMapper
         string? mediaUrl,
         string? caption,
         string? fileName,
-        string? mimeType,
         bool? voice,
         string? reactionEmoji,
         Guid? reactionMessageId,
@@ -78,8 +76,7 @@ internal static class OutboundMessageContractMapper
             MessageType.Document => new OutboundDocumentContentContract(
                 mediaUrl ?? string.Empty,
                 caption,
-                (fileName ?? "file").Trim(),
-                string.IsNullOrWhiteSpace(mimeType) ? null : mimeType.Trim()),
+                (fileName ?? "file").Trim()),
             MessageType.Audio => new OutboundAudioContentContract(mediaUrl ?? string.Empty, voice ?? false),
             MessageType.Reaction => new OutboundReactionContentContract(reactionEmoji ?? string.Empty, reactionMessageId?.ToString() ?? string.Empty),
             MessageType.Reply => new OutboundReplyContentContract(content, replyToMessageId?.ToString() ?? string.Empty),

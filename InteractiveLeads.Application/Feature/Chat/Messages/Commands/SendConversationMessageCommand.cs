@@ -16,6 +16,8 @@ public sealed class SendConversationMessageCommand : IRequest<IResponse>
     public string? MimeType { get; set; }
     public string? FileName { get; set; }
     public string? MediaOptimizedUrl { get; set; }
+    public string? MediaOptimizedMimeType { get; set; }
+    public string? MediaOptimizedFileName { get; set; }
     public string? MediaThumbnailUrl { get; set; }
     public bool? Voice { get; set; }
     public string? ReactionEmoji { get; set; }
@@ -40,6 +42,8 @@ public sealed class SendConversationMessageCommandHandler(
                 MimeType = request.MimeType,
                 FileName = request.FileName,
                 MediaOptimizedUrl = request.MediaOptimizedUrl,
+                MediaOptimizedMimeType = request.MediaOptimizedMimeType,
+                MediaOptimizedFileName = request.MediaOptimizedFileName,
                 MediaThumbnailUrl = request.MediaThumbnailUrl,
                 Voice = request.Voice,
                 ReactionEmoji = request.ReactionEmoji,
