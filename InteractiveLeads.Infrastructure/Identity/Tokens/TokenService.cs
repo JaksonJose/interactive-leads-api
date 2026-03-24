@@ -10,6 +10,7 @@ using InteractiveLeads.Infrastructure.Tenancy.Models;
 using InteractiveLeads.Infrastructure.Tenancy.Strategies;
 using InteractiveLeads.Infrastructure.Identity.Models;
 using InteractiveLeads.Infrastructure.Context.Application;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -27,17 +28,20 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
         private readonly IMultiTenantContextAccessor<InteractiveTenantInfo> _multiTenantContextAccessor;
         private readonly ApplicationDbContext _context;
         private readonly JwtSettings _jwtSettings;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
         public TokenService(
             UserManager<ApplicationUser> userManager,
             IMultiTenantContextAccessor<InteractiveTenantInfo> multiTenantContextAccessor,
             ApplicationDbContext context,
-            IOptions<JwtSettings> jwtSettings)
+            IOptions<JwtSettings> jwtSettings,
+            IHttpContextAccessor httpContextAccessor)
         {
             _userManager = userManager;
             _multiTenantContextAccessor = multiTenantContextAccessor;
             _context = context;
             _jwtSettings = jwtSettings.Value;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<SingleResponse<TokenResponse>> LoginAsync(TokenRequest request, CancellationToken ct = default)
@@ -193,6 +197,8 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
                 Token = hashedRefreshToken,
                 ExpirationTime = DateTime.UtcNow.AddDays(_jwtSettings.RefreshExpiresInDays),
                 IsRevoked = false,
+                DeviceInfo = ResolveDeviceInfo(),
+                IpAddress = ResolveIpAddress(),
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -412,6 +418,8 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
                 Token = hashedRefreshToken,
                 ExpirationTime = DateTime.UtcNow.AddDays(_jwtSettings.RefreshExpiresInDays),
                 IsRevoked = false,
+                DeviceInfo = ResolveDeviceInfo(),
+                IpAddress = ResolveIpAddress(),
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -445,6 +453,34 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
             foreach (var role in targetUser.Roles)
                 claims.Add(new Claim(ClaimTypes.Role, role));
             return claims;
+        }
+
+        private string? ResolveDeviceInfo()
+        {
+            var userAgent = _httpContextAccessor.HttpContext?.Request.Headers.UserAgent.ToString().Trim();
+            if (string.IsNullOrWhiteSpace(userAgent))
+                return null;
+
+            // DB limit for RefreshToken.DeviceInfo.
+            return userAgent.Length > 200 ? userAgent[..200] : userAgent;
+        }
+
+        private string? ResolveIpAddress()
+        {
+            var request = _httpContextAccessor.HttpContext?.Request;
+            if (request is null)
+                return null;
+
+            var forwardedFor = request.Headers["X-Forwarded-For"].ToString();
+            var candidate = !string.IsNullOrWhiteSpace(forwardedFor)
+                ? forwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault()
+                : request.HttpContext.Connection.RemoteIpAddress?.ToString();
+
+            if (string.IsNullOrWhiteSpace(candidate))
+                return null;
+
+            // DB limit for RefreshToken.IpAddress.
+            return candidate.Length > 45 ? candidate[..45] : candidate;
         }
     }
 }
