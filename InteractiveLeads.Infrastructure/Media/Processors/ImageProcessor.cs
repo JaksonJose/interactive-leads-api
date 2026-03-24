@@ -3,7 +3,10 @@ using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Formats.Webp;
+using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
 namespace InteractiveLeads.Infrastructure.Media.Processors;
@@ -26,7 +29,9 @@ public sealed class ImageProcessor(
 
         var baseKey = $"{_options.FinalPrefix.TrimEnd('/')}/{request.TenantId.Trim()}/images/{contentHash}";
 
-        var original = await UploadOriginalAsync(image, $"{baseKey}/original.webp", cancellationToken);
+        var original = string.Equals(request.MediaType, "sticker", StringComparison.OrdinalIgnoreCase)
+            ? await UploadStickerOriginalWebpAsync(image, $"{baseKey}/original.webp", cancellationToken)
+            : await UploadPhotoOriginalAsync(image, $"{baseKey}/original", request, cancellationToken);
         var optimized = await UploadResizedAsync(image, $"{baseKey}/optimized.webp", _options.MaxImageWidth, cancellationToken);
         var thumb = await UploadResizedAsync(image, $"{baseKey}/thumbnail.webp", _options.ThumbnailWidth, cancellationToken);
 
@@ -48,7 +53,49 @@ public sealed class ImageProcessor(
         };
     }
 
-    private async Task<MediaObjectDescriptor> UploadOriginalAsync(Image image, string key, CancellationToken cancellationToken)
+    /// <summary>
+    /// Raster photos: preserve JPEG/PNG-style originals for channel upload (e.g. WhatsApp); WebP is reserved for optimized/thumbnail.
+    /// </summary>
+    private async Task<MediaObjectDescriptor> UploadPhotoOriginalAsync(
+        Image image,
+        string keyWithoutExtension,
+        ProcessMediaRequest request,
+        CancellationToken cancellationToken)
+    {
+        var usePng = ShouldEncodeOriginalAsPng(request, image);
+        var key = usePng ? $"{keyWithoutExtension}.png" : $"{keyWithoutExtension}.jpg";
+        var contentType = usePng ? "image/png" : "image/jpeg";
+
+        using var stream = new MemoryStream();
+        if (usePng)
+            await image.SaveAsPngAsync(stream, cancellationToken);
+        else
+            await image.SaveAsJpegAsync(stream, new JpegEncoder { Quality = 92 }, cancellationToken);
+
+        stream.Position = 0;
+        return await storageGateway.UploadAsync(key, stream, contentType, cancellationToken);
+    }
+
+    private static bool ShouldEncodeOriginalAsPng(ProcessMediaRequest request, Image image)
+    {
+        var mime = request.MimeType ?? string.Empty;
+        if (mime.Contains("png", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var decoded = image.Metadata.DecodedImageFormat?.Name;
+        if (decoded != null && decoded.Equals("PNG", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (image.PixelType.AlphaRepresentation != PixelAlphaRepresentation.None)
+            return true;
+
+        return false;
+    }
+
+    private async Task<MediaObjectDescriptor> UploadStickerOriginalWebpAsync(
+        Image image,
+        string key,
+        CancellationToken cancellationToken)
     {
         using var stream = new MemoryStream();
         await image.SaveAsWebpAsync(stream, new WebpEncoder { Quality = 85 }, cancellationToken);

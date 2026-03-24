@@ -99,7 +99,7 @@ public sealed class ConversationsController(IConversationMediaUploadService conv
             Caption = request.Caption,
             MimeType = request.MimeType,
             FileName = request.FileName,
-            MediaOriginalUrl = request.MediaOriginalUrl,
+            MediaOptimizedUrl = request.MediaOptimizedUrl,
             MediaThumbnailUrl = request.MediaThumbnailUrl,
             Voice = request.Voice,
             ReactionEmoji = request.ReactionEmoji,

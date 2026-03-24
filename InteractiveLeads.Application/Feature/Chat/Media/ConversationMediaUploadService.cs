@@ -95,7 +95,7 @@ public sealed partial class ConversationMediaUploadService(
 
         if (category == "image")
         {
-            return await UploadImageWithSharedProcessorAsync(
+            return await UploadImageRawForDeliveryAndProcessVariantsForCrmAsync(
                 request,
                 safeName,
                 effectiveMime,
@@ -121,8 +121,11 @@ public sealed partial class ConversationMediaUploadService(
         };
     }
 
-    /// <summary>Uses the same <see cref="IImageProcessor"/> pipeline as inbound (WebP original, optimized, thumbnail).</summary>
-    private async Task<ConversationMediaUploadResultDto> UploadImageWithSharedProcessorAsync(
+    /// <summary>
+    /// Stores the file <b>unchanged</b> in S3 (<see cref="ConversationMediaUploadResultDto.Url"/> → RabbitMQ / WhatsApp).
+    /// Runs <see cref="IImageProcessor"/> afterwards only to produce CRM WebP variants (optional; failures do not fail upload).
+    /// </summary>
+    private async Task<ConversationMediaUploadResultDto> UploadImageRawForDeliveryAndProcessVariantsForCrmAsync(
         UploadConversationMediaRequest request,
         string safeName,
         string effectiveMime,
@@ -140,6 +143,14 @@ public sealed partial class ConversationMediaUploadService(
             throw new BadRequestException(empty);
         }
 
+        var unique = Guid.NewGuid().ToString("N");
+        var rawKey = $"{root}/{tenantSegment}/{InboundStyleMediaFolder("image")}/{unique}_{safeName}";
+        buffer.Position = 0;
+        var rawDescriptor = await storageGateway.UploadAsync(rawKey, buffer, effectiveMime, cancellationToken);
+
+        string? optimizedUrl = null;
+        string? thumbnailUrl = null;
+
         buffer.Position = 0;
         string hash;
         try
@@ -148,17 +159,23 @@ public sealed partial class ConversationMediaUploadService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to hash outbound image upload");
-            var response = new ResultResponse();
-            response.AddErrorMessage("Could not read image file.", "chat.media.invalid_image");
-            throw new BadRequestException(response);
+            logger.LogWarning(ex, "Failed to hash outbound image for CRM variants");
+            return new ConversationMediaUploadResultDto
+            {
+                Url = rawDescriptor.PublicUrl,
+                ObjectKey = rawDescriptor.ObjectKey,
+                FileName = safeName,
+                MimeType = effectiveMime,
+                SizeBytes = buffer.Length,
+                MediaType = "image",
+                OriginalUrl = rawDescriptor.PublicUrl
+            };
         }
 
         buffer.Position = 0;
-        MediaProcessingResultDto result;
         try
         {
-            result = await imageProcessor.ProcessAsync(
+            var result = await imageProcessor.ProcessAsync(
                 buffer,
                 new ProcessMediaRequest
                 {
@@ -170,36 +187,25 @@ public sealed partial class ConversationMediaUploadService(
                 },
                 hash,
                 cancellationToken);
+            optimizedUrl = result.OptimizedUrl;
+            thumbnailUrl = result.ThumbnailUrl;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "Failed to process outbound image (invalid or unsupported format)");
-            var response = new ResultResponse();
-            response.AddErrorMessage("File is not a valid image or could not be processed.", "chat.media.invalid_image");
-            throw new BadRequestException(response);
+            logger.LogWarning(ex, "CRM image variants skipped; raw outbound file was stored successfully");
         }
-
-        var primary = result.OptimizedUrl ?? result.OriginalUrl;
-        if (string.IsNullOrWhiteSpace(primary))
-        {
-            var response = new ResultResponse();
-            response.AddErrorMessage("Image processing did not produce a URL.", "chat.media.processing_failed");
-            throw new BadRequestException(response);
-        }
-
-        var objectKey = $"{root}/{tenantSegment}/images/{hash}/optimized.webp";
 
         return new ConversationMediaUploadResultDto
         {
-            Url = primary,
-            ObjectKey = objectKey,
+            Url = rawDescriptor.PublicUrl,
+            ObjectKey = rawDescriptor.ObjectKey,
             FileName = safeName,
-            MimeType = "image/webp",
+            MimeType = effectiveMime,
             SizeBytes = buffer.Length,
             MediaType = "image",
-            OriginalUrl = result.OriginalUrl,
-            OptimizedUrl = result.OptimizedUrl,
-            ThumbnailUrl = result.ThumbnailUrl
+            OriginalUrl = rawDescriptor.PublicUrl,
+            OptimizedUrl = optimizedUrl,
+            ThumbnailUrl = thumbnailUrl
         };
     }
 

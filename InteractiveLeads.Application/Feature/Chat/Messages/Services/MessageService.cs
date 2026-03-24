@@ -156,6 +156,7 @@ public sealed class MessageService(
             message.Type);
 
         var whatsappSettings = TryGetWhatsAppSettings(conversation);
+
         var payload = OutboundMessageContractMapper.Create(
             tenantId,
             conversation,
@@ -232,21 +233,33 @@ public sealed class MessageService(
         SendConversationMessageRequest request,
         MessageType messageType)
     {
-        var url = request.MediaUrl?.Trim();
-        if (string.IsNullOrWhiteSpace(url))
+        var rawUrl = request.MediaUrl?.Trim();
+        if (string.IsNullOrWhiteSpace(rawUrl))
             return;
 
         var mediaType = ToMessageMediaType(messageType);
         if (mediaType is null)
             return;
 
+        var persistedUrl = rawUrl;
+        var persistedMime = (request.MimeType ?? string.Empty).Trim();
+        if (messageType == MessageType.Image)
+        {
+            var optimized = request.MediaOptimizedUrl?.Trim();
+            if (!string.IsNullOrWhiteSpace(optimized))
+            {
+                persistedUrl = optimized;
+                persistedMime = "image/webp";
+            }
+        }
+
         db.MessageMedia.Add(new MessageMedia
         {
             Id = Guid.NewGuid(),
             MessageId = messageId,
             MediaType = mediaType.Value,
-            Url = url,
-            MimeType = (request.MimeType ?? string.Empty).Trim(),
+            Url = persistedUrl,
+            MimeType = persistedMime,
             FileSize = 0,
             FileName = string.IsNullOrWhiteSpace(request.FileName) ? null : request.FileName.Trim(),
             Animated = false,
@@ -269,21 +282,25 @@ public sealed class MessageService(
         SendConversationMessageRequest request,
         MessageType messageType)
     {
-        var url = request.MediaUrl?.Trim();
-        if (string.IsNullOrWhiteSpace(url))
+        var raw = request.MediaUrl?.Trim();
+        if (string.IsNullOrWhiteSpace(raw))
             return null;
 
         if (ToMessageMediaType(messageType) is null)
             return null;
 
+        var optimized = request.MediaOptimizedUrl?.Trim();
+        var displayUrl = !string.IsNullOrWhiteSpace(optimized) ? optimized : raw;
+        var displayMime = !string.IsNullOrWhiteSpace(optimized) ? "image/webp" : (request.MimeType ?? string.Empty).Trim();
+
         return new MessageMediaListItemDto
         {
-            Url = url,
-            OptimizedUrl = url,
+            Url = displayUrl,
+            OptimizedUrl = displayUrl,
             ThumbnailUrl = string.IsNullOrWhiteSpace(request.MediaThumbnailUrl)
                 ? null
                 : request.MediaThumbnailUrl.Trim(),
-            MimeType = (request.MimeType ?? string.Empty).Trim(),
+            MimeType = messageType == MessageType.Image ? displayMime : (request.MimeType ?? string.Empty).Trim(),
             FileName = string.IsNullOrWhiteSpace(request.FileName) ? null : request.FileName.Trim(),
             Voice = request.Voice ?? false,
             Caption = string.IsNullOrWhiteSpace(request.Caption) ? null : request.Caption.Trim()
@@ -407,9 +424,9 @@ public sealed class MessageService(
                 messageId,
                 messageType = request.Type?.Trim().ToLowerInvariant(),
                 mediaUrl = request.MediaUrl?.Trim(),
-                mediaOriginalUrl = string.IsNullOrWhiteSpace(request.MediaOriginalUrl)
+                mediaOptimizedUrl = string.IsNullOrWhiteSpace(request.MediaOptimizedUrl)
                     ? null
-                    : request.MediaOriginalUrl.Trim(),
+                    : request.MediaOptimizedUrl.Trim(),
                 mediaThumbnailUrl = string.IsNullOrWhiteSpace(request.MediaThumbnailUrl)
                     ? null
                     : request.MediaThumbnailUrl.Trim(),

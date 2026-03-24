@@ -9,13 +9,14 @@ public sealed class SendConversationMessageRequest
 
     public string? ExternalMessageId { get; set; }
     public string Type { get; set; } = "text";
+    /// <summary>Raw URL sent to the provider (RabbitMQ). For outbound images, use the upload response <c>url</c> (unprocessed file).</summary>
     public string? MediaUrl { get; set; }
     public string? Caption { get; set; }
     public string? MimeType { get; set; }
     public string? FileName { get; set; }
-    /// <summary>After image pipeline: original WebP URL (CRM / audit).</summary>
-    public string? MediaOriginalUrl { get; set; }
-    /// <summary>After image pipeline: thumbnail WebP URL for light UI loads.</summary>
+    /// <summary>CRM/Web UI: optimized WebP URL from upload when present; stored on message media instead of <see cref="MediaUrl"/>.</summary>
+    public string? MediaOptimizedUrl { get; set; }
+    /// <summary>CRM / UI: thumbnail WebP URL from the pipeline.</summary>
     public string? MediaThumbnailUrl { get; set; }
     /// <summary>WhatsApp voice note when true; file audio when false.</summary>
     public bool? Voice { get; set; }

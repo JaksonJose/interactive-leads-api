@@ -138,6 +138,12 @@ public sealed class ListConversationMessagesQueryHandler(
             using var doc = JsonDocument.Parse(metadata);
             if (!doc.RootElement.TryGetProperty("outbound", out var outbound))
                 return;
+            if (outbound.TryGetProperty("mediaOptimizedUrl", out var opt) && opt.ValueKind == JsonValueKind.String)
+            {
+                var o = opt.GetString();
+                if (!string.IsNullOrWhiteSpace(o))
+                    media.OptimizedUrl = o;
+            }
             if (outbound.TryGetProperty("mediaThumbnailUrl", out var thumb) && thumb.ValueKind == JsonValueKind.String)
             {
                 var t = thumb.GetString();
