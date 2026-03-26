@@ -1,17 +1,17 @@
 ﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Users.Commands
 {
-    public class UpdateUserStatusCommand : IRequest<IResponse>, IValidate
+    public class UpdateUserStatusCommand : IApplicationRequest<IResponse>, IValidate
     {
         public ChangeUserStatusRequest ChangeUserStatus { get; set; }
     }
 
     public class UpdateUserStatusCommandHandler(IUserService userService)
-        : IRequestHandler<UpdateUserStatusCommand, IResponse>
+        : IApplicationRequestHandler<UpdateUserStatusCommand, IResponse>
     {
         private readonly IUserService _userService = userService;
 
@@ -21,3 +21,4 @@ namespace InteractiveLeads.Application.Feature.Users.Commands
         }
     }
 }
+

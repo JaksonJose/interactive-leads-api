@@ -1,7 +1,7 @@
 ﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Identity.Tokens.Queries
 {
@@ -11,7 +11,7 @@ namespace InteractiveLeads.Application.Feature.Identity.Tokens.Queries
     /// <remarks>
     /// This query implements the CQRS pattern for user login operations.
     /// </remarks>
-    public class GetTokenQuery : IRequest<IResponse>, IValidate
+    public class GetTokenQuery : IApplicationRequest<IResponse>, IValidate
     {
         /// <summary>
         /// Gets or sets the token request containing login credentials.
@@ -25,7 +25,7 @@ namespace InteractiveLeads.Application.Feature.Identity.Tokens.Queries
     /// <remarks>
     /// Authenticates the user via ITokenService and returns wrapped token response.
     /// </remarks>
-    public class GetTokenQueryHandler : IRequestHandler<GetTokenQuery, IResponse>
+    public class GetTokenQueryHandler : IApplicationRequestHandler<GetTokenQuery, IResponse>
     {
         private readonly ITokenService _tokenService;
 
@@ -50,3 +50,4 @@ namespace InteractiveLeads.Application.Feature.Identity.Tokens.Queries
         }
     }
 }
+

@@ -1,15 +1,15 @@
 ﻿using InteractiveLeads.Application.Feature.Users;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace Application.Features.Identity.Users.Queries
 {
-    public class GetAllUsersQuery : IRequest<IResponse>
+    public class GetAllUsersQuery : IApplicationRequest<IResponse>
     {
     }
 
-    public class GetAllUsersQueryHandler(IUserService userService) : IRequestHandler<GetAllUsersQuery, IResponse>
+    public class GetAllUsersQueryHandler(IUserService userService) : IApplicationRequestHandler<GetAllUsersQuery, IResponse>
     {
         private readonly IUserService _userService = userService;
 
@@ -19,3 +19,4 @@ namespace Application.Features.Identity.Users.Queries
         }
     }
 }
+

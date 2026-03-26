@@ -1,9 +1,9 @@
-using InteractiveLeads.Application.Feature.CrossTenant;
+﻿using InteractiveLeads.Application.Feature.CrossTenant;
 using InteractiveLeads.Application.Feature.Tenancy;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
@@ -15,7 +15,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
     /// This query implements the CQRS pattern for cross-tenant operations.
     /// It retrieves tenant information by ID and then finds the associated user by the tenant's email.
     /// </remarks>
-    public sealed class GetTenantWithUserQuery : IRequest<IResponse>, IValidate
+    public sealed class GetTenantWithUserQuery : IApplicationRequest<IResponse>, IValidate
     {
         /// <summary>
         /// Gets or sets the ID of the tenant to retrieve with its associated user.
@@ -29,7 +29,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
     /// <remarks>
     /// Retrieves tenant information and then finds the user associated with the tenant's email.
     /// </remarks>
-    public sealed class GetTenantWithUserQueryHandler : IRequestHandler<GetTenantWithUserQuery, IResponse>
+    public sealed class GetTenantWithUserQueryHandler : IApplicationRequestHandler<GetTenantWithUserQuery, IResponse>
     {
         private readonly ITenantService _tenantService;
         private readonly ICrossTenantService _crossTenantService;

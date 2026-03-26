@@ -1,16 +1,16 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Integrations.Settings;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Domain.Entities;
 using InteractiveLeads.Domain.Enums;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Crm.Integrations.Commands;
 
-public sealed class CreateIntegrationCommand : IRequest<IResponse>
+public sealed class CreateIntegrationCommand : IApplicationRequest<IResponse>
 {
     public CreateIntegrationRequest Integration { get; set; } = new();
 }
@@ -20,7 +20,7 @@ public sealed class CreateIntegrationCommandHandler(
     ICurrentUserService currentUserService,
     IIntegrationSettingsResolver settingsResolver,
     IIntegrationExternalIdentifierResolver externalIdentifierResolver,
-    IIntegrationExternalIdentifierLookupRepository integrationLookupRepository) : IRequestHandler<CreateIntegrationCommand, IResponse>
+    IIntegrationExternalIdentifierLookupRepository integrationLookupRepository) : IApplicationRequestHandler<CreateIntegrationCommand, IResponse>
 {
     public async Task<IResponse> Handle(CreateIntegrationCommand request, CancellationToken cancellationToken)
     {
@@ -186,4 +186,5 @@ public sealed class CreateIntegrationCommandHandler(
         return new SingleResponse<IntegrationResponse>(responseDto);
     }
 }
+
 

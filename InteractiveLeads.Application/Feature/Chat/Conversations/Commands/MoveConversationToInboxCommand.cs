@@ -1,14 +1,14 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Chat;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Domain.Entities;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Chat.Conversations.Commands;
 
-public sealed class MoveConversationToInboxCommand : IRequest<IResponse>
+public sealed class MoveConversationToInboxCommand : IApplicationRequest<IResponse>
 {
     public Guid ConversationId { get; set; }
     public Guid TargetInboxId { get; set; }
@@ -17,7 +17,7 @@ public sealed class MoveConversationToInboxCommand : IRequest<IResponse>
 
 public sealed class MoveConversationToInboxCommandHandler(
     IApplicationDbContext db,
-    ICurrentUserService currentUserService) : IRequestHandler<MoveConversationToInboxCommand, IResponse>
+    ICurrentUserService currentUserService) : IApplicationRequestHandler<MoveConversationToInboxCommand, IResponse>
 {
     public async Task<IResponse> Handle(MoveConversationToInboxCommand request, CancellationToken cancellationToken)
     {
@@ -75,4 +75,5 @@ public sealed class MoveConversationToInboxCommandHandler(
         return new ResultResponse();
     }
 }
+
 

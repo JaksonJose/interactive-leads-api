@@ -1,9 +1,9 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Activation;
 using InteractiveLeads.Application.Feature.Users;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace InteractiveLeads.Application.Feature.Owner.Commands
@@ -11,7 +11,7 @@ namespace InteractiveLeads.Application.Feature.Owner.Commands
     /// <summary>
     /// Command to invite a consultant in the current owner's tenant.
     /// </summary>
-    public sealed class InviteConsultantCommand : IRequest<IResponse>
+    public sealed class InviteConsultantCommand : IApplicationRequest<IResponse>
     {
         public string TenantId { get; set; } = string.Empty;
         public InviteUserRequest InviteUser { get; set; } = new();
@@ -20,7 +20,7 @@ namespace InteractiveLeads.Application.Feature.Owner.Commands
     /// <summary>
     /// Handler for InviteConsultantCommand. Ensures caller is Owner and tenant matches.
     /// </summary>
-    public sealed class InviteConsultantCommandHandler : IRequestHandler<InviteConsultantCommand, IResponse>
+    public sealed class InviteConsultantCommandHandler : IApplicationRequestHandler<InviteConsultantCommand, IResponse>
     {
         private readonly ICrossTenantService _crossTenantService;
         private readonly ICurrentUserService _currentUserService;
@@ -56,3 +56,4 @@ namespace InteractiveLeads.Application.Feature.Owner.Commands
         }
     }
 }
+

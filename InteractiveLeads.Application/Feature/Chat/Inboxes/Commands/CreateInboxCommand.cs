@@ -1,20 +1,20 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Domain.Entities;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Chat.Inboxes.Commands;
 
-public sealed class CreateInboxCommand : IRequest<IResponse>
+public sealed class CreateInboxCommand : IApplicationRequest<IResponse>
 {
     public CreateInboxRequest CreateInbox { get; set; } = new();
 }
 
 public sealed class CreateInboxCommandHandler(
     IApplicationDbContext db,
-    ICurrentUserService currentUserService) : IRequestHandler<CreateInboxCommand, IResponse>
+    ICurrentUserService currentUserService) : IApplicationRequestHandler<CreateInboxCommand, IResponse>
 {
     public async Task<IResponse> Handle(CreateInboxCommand request, CancellationToken cancellationToken)
     {
@@ -92,4 +92,5 @@ public sealed class CreateInboxCommandHandler(
         });
     }
 }
+
 

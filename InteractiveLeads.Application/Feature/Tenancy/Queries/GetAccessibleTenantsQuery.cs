@@ -1,8 +1,8 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Requests;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Tenancy.Queries
 {
@@ -13,7 +13,7 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Queries
     /// This query implements the CQRS pattern for retrieving tenant records that the current user has access to.
     /// For cross-tenant users, returns all tenants. For regular users, returns only their tenant.
     /// </remarks>
-    public sealed class GetAccessibleTenantsQuery : IRequest<IResponse>
+    public sealed class GetAccessibleTenantsQuery : IApplicationRequest<IResponse>
     {
         /// <summary>
         /// Gets or sets the pagination parameters for the query.
@@ -27,7 +27,7 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Queries
     /// <remarks>
     /// Retrieves accessible tenants based on user permissions via ICrossTenantAuthorizationService and ITenantService.
     /// </remarks>
-    public sealed class GetAccessibleTenantsQueryHandler : IRequestHandler<GetAccessibleTenantsQuery, IResponse>
+    public sealed class GetAccessibleTenantsQueryHandler : IApplicationRequestHandler<GetAccessibleTenantsQuery, IResponse>
     {
         private readonly ICrossTenantAuthorizationService _authService;
         private readonly ITenantService _tenantService;
@@ -81,3 +81,4 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Queries
         }
     }
 }
+

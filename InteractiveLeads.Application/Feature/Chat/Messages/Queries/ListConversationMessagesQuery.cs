@@ -1,15 +1,15 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Chat;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Domain.Enums;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
 namespace InteractiveLeads.Application.Feature.Chat.Messages.Queries;
 
-public sealed class ListConversationMessagesQuery : IRequest<IResponse>
+public sealed class ListConversationMessagesQuery : IApplicationRequest<IResponse>
 {
     public Guid ConversationId { get; set; }
     public DateTimeOffset? BeforeMessageDate { get; set; }
@@ -18,7 +18,7 @@ public sealed class ListConversationMessagesQuery : IRequest<IResponse>
 
 public sealed class ListConversationMessagesQueryHandler(
     IApplicationDbContext db,
-    ICurrentUserService currentUserService) : IRequestHandler<ListConversationMessagesQuery, IResponse>
+    ICurrentUserService currentUserService) : IApplicationRequestHandler<ListConversationMessagesQuery, IResponse>
 {
     public async Task<IResponse> Handle(ListConversationMessagesQuery request, CancellationToken cancellationToken)
     {
@@ -175,4 +175,5 @@ public sealed class ListConversationMessagesQueryHandler(
         }
     }
 }
+
 

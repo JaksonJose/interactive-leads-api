@@ -1,12 +1,12 @@
-using InteractiveLeads.Application.Feature.Chat;
+﻿using InteractiveLeads.Application.Feature.Chat;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Chat.InboxMembers.Queries;
 
-public sealed class ListInboxMembersQuery : IRequest<IResponse>
+public sealed class ListInboxMembersQuery : IApplicationRequest<IResponse>
 {
     public Guid InboxId { get; set; }
 }
@@ -14,7 +14,7 @@ public sealed class ListInboxMembersQuery : IRequest<IResponse>
 public sealed class ListInboxMembersQueryHandler(
     IApplicationDbContext db,
     ICurrentUserService currentUserService,
-    IUserSummaryLookupService userSummaryLookup) : IRequestHandler<ListInboxMembersQuery, IResponse>
+    IUserSummaryLookupService userSummaryLookup) : IApplicationRequestHandler<ListInboxMembersQuery, IResponse>
 {
     public async Task<IResponse> Handle(ListInboxMembersQuery request, CancellationToken cancellationToken)
     {
@@ -58,4 +58,5 @@ public sealed class ListInboxMembersQueryHandler(
         return new ListResponse<InboxMemberDto>(items, items.Count);
     }
 }
+
 

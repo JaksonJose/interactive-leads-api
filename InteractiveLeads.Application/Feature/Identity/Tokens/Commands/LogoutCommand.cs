@@ -1,7 +1,7 @@
-using InteractiveLeads.Application.Interfaces;
+﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Identity.Tokens.Commands
 {
@@ -12,7 +12,7 @@ namespace InteractiveLeads.Application.Feature.Identity.Tokens.Commands
     /// This command implements the CQRS pattern for user logout operations.
     /// It revokes all active refresh tokens for the specified user.
     /// </remarks>
-    public class LogoutCommand : IRequest<IResponse>, IValidate
+    public class LogoutCommand : IApplicationRequest<IResponse>, IValidate
     {
         /// <summary>
         /// Gets or sets the user ID for whom to revoke refresh tokens.
@@ -26,7 +26,7 @@ namespace InteractiveLeads.Application.Feature.Identity.Tokens.Commands
     /// <remarks>
     /// Revokes all active refresh tokens for the specified user via ITokenService.
     /// </remarks>
-    public class LogoutCommandHandler : IRequestHandler<LogoutCommand, IResponse>
+    public class LogoutCommandHandler : IApplicationRequestHandler<LogoutCommand, IResponse>
     {
         private readonly ITokenService _tokenService;
 
@@ -51,3 +51,4 @@ namespace InteractiveLeads.Application.Feature.Identity.Tokens.Commands
         }
     }
 }
+

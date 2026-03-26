@@ -1,10 +1,10 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Activation;
 using InteractiveLeads.Application.Feature.Users;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
@@ -12,7 +12,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
     /// <summary>
     /// Command to invite a user in a tenant (creates user without password and returns activation URL).
     /// </summary>
-    public sealed class InviteUserInTenantCommand : IRequest<IResponse>, IValidate
+    public sealed class InviteUserInTenantCommand : IApplicationRequest<IResponse>, IValidate
     {
         public string TenantId { get; set; } = string.Empty;
         public InviteUserRequest InviteUser { get; set; } = new();
@@ -21,7 +21,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
     /// <summary>
     /// Handler for InviteUserInTenantCommand. Same authorization as CreateUserInTenantCommand.
     /// </summary>
-    public sealed class InviteUserInTenantCommandHandler : IRequestHandler<InviteUserInTenantCommand, IResponse>
+    public sealed class InviteUserInTenantCommandHandler : IApplicationRequestHandler<InviteUserInTenantCommand, IResponse>
     {
         private readonly ICrossTenantService _crossTenantService;
         private readonly ICrossTenantAuthorizationService _authService;
@@ -76,3 +76,4 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
         }
     }
 }
+

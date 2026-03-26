@@ -1,14 +1,14 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Activation.Commands
 {
     /// <summary>
     /// Command to activate an account using the token from the invitation link.
     /// </summary>
-    public sealed class ActivateAccountCommand : IRequest<IResponse>
+    public sealed class ActivateAccountCommand : IApplicationRequest<IResponse>
     {
         public string Token { get; set; } = string.Empty;
         public string NewPassword { get; set; } = string.Empty;
@@ -18,7 +18,7 @@ namespace InteractiveLeads.Application.Feature.Activation.Commands
     /// <summary>
     /// Handler for ActivateAccountCommand. Public (no tenant); uses IUserActivationService.
     /// </summary>
-    public sealed class ActivateAccountCommandHandler : IRequestHandler<ActivateAccountCommand, IResponse>
+    public sealed class ActivateAccountCommandHandler : IApplicationRequestHandler<ActivateAccountCommand, IResponse>
     {
         private readonly IUserActivationService _activationService;
 
@@ -48,3 +48,4 @@ namespace InteractiveLeads.Application.Feature.Activation.Commands
         }
     }
 }
+

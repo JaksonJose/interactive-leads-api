@@ -1,6 +1,6 @@
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
@@ -12,7 +12,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
     /// This query implements the CQRS pattern for cross-tenant user retrieval operations.
     /// It encapsulates the tenant context switching logic.
     /// </remarks>
-    public sealed class GetUserInTenantQuery : IRequest<IResponse>
+    public sealed class GetUserInTenantQuery : IApplicationRequest<IResponse>
     {
         /// <summary>
         /// Gets or sets the ID of the tenant.
@@ -31,20 +31,17 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
     /// <remarks>
     /// Executes the user retrieval operation in the specified tenant context.
     /// </remarks>
-    public sealed class GetUserInTenantQueryHandler : IRequestHandler<GetUserInTenantQuery, IResponse>
+    public sealed class GetUserInTenantQueryHandler : IApplicationRequestHandler<GetUserInTenantQuery, IResponse>
     {
         private readonly ICrossTenantService _crossTenantService;
-        private readonly IMediator _mediator;
 
         /// <summary>
         /// Initializes a new instance of the GetUserInTenantQueryHandler class.
         /// </summary>
         /// <param name="crossTenantService">The cross-tenant service for context switching.</param>
-        /// <param name="mediator">The mediator for sending internal queries.</param>
-        public GetUserInTenantQueryHandler(ICrossTenantService crossTenantService, IMediator mediator)
+        public GetUserInTenantQueryHandler(ICrossTenantService crossTenantService)
         {
             _crossTenantService = crossTenantService;
-            _mediator = mediator;
         }
 
         /// <summary>
@@ -64,3 +61,4 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
         }
     }
 }
+

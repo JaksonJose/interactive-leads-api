@@ -1,19 +1,19 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Chat.Inboxes.Queries;
 
-public sealed class GetInboxQuery : IRequest<IResponse>
+public sealed class GetInboxQuery : IApplicationRequest<IResponse>
 {
     public Guid InboxId { get; set; }
 }
 
 public sealed class GetInboxQueryHandler(
     IApplicationDbContext db,
-    ICurrentUserService currentUserService) : IRequestHandler<GetInboxQuery, IResponse>
+    ICurrentUserService currentUserService) : IApplicationRequestHandler<GetInboxQuery, IResponse>
 {
     public async Task<IResponse> Handle(GetInboxQuery request, CancellationToken cancellationToken)
     {
@@ -92,4 +92,5 @@ public sealed class GetInboxQueryHandler(
         return new SingleResponse<InboxDto>(inbox);
     }
 }
+
 

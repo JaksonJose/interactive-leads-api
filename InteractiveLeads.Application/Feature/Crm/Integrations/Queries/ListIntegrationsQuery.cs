@@ -1,13 +1,13 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Integrations.Settings;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Crm.Integrations.Queries;
 
-public sealed class ListIntegrationsQuery : IRequest<IResponse>
+public sealed class ListIntegrationsQuery : IApplicationRequest<IResponse>
 {
     public bool IncludeInactive { get; set; } = true;
 }
@@ -15,7 +15,7 @@ public sealed class ListIntegrationsQuery : IRequest<IResponse>
 public sealed class ListIntegrationsQueryHandler(
     IApplicationDbContext db,
     ICurrentUserService currentUserService,
-    IIntegrationSettingsResolver settingsResolver) : IRequestHandler<ListIntegrationsQuery, IResponse>
+    IIntegrationSettingsResolver settingsResolver) : IApplicationRequestHandler<ListIntegrationsQuery, IResponse>
 {
     public async Task<IResponse> Handle(ListIntegrationsQuery request, CancellationToken cancellationToken)
     {
@@ -71,4 +71,5 @@ public sealed class ListIntegrationsQueryHandler(
         return new ListResponse<IntegrationResponse>(items);
     }
 }
+
 

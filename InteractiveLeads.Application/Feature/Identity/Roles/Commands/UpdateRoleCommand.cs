@@ -1,16 +1,16 @@
 ﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Identity.Roles.Commands
 {
-    public class UpdateRoleCommand : IRequest<IResponse>, IValidate
+    public class UpdateRoleCommand : IApplicationRequest<IResponse>, IValidate
     {
         public UpdateRoleRequest UpdateRole { get; set; }
     }
 
-    public class UpdateRoleCommandHandler(IRoleService roleService) : IRequestHandler<UpdateRoleCommand, IResponse>
+    public class UpdateRoleCommandHandler(IRoleService roleService) : IApplicationRequestHandler<UpdateRoleCommand, IResponse>
     {
         private readonly IRoleService _roleService = roleService;
 
@@ -20,3 +20,4 @@ namespace InteractiveLeads.Application.Feature.Identity.Roles.Commands
         }
     }
 }
+

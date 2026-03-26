@@ -1,6 +1,6 @@
-using InteractiveLeads.Application.Interfaces;
+﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
@@ -12,7 +12,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
     /// This query implements the CQRS pattern for cross-tenant role retrieval operations.
     /// It encapsulates the tenant context switching logic.
     /// </remarks>
-    public sealed class GetRolesInTenantQuery : IRequest<IResponse>
+    public sealed class GetRolesInTenantQuery : IApplicationRequest<IResponse>
     {
         /// <summary>
         /// Gets or sets the ID of the tenant to retrieve roles from.
@@ -26,7 +26,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
     /// <remarks>
     /// Executes the role retrieval operation in the specified tenant context.
     /// </remarks>
-    public sealed class GetRolesInTenantQueryHandler : IRequestHandler<GetRolesInTenantQuery, IResponse>
+    public sealed class GetRolesInTenantQueryHandler : IApplicationRequestHandler<GetRolesInTenantQuery, IResponse>
     {
         private readonly ICrossTenantService _crossTenantService;
 
@@ -56,4 +56,5 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
         }
     }
 }
+
 

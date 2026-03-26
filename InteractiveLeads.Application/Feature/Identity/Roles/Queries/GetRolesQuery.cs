@@ -1,15 +1,15 @@
 ﻿
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Identity.Roles.Queries
 {
-    public class GetRolesQuery : IRequest<IResponse>
+    public class GetRolesQuery : IApplicationRequest<IResponse>
     {
     }
 
-    public class GetRolesQueryHandler(IRoleService roleService) : IRequestHandler<GetRolesQuery, IResponse>
+    public class GetRolesQueryHandler(IRoleService roleService) : IApplicationRequestHandler<GetRolesQuery, IResponse>
     {
         private readonly IRoleService _roleService = roleService;
 
@@ -19,3 +19,4 @@ namespace InteractiveLeads.Application.Feature.Identity.Roles.Queries
         }
     }
 }
+

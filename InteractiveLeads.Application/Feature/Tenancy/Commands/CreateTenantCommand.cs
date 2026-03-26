@@ -1,8 +1,8 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Tenancy.Commands
 {
@@ -12,7 +12,7 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Commands
     /// <remarks>
     /// This command implements the CQRS pattern for tenant creation operations.
     /// </remarks>
-    public sealed class CreateTenantCommand : IRequest<IResponse>, IValidate
+    public sealed class CreateTenantCommand : IApplicationRequest<IResponse>, IValidate
     {
         /// <summary>
         /// Gets or sets the tenant creation request containing tenant details.
@@ -26,7 +26,7 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Commands
     /// <remarks>
     /// Creates a new tenant via ITenantService and returns the tenant identifier.
     /// </remarks>
-    public sealed class CreateTenantCommandHandler : IRequestHandler<CreateTenantCommand, IResponse>
+    public sealed class CreateTenantCommandHandler : IApplicationRequestHandler<CreateTenantCommand, IResponse>
     {
         private readonly ITenantService _tenantService;
         private readonly ICrossTenantAuthorizationService _authService;
@@ -69,3 +69,4 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Commands
         }
     }
 }
+

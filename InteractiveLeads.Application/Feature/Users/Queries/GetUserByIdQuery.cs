@@ -1,16 +1,16 @@
 ﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Users.Queries
 {
-    public class GetUserByIdQuery : IRequest<IResponse>, IValidate
+    public class GetUserByIdQuery : IApplicationRequest<IResponse>, IValidate
     {
         public Guid UserId { get; set; }
     }
 
-    public class GetUserByIdQueryHandler : IRequestHandler<GetUserByIdQuery, IResponse>
+    public class GetUserByIdQueryHandler : IApplicationRequestHandler<GetUserByIdQuery, IResponse>
     {
         private readonly IUserService _userService;
 
@@ -25,3 +25,4 @@ namespace InteractiveLeads.Application.Feature.Users.Queries
         }
     }
 }
+

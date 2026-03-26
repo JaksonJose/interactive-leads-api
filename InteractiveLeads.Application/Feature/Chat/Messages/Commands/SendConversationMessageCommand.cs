@@ -1,11 +1,11 @@
-using InteractiveLeads.Application.Interfaces;
+﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Feature.Chat.Messages;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Chat.Messages.Commands;
 
-public sealed class SendConversationMessageCommand : IRequest<IResponse>
+public sealed class SendConversationMessageCommand : IApplicationRequest<IResponse>
 {
     public Guid ConversationId { get; set; }
     public string Content { get; set; } = string.Empty;
@@ -26,7 +26,7 @@ public sealed class SendConversationMessageCommand : IRequest<IResponse>
 }
 
 public sealed class SendConversationMessageCommandHandler(
-    IMessageService messageService) : IRequestHandler<SendConversationMessageCommand, IResponse>
+    IMessageService messageService) : IApplicationRequestHandler<SendConversationMessageCommand, IResponse>
 {
     public async Task<IResponse> Handle(SendConversationMessageCommand request, CancellationToken cancellationToken)
     {
@@ -55,3 +55,4 @@ public sealed class SendConversationMessageCommandHandler(
         return new SingleResponse<MessageListItemDto>(sentMessage);
     }
 }
+

@@ -1,8 +1,8 @@
-using InteractiveLeads.Application.Feature.Users;
+﻿using InteractiveLeads.Application.Feature.Users;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
@@ -14,7 +14,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
     /// This command implements the CQRS pattern for cross-tenant user role update operations.
     /// It encapsulates the tenant context switching logic.
     /// </remarks>
-    public sealed class UpdateUserRolesInTenantCommand : IRequest<IResponse>, IValidate
+    public sealed class UpdateUserRolesInTenantCommand : IApplicationRequest<IResponse>, IValidate
     {
         /// <summary>
         /// Gets or sets the ID of the tenant.
@@ -38,7 +38,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
     /// <remarks>
     /// Executes the user role update operation in the specified tenant context.
     /// </remarks>
-    public sealed class UpdateUserRolesInTenantCommandHandler : IRequestHandler<UpdateUserRolesInTenantCommand, IResponse>
+    public sealed class UpdateUserRolesInTenantCommandHandler : IApplicationRequestHandler<UpdateUserRolesInTenantCommand, IResponse>
     {
         private readonly ICrossTenantService _crossTenantService;
 
@@ -68,3 +68,4 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
         }
     }
 }
+

@@ -1,17 +1,17 @@
 ﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Users.Commands
 {
-    public class DeleteUserCommand : IRequest<IResponse>, IValidate
+    public class DeleteUserCommand : IApplicationRequest<IResponse>, IValidate
     {
         public Guid UserId { get; set; }
     }
 
     public class DeleteUserCommandHandler(IUserService userService)
-        : IRequestHandler<DeleteUserCommand, IResponse>
+        : IApplicationRequestHandler<DeleteUserCommand, IResponse>
     {
         private readonly IUserService _userService = userService;
 
@@ -21,3 +21,4 @@ namespace InteractiveLeads.Application.Feature.Users.Commands
         }
     }
 }
+

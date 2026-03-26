@@ -2,16 +2,16 @@
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Users.Commands
 {
-    public class CreateUserCommand : IRequest<IResponse>, IValidate
+    public class CreateUserCommand : IApplicationRequest<IResponse>, IValidate
     {
         public CreateUserRequest CreateUser { get; set; }
     }
 
-    public class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, IResponse>
+    public class CreateUserCommandHandler : IApplicationRequestHandler<CreateUserCommand, IResponse>
     {
         private readonly IUserService _userService;
 
@@ -26,3 +26,4 @@ namespace InteractiveLeads.Application.Feature.Users.Commands
         }
     }
 }
+

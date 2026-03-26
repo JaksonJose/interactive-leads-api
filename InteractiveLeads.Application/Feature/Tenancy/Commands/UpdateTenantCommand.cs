@@ -1,8 +1,8 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Tenancy.Commands
 {
@@ -12,7 +12,7 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Commands
     /// <remarks>
     /// This command implements the CQRS pattern for tenant update operations.
     /// </remarks>
-    public sealed class UpdateTenantCommand : IRequest<IResponse>, IValidate
+    public sealed class UpdateTenantCommand : IApplicationRequest<IResponse>, IValidate
     {
         /// <summary>
         /// Gets or sets the tenant update request containing tenant details.
@@ -26,7 +26,7 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Commands
     /// <remarks>
     /// Updates an existing tenant via ITenantService and returns the result.
     /// </remarks>
-    public sealed class UpdateTenantCommandHandler : IRequestHandler<UpdateTenantCommand, IResponse>
+    public sealed class UpdateTenantCommandHandler : IApplicationRequestHandler<UpdateTenantCommand, IResponse>
     {
         private readonly ITenantService _tenantService;
         private readonly ICrossTenantAuthorizationService _authService;
@@ -69,4 +69,5 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Commands
         }
     }
 }
+
 

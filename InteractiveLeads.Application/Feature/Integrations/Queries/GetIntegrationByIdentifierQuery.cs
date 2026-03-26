@@ -1,9 +1,9 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Integrations.Settings;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Domain.Enums;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,8 +11,8 @@ namespace InteractiveLeads.Application.Feature.Integrations.Queries;
 
 public sealed class IntegrationSettingsResponse
 {
-    // Intencional: consumidor só precisa saber que credencial existe.
-    // O acesso ao token real deve ser tratado com autenticação no endpoint (futuramente).
+    // Intencional: consumidor sÃ³ precisa saber que credencial existe.
+    // O acesso ao token real deve ser tratado com autenticaÃ§Ã£o no endpoint (futuramente).
     public string AccessToken { get; set; } = "******";
 
     public string PhoneNumberId { get; set; } = string.Empty;
@@ -33,7 +33,7 @@ public sealed class IntegrationByIdentifierResponse
     public IntegrationSettingsResponse Settings { get; set; } = new();
 }
 
-public sealed class GetIntegrationByIdentifierQuery : IRequest<IntegrationByIdentifierResponse>
+public sealed class GetIntegrationByIdentifierQuery : IApplicationRequest<IntegrationByIdentifierResponse>
 {
     public string Provider { get; set; } = string.Empty;
 
@@ -43,7 +43,7 @@ public sealed class GetIntegrationByIdentifierQuery : IRequest<IntegrationByIden
 public sealed class GetIntegrationByIdentifierQueryHandler(
     IIntegrationExternalIdentifierLookupRepository integrationLookupRepository,
     ICrossTenantService crossTenantService)
-    : IRequestHandler<GetIntegrationByIdentifierQuery, IntegrationByIdentifierResponse>
+    : IApplicationRequestHandler<GetIntegrationByIdentifierQuery, IntegrationByIdentifierResponse>
 {
     public async Task<IntegrationByIdentifierResponse> Handle(
         GetIntegrationByIdentifierQuery request,
@@ -125,7 +125,7 @@ public sealed class GetIntegrationByIdentifierQueryHandler(
                 IsActive = integration.IsActive,
                 Settings = new IntegrationSettingsResponse
                 {
-                    // Mantém mascarado por padrão para reduzir exposição de segredos.
+                    // MantÃ©m mascarado por padrÃ£o para reduzir exposiÃ§Ã£o de segredos.
                     AccessToken = "******",
                     PhoneNumberId = typedSettings.PhoneNumberId,
                     BusinessAccountId = typedSettings.BusinessAccountId,
@@ -138,4 +138,5 @@ public sealed class GetIntegrationByIdentifierQueryHandler(
             "Cross-tenant integration resolution failed to produce a result.");
     }
 }
+
 

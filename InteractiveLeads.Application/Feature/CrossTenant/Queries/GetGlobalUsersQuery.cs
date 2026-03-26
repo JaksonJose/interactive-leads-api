@@ -1,6 +1,6 @@
-using InteractiveLeads.Application.Interfaces;
+﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
 {
@@ -8,14 +8,14 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
     /// Query for retrieving all global users (TenantId = null), i.e. SysAdmin and Support users.
     /// Available for SysAdmin and Support.
     /// </summary>
-    public sealed class GetGlobalUsersQuery : IRequest<IResponse>
+    public sealed class GetGlobalUsersQuery : IApplicationRequest<IResponse>
     {
     }
 
     /// <summary>
     /// Handler for GetGlobalUsersQuery.
     /// </summary>
-    public sealed class GetGlobalUsersQueryHandler : IRequestHandler<GetGlobalUsersQuery, IResponse>
+    public sealed class GetGlobalUsersQueryHandler : IApplicationRequestHandler<GetGlobalUsersQuery, IResponse>
     {
         private readonly IUserService _userService;
 
@@ -30,3 +30,4 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
         }
     }
 }
+

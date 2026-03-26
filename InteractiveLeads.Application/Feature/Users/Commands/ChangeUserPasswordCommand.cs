@@ -1,17 +1,17 @@
 ﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Users.Commands
 {
-    public class ChangeUserPasswordCommand : IRequest<IResponse>, IValidate
+    public class ChangeUserPasswordCommand : IApplicationRequest<IResponse>, IValidate
     {
         public ChangePasswordRequest ChangePassword { get; set; }
     }
 
     public class ChangeUserPasswordCommandHandler(IUserService userService) :
-        IRequestHandler<ChangeUserPasswordCommand, IResponse>
+        IApplicationRequestHandler<ChangeUserPasswordCommand, IResponse>
     {
         private readonly IUserService _userService = userService;
 
@@ -21,3 +21,4 @@ namespace InteractiveLeads.Application.Feature.Users.Commands
         }
     }
 }
+

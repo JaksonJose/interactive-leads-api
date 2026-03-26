@@ -1,12 +1,12 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Crm.Integrations.Commands;
 
-public sealed class DeleteIntegrationCommand : IRequest<IResponse>
+public sealed class DeleteIntegrationCommand : IApplicationRequest<IResponse>
 {
     public Guid IntegrationId { get; set; }
 }
@@ -14,7 +14,7 @@ public sealed class DeleteIntegrationCommand : IRequest<IResponse>
 public sealed class DeleteIntegrationCommandHandler(
     IApplicationDbContext db,
     ICurrentUserService currentUserService,
-    IIntegrationExternalIdentifierLookupRepository integrationLookupRepository) : IRequestHandler<DeleteIntegrationCommand, IResponse>
+    IIntegrationExternalIdentifierLookupRepository integrationLookupRepository) : IApplicationRequestHandler<DeleteIntegrationCommand, IResponse>
 {
     public async Task<IResponse> Handle(DeleteIntegrationCommand request, CancellationToken cancellationToken)
     {
@@ -69,3 +69,4 @@ public sealed class DeleteIntegrationCommandHandler(
         return new ResultResponse();
     }
 }
+

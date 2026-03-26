@@ -2,10 +2,10 @@ using System.Text.Json;
 using InteractiveLeads.Application.Feature.Inbound;
 using InteractiveLeads.Application.Feature.Inbound.Messages;
 using InteractiveLeads.Application.Messaging.Contracts;
+using InteractiveLeads.Application.Dispatching;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Infrastructure.Configuration;
 using MassTransit;
-using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -25,7 +25,7 @@ public sealed class InboundIntegrationEventConsumer(
     public async Task Consume(ConsumeContext<InboundIntegrationEvent> context)
     {
         await using var scope = serviceProvider.CreateAsyncScope();
-        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        var sender = scope.ServiceProvider.GetRequiredService<IRequestDispatcher>();
         var settings = scope.ServiceProvider.GetRequiredService<IOptions<RabbitMqSettings>>().Value;
 
         var evt = context.Message.NormalizedEvent;
@@ -53,7 +53,7 @@ public sealed class InboundIntegrationEventConsumer(
                 if (response is not SingleResponse<InboundProcessingResultDto> single || single.Data == null)
                 {
                     logger.LogError("Inbound handler returned unexpected response type {Type}", response?.GetType().Name);
-                    throw new InvalidOperationException("Unexpected MediatR response for inbound event.");
+                    throw new InvalidOperationException("Unexpected request dispatcher response for inbound event.");
                 }
 
                 var data = single.Data;

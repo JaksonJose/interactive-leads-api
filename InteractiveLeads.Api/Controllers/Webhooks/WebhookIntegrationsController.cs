@@ -1,5 +1,5 @@
 using InteractiveLeads.Application.Feature.Integrations.Queries;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.AspNetCore.Mvc;
 using NSwag.Annotations;
 
@@ -9,9 +9,9 @@ namespace InteractiveLeads.Api.Controllers.Webhooks;
 [Route("api/webhooks")]
 public sealed class WebhookIntegrationsController : ControllerBase
 {
-    private readonly ISender _sender;
+    private readonly IRequestDispatcher _sender;
 
-    public WebhookIntegrationsController(ISender sender)
+    public WebhookIntegrationsController(IRequestDispatcher sender)
     {
         _sender = sender;
     }

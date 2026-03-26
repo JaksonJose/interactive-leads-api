@@ -1,16 +1,16 @@
 ﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Identity.Roles.Queries
 {
-    public class GetRoleWithPermissionsQuery : IRequest<IResponse>, IValidate
+    public class GetRoleWithPermissionsQuery : IApplicationRequest<IResponse>, IValidate
     {
         public Guid RoleId { get; set; }
     }
 
-    public class GetRoleWithPermissionsQueryHandler(IRoleService roleService) : IRequestHandler<GetRoleWithPermissionsQuery, IResponse>
+    public class GetRoleWithPermissionsQueryHandler(IRoleService roleService) : IApplicationRequestHandler<GetRoleWithPermissionsQuery, IResponse>
     {
         private readonly IRoleService _roleService = roleService;
 
@@ -20,3 +20,4 @@ namespace InteractiveLeads.Application.Feature.Identity.Roles.Queries
         }
     }
 }
+

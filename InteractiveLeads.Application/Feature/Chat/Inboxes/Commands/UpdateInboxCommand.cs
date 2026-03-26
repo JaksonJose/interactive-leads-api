@@ -1,12 +1,12 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Chat.Inboxes.Commands;
 
-public sealed class UpdateInboxCommand : IRequest<IResponse>
+public sealed class UpdateInboxCommand : IApplicationRequest<IResponse>
 {
     public Guid InboxId { get; set; }
     public UpdateInboxRequest UpdateInbox { get; set; } = new();
@@ -14,7 +14,7 @@ public sealed class UpdateInboxCommand : IRequest<IResponse>
 
 public sealed class UpdateInboxCommandHandler(
     IApplicationDbContext db,
-    ICurrentUserService currentUserService) : IRequestHandler<UpdateInboxCommand, IResponse>
+    ICurrentUserService currentUserService) : IApplicationRequestHandler<UpdateInboxCommand, IResponse>
 {
     public async Task<IResponse> Handle(UpdateInboxCommand request, CancellationToken cancellationToken)
     {
@@ -96,4 +96,5 @@ public sealed class UpdateInboxCommandHandler(
         });
     }
 }
+
 

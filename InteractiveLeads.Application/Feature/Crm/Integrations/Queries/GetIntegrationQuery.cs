@@ -1,13 +1,13 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Integrations.Settings;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Crm.Integrations.Queries;
 
-public sealed class GetIntegrationQuery : IRequest<IResponse>
+public sealed class GetIntegrationQuery : IApplicationRequest<IResponse>
 {
     public Guid IntegrationId { get; set; }
 }
@@ -15,7 +15,7 @@ public sealed class GetIntegrationQuery : IRequest<IResponse>
 public sealed class GetIntegrationQueryHandler(
     IApplicationDbContext db,
     ICurrentUserService currentUserService,
-    IIntegrationSettingsResolver settingsResolver) : IRequestHandler<GetIntegrationQuery, IResponse>
+    IIntegrationSettingsResolver settingsResolver) : IApplicationRequestHandler<GetIntegrationQuery, IResponse>
 {
     public async Task<IResponse> Handle(GetIntegrationQuery request, CancellationToken cancellationToken)
     {
@@ -67,4 +67,5 @@ public sealed class GetIntegrationQueryHandler(
         return new SingleResponse<IntegrationResponse>(dto);
     }
 }
+
 

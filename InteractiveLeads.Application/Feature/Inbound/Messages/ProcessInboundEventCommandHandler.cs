@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using InteractiveLeads.Application.Feature.Chat.Messages;
 using InteractiveLeads.Application.Feature.Inbound;
@@ -11,7 +11,7 @@ using InteractiveLeads.Application.Realtime.Models;
 using InteractiveLeads.Application.Realtime.Services;
 using InteractiveLeads.Domain.Entities;
 using InteractiveLeads.Domain.Enums;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,7 +25,7 @@ public sealed class ProcessInboundEventCommandHandler(
     IRealtimeService realtimeService,
     IMediaProcessingJobPublisher mediaProcessingJobPublisher,
     ILogger<ProcessInboundEventCommandHandler> logger)
-    : IRequestHandler<ProcessInboundEventCommand, IResponse>
+    : IApplicationRequestHandler<ProcessInboundEventCommand, IResponse>
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -959,7 +959,7 @@ public sealed class ProcessInboundEventCommandHandler(
         {
             Id = Guid.NewGuid(),
             CompanyId = companyId,
-            Name = "Inbox padrão",
+            Name = "Inbox padrÃ£o",
             IsActive = true,
             CreatedAt = DateTimeOffset.UtcNow
         };
@@ -969,3 +969,4 @@ public sealed class ProcessInboundEventCommandHandler(
         return inbox.Id;
     }
 }
+

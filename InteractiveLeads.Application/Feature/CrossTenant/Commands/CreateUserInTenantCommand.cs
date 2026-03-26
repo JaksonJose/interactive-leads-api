@@ -1,9 +1,9 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Users;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
@@ -15,7 +15,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
     /// This command implements the CQRS pattern for cross-tenant user creation operations.
     /// It encapsulates the tenant context switching logic and authorization validation.
     /// </remarks>
-    public sealed class CreateUserInTenantCommand : IRequest<IResponse>, IValidate
+    public sealed class CreateUserInTenantCommand : IApplicationRequest<IResponse>, IValidate
     {
         /// <summary>
         /// Gets or sets the ID of the tenant to create the user in.
@@ -35,7 +35,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
     /// Executes the user creation operation in the specified tenant context.
     /// Validates that SysAdmin and Support users can create users in other tenants.
     /// </remarks>
-    public sealed class CreateUserInTenantCommandHandler : IRequestHandler<CreateUserInTenantCommand, IResponse>
+    public sealed class CreateUserInTenantCommandHandler : IApplicationRequestHandler<CreateUserInTenantCommand, IResponse>
     {
         private readonly ICrossTenantService _crossTenantService;
         private readonly ICrossTenantAuthorizationService _authService;
@@ -100,3 +100,4 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
         }
     }
 }
+

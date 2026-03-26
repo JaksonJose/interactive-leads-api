@@ -1,8 +1,8 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Tenancy.Commands
 {
@@ -13,7 +13,7 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Commands
     /// This command implements the CQRS pattern for tenant deactivation operations.
     /// Deactivating a tenant disables their access to the system.
     /// </remarks>
-    public sealed class DeactivateTenantCommand : IRequest<IResponse>, IValidate
+    public sealed class DeactivateTenantCommand : IApplicationRequest<IResponse>, IValidate
     {
         /// <summary>
         /// Gets or sets the unique identifier of the tenant to deactivate.
@@ -27,7 +27,7 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Commands
     /// <remarks>
     /// Deactivates the specified tenant via ITenantService.
     /// </remarks>
-    public sealed class DeactivateTenantCommandHandler : IRequestHandler<DeactivateTenantCommand, IResponse>
+    public sealed class DeactivateTenantCommandHandler : IApplicationRequestHandler<DeactivateTenantCommand, IResponse>
     {
         private readonly ITenantService _tenantService;
         private readonly ICrossTenantAuthorizationService _authService;
@@ -70,3 +70,4 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Commands
         }
     }
 }
+

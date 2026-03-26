@@ -1,8 +1,8 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Tenancy.Commands
 {
@@ -13,7 +13,7 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Commands
     /// This command implements the CQRS pattern for tenant activation operations.
     /// Activating a tenant enables their access to the system.
     /// </remarks>
-    public sealed class ActivateTenantCommand : IRequest<IResponse>, IValidate
+    public sealed class ActivateTenantCommand : IApplicationRequest<IResponse>, IValidate
     {
         /// <summary>
         /// Gets or sets the unique identifier of the tenant to activate.
@@ -27,7 +27,7 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Commands
     /// <remarks>
     /// Activates the specified tenant via ITenantService.
     /// </remarks>
-    public sealed class ActivateTenantCommandHandler : IRequestHandler<ActivateTenantCommand, IResponse>
+    public sealed class ActivateTenantCommandHandler : IApplicationRequestHandler<ActivateTenantCommand, IResponse>
     {
         private readonly ITenantService _tenantService;
         private readonly ICrossTenantAuthorizationService _authService;
@@ -70,3 +70,4 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Commands
         }
     }
 }
+

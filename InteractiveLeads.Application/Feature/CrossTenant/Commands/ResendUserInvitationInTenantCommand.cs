@@ -1,9 +1,9 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Activation;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
@@ -11,13 +11,13 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
     /// <summary>
     /// Command to resend an activation invitation for a user in a tenant.
     /// </summary>
-    public sealed class ResendUserInvitationInTenantCommand : IRequest<IResponse>, IValidate
+    public sealed class ResendUserInvitationInTenantCommand : IApplicationRequest<IResponse>, IValidate
     {
         public string TenantId { get; set; } = string.Empty;
         public Guid UserId { get; set; }
     }
 
-    public sealed class ResendUserInvitationInTenantCommandHandler : IRequestHandler<ResendUserInvitationInTenantCommand, IResponse>
+    public sealed class ResendUserInvitationInTenantCommandHandler : IApplicationRequestHandler<ResendUserInvitationInTenantCommand, IResponse>
     {
         private readonly ICrossTenantService _crossTenantService;
         private readonly ICrossTenantAuthorizationService _authService;
@@ -72,4 +72,5 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
         }
     }
 }
+
 

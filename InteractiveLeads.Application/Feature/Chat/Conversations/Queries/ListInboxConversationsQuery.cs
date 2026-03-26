@@ -1,17 +1,17 @@
-using InteractiveLeads.Application.Feature.Chat;
+﻿using InteractiveLeads.Application.Feature.Chat;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Chat.Conversations.Queries;
 
-public sealed class ListInboxConversationsQuery : IRequest<IResponse>
+public sealed class ListInboxConversationsQuery : IApplicationRequest<IResponse>
 {
     public Guid InboxId { get; set; }
 }
 
-public sealed class PagedInboxConversationsQuery : IRequest<IResponse>
+public sealed class PagedInboxConversationsQuery : IApplicationRequest<IResponse>
 {
     public Guid? InboxId { get; set; }
 
@@ -29,7 +29,7 @@ public sealed class PagedInboxConversationsQuery : IRequest<IResponse>
 
 public sealed class ListInboxConversationsQueryHandler(
     IApplicationDbContext db,
-    ICurrentUserService currentUserService) : IRequestHandler<ListInboxConversationsQuery, IResponse>
+    ICurrentUserService currentUserService) : IApplicationRequestHandler<ListInboxConversationsQuery, IResponse>
 {
     public async Task<IResponse> Handle(ListInboxConversationsQuery request, CancellationToken cancellationToken)
     {
@@ -60,7 +60,7 @@ public sealed class ListInboxConversationsQueryHandler(
 public sealed class PagedInboxConversationsQueryHandler(
     IApplicationDbContext db,
     ICurrentUserService currentUserService,
-    IUserSummaryLookupService userSummaryLookup) : IRequestHandler<PagedInboxConversationsQuery, IResponse>
+    IUserSummaryLookupService userSummaryLookup) : IApplicationRequestHandler<PagedInboxConversationsQuery, IResponse>
 {
     public async Task<IResponse> Handle(PagedInboxConversationsQuery request, CancellationToken cancellationToken)
     {
@@ -137,5 +137,6 @@ public sealed class PagedInboxConversationsQueryHandler(
         return response;
     }
 }
+
 
 

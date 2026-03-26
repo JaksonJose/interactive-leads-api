@@ -1,16 +1,16 @@
 ﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Users.Queries
 {
-    public class GetUserRolesQuery : IRequest<IResponse>, IValidate
+    public class GetUserRolesQuery : IApplicationRequest<IResponse>, IValidate
     {
         public Guid UserId { get; set; }
     }
 
-    public class GetUserRolesQueryHandler(IUserService userService) : IRequestHandler<GetUserRolesQuery, IResponse>
+    public class GetUserRolesQueryHandler(IUserService userService) : IApplicationRequestHandler<GetUserRolesQuery, IResponse>
     {
         private readonly IUserService _userService = userService;
 
@@ -20,3 +20,4 @@ namespace InteractiveLeads.Application.Feature.Users.Queries
         }
     }
 }
+

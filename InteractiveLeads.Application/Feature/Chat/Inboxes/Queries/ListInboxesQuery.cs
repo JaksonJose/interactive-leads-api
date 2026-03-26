@@ -1,18 +1,18 @@
-using InteractiveLeads.Application.Interfaces;
+﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Chat.Inboxes.Queries;
 
-public sealed class ListInboxesQuery : IRequest<IResponse>
+public sealed class ListInboxesQuery : IApplicationRequest<IResponse>
 {
     public bool IncludeInactive { get; set; } = true;
 }
 
 public sealed class ListInboxesQueryHandler(
     IApplicationDbContext db,
-    ICurrentUserService currentUserService) : IRequestHandler<ListInboxesQuery, IResponse>
+    ICurrentUserService currentUserService) : IApplicationRequestHandler<ListInboxesQuery, IResponse>
 {
     public async Task<IResponse> Handle(ListInboxesQuery request, CancellationToken cancellationToken)
     {
@@ -83,4 +83,5 @@ public sealed class ListInboxesQueryHandler(
         return new ListResponse<InboxDto>(items, items.Count);
     }
 }
+
 

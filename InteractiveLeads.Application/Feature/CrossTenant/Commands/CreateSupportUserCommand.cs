@@ -1,8 +1,8 @@
-using InteractiveLeads.Application.Feature.Users;
+﻿using InteractiveLeads.Application.Feature.Users;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
@@ -10,7 +10,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
     /// <summary>
     /// Command for creating a new global Support user (TenantId = null). SysAdmin only.
     /// </summary>
-    public sealed class CreateSupportUserCommand : IRequest<IResponse>, IValidate
+    public sealed class CreateSupportUserCommand : IApplicationRequest<IResponse>, IValidate
     {
         public CreateUserRequest CreateUser { get; set; } = new();
     }
@@ -18,7 +18,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
     /// <summary>
     /// Handler for CreateSupportUserCommand. Creates a user with TenantId = null and role Support.
     /// </summary>
-    public sealed class CreateSupportUserCommandHandler : IRequestHandler<CreateSupportUserCommand, IResponse>
+    public sealed class CreateSupportUserCommandHandler : IApplicationRequestHandler<CreateSupportUserCommand, IResponse>
     {
         private readonly IUserService _userService;
 
@@ -33,3 +33,4 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
         }
     }
 }
+

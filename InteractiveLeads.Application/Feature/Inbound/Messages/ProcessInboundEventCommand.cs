@@ -1,10 +1,10 @@
-using InteractiveLeads.Application.Feature.Inbound;
+﻿using InteractiveLeads.Application.Feature.Inbound;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Inbound.Messages;
 
-public sealed class ProcessInboundEventCommand : IRequest<IResponse>
+public sealed class ProcessInboundEventCommand : IApplicationRequest<IResponse>
 {
     public NormalizedInboundEvent Event { get; set; } = new();
 
@@ -13,3 +13,4 @@ public sealed class ProcessInboundEventCommand : IRequest<IResponse>
     /// </summary>
     public bool ReliableMessaging { get; init; }
 }
+

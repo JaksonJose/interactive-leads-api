@@ -1,22 +1,22 @@
-using InteractiveLeads.Application.Feature.Activation;
+﻿using InteractiveLeads.Application.Feature.Activation;
 using InteractiveLeads.Application.Feature.CrossTenant;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Tenancy.Commands
 {
     /// <summary>
     /// Command to resend activation invitation for the tenant owner.
     /// </summary>
-    public sealed class ResendTenantOwnerActivationCommand : IRequest<IResponse>, IValidate
+    public sealed class ResendTenantOwnerActivationCommand : IApplicationRequest<IResponse>, IValidate
     {
         public string TenantId { get; set; } = string.Empty;
         public Guid OwnerUserId { get; set; }
     }
 
-    public sealed class ResendTenantOwnerActivationCommandHandler : IRequestHandler<ResendTenantOwnerActivationCommand, IResponse>
+    public sealed class ResendTenantOwnerActivationCommandHandler : IApplicationRequestHandler<ResendTenantOwnerActivationCommand, IResponse>
     {
         private readonly IUserActivationService _activationService;
         private readonly ICrossTenantService _crossTenantService;
@@ -40,4 +40,5 @@ namespace InteractiveLeads.Application.Feature.Tenancy.Commands
         }
     }
 }
+
 

@@ -1,8 +1,8 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Activation;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace InteractiveLeads.Application.Feature.Owner.Commands
@@ -10,13 +10,13 @@ namespace InteractiveLeads.Application.Feature.Owner.Commands
     /// <summary>
     /// Command to resend activation invitation for a consultant in the current owner's tenant.
     /// </summary>
-    public sealed class ResendConsultantInvitationCommand : IRequest<IResponse>
+    public sealed class ResendConsultantInvitationCommand : IApplicationRequest<IResponse>
     {
         public string TenantId { get; set; } = string.Empty;
         public Guid UserId { get; set; }
     }
 
-    public sealed class ResendConsultantInvitationCommandHandler : IRequestHandler<ResendConsultantInvitationCommand, IResponse>
+    public sealed class ResendConsultantInvitationCommandHandler : IApplicationRequestHandler<ResendConsultantInvitationCommand, IResponse>
     {
         private readonly ICrossTenantService _crossTenantService;
         private readonly ICurrentUserService _currentUserService;
@@ -52,4 +52,5 @@ namespace InteractiveLeads.Application.Feature.Owner.Commands
         }
     }
 }
+
 

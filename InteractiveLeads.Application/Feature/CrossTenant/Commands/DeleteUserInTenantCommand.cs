@@ -1,8 +1,8 @@
-using InteractiveLeads.Application.Exceptions;
+﻿using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
@@ -14,7 +14,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
     /// This command implements the CQRS pattern for cross-tenant user deletion operations.
     /// It encapsulates the tenant context switching logic and authorization validation.
     /// </remarks>
-    public sealed class DeleteUserInTenantCommand : IRequest<IResponse>, IValidate
+    public sealed class DeleteUserInTenantCommand : IApplicationRequest<IResponse>, IValidate
     {
         /// <summary>
         /// Gets or sets the ID of the tenant.
@@ -34,7 +34,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
     /// Executes the user deletion operation in the specified tenant context.
     /// Validates that only SysAdmin users can delete users from other tenants.
     /// </remarks>
-    public sealed class DeleteUserInTenantCommandHandler : IRequestHandler<DeleteUserInTenantCommand, IResponse>
+    public sealed class DeleteUserInTenantCommandHandler : IApplicationRequestHandler<DeleteUserInTenantCommand, IResponse>
     {
         private readonly ICrossTenantService _crossTenantService;
         private readonly ICrossTenantAuthorizationService _authService;
@@ -91,3 +91,4 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Commands
         }
     }
 }
+

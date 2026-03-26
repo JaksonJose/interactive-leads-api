@@ -1,7 +1,7 @@
 ﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Identity.Tokens.Queries
 {
@@ -12,7 +12,7 @@ namespace InteractiveLeads.Application.Feature.Identity.Tokens.Queries
     /// This query implements the CQRS pattern for token refresh operations,
     /// allowing users to obtain new tokens without re-authenticating.
     /// </remarks>
-    public class GetRefreshTokenQuery : IRequest<IResponse>, IValidate
+    public class GetRefreshTokenQuery : IApplicationRequest<IResponse>, IValidate
     {
         /// <summary>
         /// Gets or sets the refresh token request containing current tokens.
@@ -26,7 +26,7 @@ namespace InteractiveLeads.Application.Feature.Identity.Tokens.Queries
     /// <remarks>
     /// Validates the refresh token via ITokenService and returns new JWT tokens.
     /// </remarks>
-    public class GetRefreshTokenQueryHandler : IRequestHandler<GetRefreshTokenQuery, IResponse>
+    public class GetRefreshTokenQueryHandler : IApplicationRequestHandler<GetRefreshTokenQuery, IResponse>
     {
         private readonly ITokenService _tokenService;
 
@@ -51,3 +51,4 @@ namespace InteractiveLeads.Application.Feature.Identity.Tokens.Queries
         }
     }
 }
+

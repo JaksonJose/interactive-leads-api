@@ -1,14 +1,14 @@
-using InteractiveLeads.Application.Interfaces;
+﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Identity.Impersonation.Commands
 {
     /// <summary>
     /// Command to impersonate a user (SysAdmin/Support only). Returns new JWT for the target user.
     /// </summary>
-    public class ImpersonateCommand : IRequest<IResponse>, IValidate
+    public class ImpersonateCommand : IApplicationRequest<IResponse>, IValidate
     {
         public ImpersonateRequest Request { get; set; } = new();
     }
@@ -16,7 +16,7 @@ namespace InteractiveLeads.Application.Feature.Identity.Impersonation.Commands
     /// <summary>
     /// Handler for ImpersonateCommand. Delegates to IImpersonationService.
     /// </summary>
-    public class ImpersonateCommandHandler : IRequestHandler<ImpersonateCommand, IResponse>
+    public class ImpersonateCommandHandler : IApplicationRequestHandler<ImpersonateCommand, IResponse>
     {
         private readonly IImpersonationService _impersonationService;
 
@@ -31,3 +31,4 @@ namespace InteractiveLeads.Application.Feature.Identity.Impersonation.Commands
         }
     }
 }
+

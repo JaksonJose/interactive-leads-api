@@ -1,17 +1,17 @@
 ﻿using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 
 namespace InteractiveLeads.Application.Feature.Users.Commands
 {
-    public class UpdateUserRolesCommand : IRequest<IResponse>, IValidate
+    public class UpdateUserRolesCommand : IApplicationRequest<IResponse>, IValidate
     {
         public Guid UserId { get; set; }
         public UserRolesRequest UserRolesRequest { get; set; }
     }
 
-    public class UpdateUserRolesCommandHandler(IUserService userService) : IRequestHandler<UpdateUserRolesCommand, IResponse>
+    public class UpdateUserRolesCommandHandler(IUserService userService) : IApplicationRequestHandler<UpdateUserRolesCommand, IResponse>
     {
         private readonly IUserService _userService = userService;
 
@@ -21,3 +21,4 @@ namespace InteractiveLeads.Application.Feature.Users.Commands
         }
     }
 }
+

@@ -1,6 +1,6 @@
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using MediatR;
+using InteractiveLeads.Application.Dispatching;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
@@ -12,7 +12,7 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
     /// This query implements the CQRS pattern for cross-tenant user retrieval operations.
     /// It encapsulates the tenant context switching logic.
     /// </remarks>
-    public sealed class GetUsersInTenantQuery : IRequest<IResponse>
+    public sealed class GetUsersInTenantQuery : IApplicationRequest<IResponse>
     {
         /// <summary>
         /// Gets or sets the ID of the tenant to retrieve users from.
@@ -26,20 +26,17 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
     /// <remarks>
     /// Executes the user retrieval operation in the specified tenant context.
     /// </remarks>
-    public sealed class GetUsersInTenantQueryHandler : IRequestHandler<GetUsersInTenantQuery, IResponse>
+    public sealed class GetUsersInTenantQueryHandler : IApplicationRequestHandler<GetUsersInTenantQuery, IResponse>
     {
         private readonly ICrossTenantService _crossTenantService;
-        private readonly IMediator _mediator;
 
         /// <summary>
         /// Initializes a new instance of the GetUsersInTenantQueryHandler class.
         /// </summary>
         /// <param name="crossTenantService">The cross-tenant service for context switching.</param>
-        /// <param name="mediator">The mediator for sending internal queries.</param>
-        public GetUsersInTenantQueryHandler(ICrossTenantService crossTenantService, IMediator mediator)
+        public GetUsersInTenantQueryHandler(ICrossTenantService crossTenantService)
         {
             _crossTenantService = crossTenantService;
-            _mediator = mediator;
         }
 
         /// <summary>
@@ -59,3 +56,4 @@ namespace InteractiveLeads.Application.Feature.CrossTenant.Queries
         }
     }
 }
+
