@@ -35,7 +35,11 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: true));
     });
 
-builder.Services.AddSignalR()
+builder.Services.AddSignalR(options =>
+    {
+        options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+        options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
+    })
     .AddJsonProtocol(options =>
     {
         options.PayloadSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
