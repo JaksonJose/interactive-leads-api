@@ -8,20 +8,19 @@ using InteractiveLeads.Application.Realtime.Models;
 using InteractiveLeads.Application.Realtime.Services;
 using InteractiveLeads.Domain.Entities;
 using InteractiveLeads.Domain.Enums;
-using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Rebus.Handlers;
 
 namespace InteractiveLeads.Infrastructure.Messaging;
 
-public sealed class MediaProcessingRequestedConsumer(
+public sealed class MediaProcessingRequestedHandler(
     IServiceProvider serviceProvider,
-    ILogger<MediaProcessingRequestedConsumer> logger) : IConsumer<MediaProcessingRequested>
+    ILogger<MediaProcessingRequestedHandler> logger) : IHandleMessages<MediaProcessingRequested>
 {
-    public async Task Consume(ConsumeContext<MediaProcessingRequested> context)
+    public async Task Handle(MediaProcessingRequested msg)
     {
-        var msg = context.Message;
         var sw = Stopwatch.StartNew();
         logger.LogInformation(
             "Media processing job started. messageId {MessageId} conversationId {ConversationId} type {MediaType} tempUrlHost {TempUrlHost}",
@@ -41,7 +40,7 @@ public sealed class MediaProcessingRequestedConsumer(
 
             var message = await db.Messages
                 .Include(m => m.Media)
-                .FirstOrDefaultAsync(m => m.Id == msg.MessageId, context.CancellationToken);
+                .FirstOrDefaultAsync(m => m.Id == msg.MessageId, CancellationToken.None);
 
             if (message is null)
             {
@@ -62,7 +61,7 @@ public sealed class MediaProcessingRequestedConsumer(
                     MimeType = msg.MimeType,
                     OriginalFileName = msg.OriginalFileName,
                     ExternalMessageId = msg.ExternalMessageId
-                }, context.CancellationToken);
+                }, CancellationToken.None);
 
                 var media = message.Media.OrderBy(m => m.Id).FirstOrDefault();
                 if (media is null)
@@ -99,7 +98,7 @@ public sealed class MediaProcessingRequestedConsumer(
 
                 message.UpdatedAt = DateTimeOffset.UtcNow;
 
-                await db.SaveChangesAsync(context.CancellationToken);
+                await db.SaveChangesAsync(CancellationToken.None);
 
                 var evt = new RealtimeEvent<MessageUpdatedPayloadDto>
                 {
@@ -145,7 +144,7 @@ public sealed class MediaProcessingRequestedConsumer(
                     error = ex.Message
                 });
                 message.UpdatedAt = DateTimeOffset.UtcNow;
-                await db.SaveChangesAsync(context.CancellationToken);
+                await db.SaveChangesAsync(CancellationToken.None);
 
                 var evt = new RealtimeEvent<MessageUpdatedPayloadDto>
                 {
@@ -177,3 +176,4 @@ public sealed class MediaProcessingRequestedConsumer(
         _ => MediaType.Document
     };
 }
+

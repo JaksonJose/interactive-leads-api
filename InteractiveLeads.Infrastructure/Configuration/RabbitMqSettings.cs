@@ -1,7 +1,7 @@
 namespace InteractiveLeads.Infrastructure.Configuration;
 
 /// <summary>
-/// RabbitMQ / MassTransit connection. Prefer environment variables in deployment (see remarks).
+/// RabbitMQ connection settings. Prefer environment variables in deployment (see remarks).
 /// </summary>
 /// <remarks>
 /// Environment variable names (double underscore in .NET):
@@ -11,7 +11,7 @@ namespace InteractiveLeads.Infrastructure.Configuration;
 /// <item><description>RabbitMq__VirtualHost</description></item>
 /// <item><description>RabbitMq__Username</description></item>
 /// <item><description>RabbitMq__Password</description></item>
-/// <item><description>RabbitMq__Enabled</description> — set false to disable MassTransit (no inbound consumer; outbound uses HTTP only).</item>
+/// <item><description>RabbitMq__Enabled</description> — set false to disable RabbitMQ integration (no inbound consumer; outbound uses HTTP only).</item>
 /// <item><description>Integration__MessageSender__UseHttpFallback</description> — when Rabbit is enabled, use HTTP outbound instead of the broker queue.</item>
 /// <item><description>RabbitMq__InboundQueueName</description> — optional override for the inbound queue (default <c>interactive-inbound-events</c>).</item>
 /// <item><description>RabbitMq__OutboundQueueName</description> — optional override for the outbound queue (default <c>interactive-outbound-send</c>).</item>
@@ -25,7 +25,7 @@ public sealed class RabbitMqSettings
 {
     public const string SectionName = "RabbitMq";
 
-    /// <summary>When false, MassTransit is not registered (inbound queue is not consumed).</summary>
+    /// <summary>When false, RabbitMQ integration is not registered (inbound queue is not consumed).</summary>
     public bool Enabled { get; set; } = true;
 
     public string Host { get; set; } = "localhost";
@@ -44,7 +44,7 @@ public sealed class RabbitMqSettings
     /// <summary>Queue where this API sends outbound messages for external channel workers.</summary>
     public string OutboundQueueName { get; set; } = "interactive-outbound-send";
 
-    /// <summary>Exchange outbound messages are published to; bound to the outbound queue by MassTransit at startup.</summary>
+    /// <summary>Exchange outbound messages are published to; bound to the outbound queue at startup.</summary>
     public string OutboundExchangeName { get; set; } = "interactive-outbound";
 
     /// <summary>When true, use RabbitMQ quorum queues for inbound consumer and outbound queue declaration.</summary>

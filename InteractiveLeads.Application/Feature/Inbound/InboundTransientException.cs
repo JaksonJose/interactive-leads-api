@@ -2,7 +2,7 @@ namespace InteractiveLeads.Application.Feature.Inbound;
 
 /// <summary>
 /// Thrown when processing must be retried (technical failure or eventual-consistency business case).
-/// With reliable queue delivery, the consumer rethrows so MassTransit retries/redelivers.
+/// With reliable queue delivery, the consumer rethrows so the queue worker retries/redelivers.
 /// </summary>
 public sealed class InboundTransientException : Exception
 {

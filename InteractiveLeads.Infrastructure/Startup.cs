@@ -140,7 +140,10 @@ namespace InteractiveLeads.Infrastructure
 
             if (rabbitMqSettings.Enabled)
             {
-                services.AddInteractiveLeadsMassTransit(config);
+                services.AddSingleton<IRabbitMqConnectionFactoryProvider, RabbitMqConnectionFactoryProvider>();
+                services.AddHostedService<RabbitMqTopologyInitializer>();
+                services.AddHostedService<InboundRawJsonWorker>();
+                services.AddInteractiveLeadsRebus(config);
                 services.AddScoped<IOutboundMessagePublisher, RabbitMqOutboundMessagePublisher>();
                 services.AddScoped<IMediaProcessingJobPublisher, MediaProcessingJobPublisher>();
             }
