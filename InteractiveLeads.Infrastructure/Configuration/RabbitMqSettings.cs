@@ -14,7 +14,7 @@ namespace InteractiveLeads.Infrastructure.Configuration;
 /// <item><description>RabbitMq__Enabled</description> — set false to disable RabbitMQ integration (no inbound consumer; outbound uses HTTP only).</item>
 /// <item><description>Integration__MessageSender__UseHttpFallback</description> — when Rabbit is enabled, use HTTP outbound instead of the broker queue.</item>
 /// <item><description>RabbitMq__InboundQueueName</description> — optional override for the inbound queue (default <c>interactive-inbound-events</c>).</item>
-/// <item><description>RabbitMq__OutboundQueueName</description> — optional override for the outbound queue (default <c>interactive-outbound-send</c>).</item>
+/// <item><description>RabbitMq__OutboundQueueName</description> — optional override for the outbound queue (default <c>interactive-outbound-events</c>).</item>
 /// <item><description>RabbitMq__OutboundExchangeName</description> — exchange used when publishing outbound messages (default <c>interactive-outbound</c>).</item>
 /// <item><description>RabbitMq__UseQuorumQueues</description> — when true (default), inbound receive endpoint and outbound queue binding use quorum queues.</item>
 /// <item><description>RabbitMq__UnprocessedQueueName</description> — optional queue for permanently rejected inbound copies (default <c>chat.unprocessed</c>).</item>
@@ -42,7 +42,7 @@ public sealed class RabbitMqSettings
     public string InboundQueueName { get; set; } = "interactive-inbound-events";
 
     /// <summary>Queue where this API sends outbound messages for external channel workers.</summary>
-    public string OutboundQueueName { get; set; } = "interactive-outbound-send";
+    public string OutboundQueueName { get; set; } = "interactive-outbound-events";
 
     /// <summary>Exchange outbound messages are published to; bound to the outbound queue at startup.</summary>
     public string OutboundExchangeName { get; set; } = "interactive-outbound";
