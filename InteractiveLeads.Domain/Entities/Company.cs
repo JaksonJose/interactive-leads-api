@@ -9,6 +9,7 @@ public class Company
     public DateTimeOffset CreatedAt { get; set; }
 
     public Tenant Tenant { get; set; } = default!;
+    public ICollection<WhatsAppBusinessAccount> WhatsAppBusinessAccounts { get; set; } = new List<WhatsAppBusinessAccount>();
     public ICollection<Integration> Integrations { get; set; } = new List<Integration>();
     public ICollection<Contact> Contacts { get; set; } = new List<Contact>();
     public ICollection<Conversation> Conversations { get; set; } = new List<Conversation>();

@@ -43,6 +43,14 @@ public class IntegrationConfiguration : IEntityTypeConfiguration<Integration>
             .WithMany(c => c.Integrations)
             .HasForeignKey(i => i.CompanyId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(i => i.WhatsAppBusinessAccountId)
+            .HasDatabaseName("IX_Integration_WhatsAppBusinessAccountId");
+
+        builder.HasOne(i => i.WhatsAppBusinessAccount)
+            .WithMany(w => w.Integrations)
+            .HasForeignKey(i => i.WhatsAppBusinessAccountId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
 

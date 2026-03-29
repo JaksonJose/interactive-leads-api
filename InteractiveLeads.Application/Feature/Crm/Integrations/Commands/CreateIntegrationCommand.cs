@@ -1,6 +1,7 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Integrations.Settings;
+using InteractiveLeads.Application.Integrations.WhatsApp;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Domain.Entities;
@@ -20,7 +21,8 @@ public sealed class CreateIntegrationCommandHandler(
     ICurrentUserService currentUserService,
     IIntegrationSettingsResolver settingsResolver,
     IIntegrationExternalIdentifierResolver externalIdentifierResolver,
-    IIntegrationExternalIdentifierLookupRepository integrationLookupRepository) : IApplicationRequestHandler<CreateIntegrationCommand, IResponse>
+    IIntegrationExternalIdentifierLookupRepository integrationLookupRepository,
+    IWhatsAppBusinessAccountLinker wabaLinker) : IApplicationRequestHandler<CreateIntegrationCommand, IResponse>
 {
     public async Task<IResponse> Handle(CreateIntegrationCommand request, CancellationToken cancellationToken)
     {
@@ -151,6 +153,8 @@ public sealed class CreateIntegrationCommandHandler(
 
         var settingsJson = settingsResolver.Serialize(provider, whatsappSettings);
 
+        var wabaId = await wabaLinker.EnsureWabaIdAsync(companyId, whatsappSettings.BusinessAccountId, cancellationToken);
+
         var integration = new Integration
         {
             Id = Guid.NewGuid(),
@@ -160,7 +164,8 @@ public sealed class CreateIntegrationCommandHandler(
             ExternalIdentifier = externalIdentifier,
             Settings = settingsJson,
             IsActive = request.Integration.IsActive,
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow,
+            WhatsAppBusinessAccountId = wabaId
         };
 
         db.Integrations.Add(integration);

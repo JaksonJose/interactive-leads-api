@@ -21,7 +21,8 @@ public static class IntegrationDtoMapper
                 {
                     accessToken = "******",
                     phoneNumberId = whatsapp.PhoneNumberId,
-                    businessAccountId = whatsapp.BusinessAccountId
+                    businessAccountId = whatsapp.BusinessAccountId,
+                    inboxId = whatsapp.InboxId
                 },
                 _ => null
             };
@@ -33,6 +34,7 @@ public static class IntegrationDtoMapper
             Name = integration.Name,
             Provider = integration.Type,
             IsActive = integration.IsActive,
+            WhatsAppBusinessAccountId = integration.WhatsAppBusinessAccountId,
             Settings = maskedSettings
         };
     }

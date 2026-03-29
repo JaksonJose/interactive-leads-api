@@ -1,6 +1,7 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Integrations.Settings;
+using InteractiveLeads.Application.Integrations.WhatsApp;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Domain.Entities;
@@ -22,7 +23,8 @@ public sealed class UpdateIntegrationCommandHandler(
     ICurrentUserService currentUserService,
     IIntegrationSettingsResolver settingsResolver,
     IIntegrationExternalIdentifierResolver externalIdentifierResolver,
-    IIntegrationExternalIdentifierLookupRepository integrationLookupRepository) : IApplicationRequestHandler<UpdateIntegrationCommand, IResponse>
+    IIntegrationExternalIdentifierLookupRepository integrationLookupRepository,
+    IWhatsAppBusinessAccountLinker wabaLinker) : IApplicationRequestHandler<UpdateIntegrationCommand, IResponse>
 {
     public async Task<IResponse> Handle(UpdateIntegrationCommand request, CancellationToken cancellationToken)
     {
@@ -186,6 +188,8 @@ public sealed class UpdateIntegrationCommandHandler(
         integration.IsActive = request.Integration.IsActive;
         integration.ExternalIdentifier = externalIdentifier;
         integration.Settings = settingsResolver.Serialize(provider, updatedSettings);
+        integration.WhatsAppBusinessAccountId =
+            await wabaLinker.EnsureWabaIdAsync(companyId, updatedSettings.BusinessAccountId, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
 

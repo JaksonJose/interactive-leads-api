@@ -12,6 +12,9 @@ public sealed class IntegrationResponse
 
     public bool IsActive { get; set; }
 
+    /// <summary>Internal CRM id for the linked WABA (templates scope). Null if <c>businessAccountId</c> was never set.</summary>
+    public Guid? WhatsAppBusinessAccountId { get; set; }
+
     public object? Settings { get; set; }
 }
 

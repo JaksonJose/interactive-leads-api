@@ -21,6 +21,8 @@ namespace InteractiveLeads.Infrastructure.Context.Application
         public DbSet<Inbox> Inboxes { get; set; }
         public DbSet<InboxMember> InboxMembers { get; set; }
         public DbSet<Integration> Integrations { get; set; }
+        public DbSet<WhatsAppBusinessAccount> WhatsAppBusinessAccounts { get; set; }
+        public DbSet<WhatsAppTemplate> WhatsAppTemplates { get; set; }
         public DbSet<Contact> Contacts { get; set; }
         public DbSet<ContactChannel> ContactChannels { get; set; }
         public DbSet<Conversation> Conversations { get; set; }
