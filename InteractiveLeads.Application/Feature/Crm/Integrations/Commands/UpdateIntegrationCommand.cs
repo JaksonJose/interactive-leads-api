@@ -142,6 +142,13 @@ public sealed class UpdateIntegrationCommandHandler(
             throw new BadRequestException(response);
         }
 
+        if (string.IsNullOrWhiteSpace(updatedSettings.BusinessAccountId?.Trim()))
+        {
+            var response = new ResultResponse();
+            response.AddErrorMessage("WhatsApp Business Account id is required.", "integrations.whatsapp.business_account_id_required");
+            throw new BadRequestException(response);
+        }
+
         var externalIdentifier = externalIdentifierResolver.ResolveExternalIdentifier(provider, updatedSettings);
 
         var hasDuplicate = await db.Integrations
@@ -184,12 +191,21 @@ public sealed class UpdateIntegrationCommandHandler(
             }
         }
 
+        var wabaId = await wabaLinker.EnsureWabaIdAsync(companyId, updatedSettings.BusinessAccountId, cancellationToken);
+        if (!wabaId.HasValue)
+        {
+            var wabaMissing = new ResultResponse();
+            wabaMissing.AddErrorMessage(
+                "Register this WhatsApp Business Account under Integrations (WhatsApp → New business account) before linking this number.",
+                "integrations.whatsapp.waba_not_registered");
+            throw new BadRequestException(wabaMissing);
+        }
+
         integration.Name = name;
         integration.IsActive = request.Integration.IsActive;
         integration.ExternalIdentifier = externalIdentifier;
         integration.Settings = settingsResolver.Serialize(provider, updatedSettings);
-        integration.WhatsAppBusinessAccountId =
-            await wabaLinker.EnsureWabaIdAsync(companyId, updatedSettings.BusinessAccountId, cancellationToken);
+        integration.WhatsAppBusinessAccountId = wabaId;
 
         await db.SaveChangesAsync(cancellationToken);
 

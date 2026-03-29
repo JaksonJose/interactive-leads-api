@@ -28,6 +28,17 @@ public static class IntegrationDtoMapper
             };
         }
 
+        WhatsAppBusinessAccountSummary? wabaSummary = null;
+        if (integration.WhatsAppBusinessAccount is { } waba)
+        {
+            wabaSummary = new WhatsAppBusinessAccountSummary
+            {
+                Id = waba.Id,
+                WabaId = waba.WabaId,
+                Name = waba.Name
+            };
+        }
+
         return new IntegrationResponse
         {
             Id = integration.Id,
@@ -35,6 +46,7 @@ public static class IntegrationDtoMapper
             Provider = integration.Type,
             IsActive = integration.IsActive,
             WhatsAppBusinessAccountId = integration.WhatsAppBusinessAccountId,
+            WhatsAppBusinessAccount = wabaSummary,
             Settings = maskedSettings
         };
     }

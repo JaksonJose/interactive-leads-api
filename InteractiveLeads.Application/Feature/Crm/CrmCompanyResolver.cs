@@ -1,23 +1,17 @@
 using InteractiveLeads.Application.Exceptions;
-using InteractiveLeads.Application.Integrations.Settings;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 
-namespace InteractiveLeads.Application.Feature.Crm.Integrations.Queries;
+namespace InteractiveLeads.Application.Feature.Crm;
 
-public sealed class GetIntegrationQuery : IApplicationRequest<IResponse>
+/// <summary>Resolves the current CRM <see cref="Company"/> id for the authenticated tenant (Owner/Manager flows).</summary>
+internal static class CrmCompanyResolver
 {
-    public Guid IntegrationId { get; set; }
-}
-
-public sealed class GetIntegrationQueryHandler(
-    IApplicationDbContext db,
-    ICurrentUserService currentUserService,
-    IIntegrationSettingsResolver settingsResolver) : IApplicationRequestHandler<GetIntegrationQuery, IResponse>
-{
-    public async Task<IResponse> Handle(GetIntegrationQuery request, CancellationToken cancellationToken)
+    public static async Task<Guid> GetCompanyIdAsync(
+        IApplicationDbContext db,
+        ICurrentUserService currentUserService,
+        CancellationToken cancellationToken)
     {
         var tenantIdentifier = currentUserService.GetUserTenant();
         if (string.IsNullOrWhiteSpace(tenantIdentifier))
@@ -51,22 +45,6 @@ public sealed class GetIntegrationQueryHandler(
             throw new NotFoundException(notFound);
         }
 
-        var integration = await db.Integrations
-            .AsNoTracking()
-            .Include(i => i.WhatsAppBusinessAccount)
-            .Where(i => i.Id == request.IntegrationId && i.CompanyId == companyId)
-            .SingleOrDefaultAsync(cancellationToken);
-
-        if (integration == null)
-        {
-            var response = new ResultResponse();
-            response.AddErrorMessage("Integration not found.", "general.not_found");
-            throw new NotFoundException(response);
-        }
-
-        var dto = IntegrationDtoMapper.ToResponse(integration, settingsResolver);
-        return new SingleResponse<IntegrationResponse>(dto);
+        return companyId;
     }
 }
-
-
