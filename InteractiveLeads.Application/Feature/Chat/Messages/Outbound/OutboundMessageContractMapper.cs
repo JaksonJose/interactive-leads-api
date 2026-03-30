@@ -10,8 +10,8 @@ internal static class OutboundMessageContractMapper
         string tenantId,
         Conversation conversation,
         string normalizedPhoneNumber,
-        string messageId,
-        Guid clientMessageId,
+        Guid messageId,
+        string clientMessageId,
         MessageType messageType,
         string content,
         string? mediaUrl,
@@ -21,12 +21,14 @@ internal static class OutboundMessageContractMapper
         string? reactionEmoji,
         Guid? reactionMessageId,
         Guid? replyToMessageId,
-        WhatsAppSettings? authSettings)
+        WhatsAppSettings? authSettings,
+        OutboundTemplateMessageContentContract? templateContent = null)
     {
         var messageTypeName = ToContractType(messageType);
+        var eventType = messageType == MessageType.Template ? "send_template" : "send_message";
         var payload = new OutboundMessageContract(
             Provider: ToProvider(conversation.Integration.Type),
-            EventType: "send_message",
+            EventType: eventType,
             TenantId: tenantId,
             ChannelId: conversation.Integration.ExternalIdentifier,
             Auth: BuildAuth(authSettings),
@@ -34,10 +36,10 @@ internal static class OutboundMessageContractMapper
                 Name: conversation.Contact.Name,
                 PhoneNumber: normalizedPhoneNumber),
             Payload: new OutboundMessageBodyContract(
-                Id: messageId,
-                ClientMessageId: clientMessageId.ToString("D"),
+                Id: messageId.ToString("D"),
+                ClientMessageId: clientMessageId,
                 Type: messageTypeName,
-                Content: BuildContent(messageType, content, mediaUrl, caption, fileName, voice, reactionEmoji, reactionMessageId, replyToMessageId)),
+                Content: BuildContent(messageType, content, mediaUrl, caption, fileName, voice, reactionEmoji, reactionMessageId, replyToMessageId, templateContent)),
             Metadata: new OutboundMetadataContract(
                 ConversationId: conversation.Id.ToString(),
                 ReplyToMessageId: replyToMessageId?.ToString()));
@@ -67,7 +69,8 @@ internal static class OutboundMessageContractMapper
         bool? voice,
         string? reactionEmoji,
         Guid? reactionMessageId,
-        Guid? replyToMessageId)
+        Guid? replyToMessageId,
+        OutboundTemplateMessageContentContract? templateContent)
     {
         return messageType switch
         {
@@ -80,6 +83,7 @@ internal static class OutboundMessageContractMapper
             MessageType.Audio => new OutboundAudioContentContract(mediaUrl ?? string.Empty, voice ?? false),
             MessageType.Reaction => new OutboundReactionContentContract(reactionEmoji ?? string.Empty, reactionMessageId?.ToString() ?? string.Empty),
             MessageType.Reply => new OutboundReplyContentContract(content, replyToMessageId?.ToString() ?? string.Empty),
+            MessageType.Template => templateContent is not null ? templateContent : new OutboundTextContentContract(content),
             _ => new OutboundTextContentContract(content)
         };
     }

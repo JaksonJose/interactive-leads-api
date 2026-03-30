@@ -6,6 +6,11 @@ public class MessageCreatedPayloadDto
 {
     public Guid Id { get; set; }
     public Guid ConversationId { get; set; }
+
+    /// <summary>Optional; lets inbox UIs show contact title when the row was created before HTTP reload.</summary>
+    public Guid? ContactId { get; set; }
+
+    public string? ContactName { get; set; }
     public string Text { get; set; } = string.Empty;
     public string Type { get; set; } = "text";
     public MessageMediaListItemDto? Media { get; set; }

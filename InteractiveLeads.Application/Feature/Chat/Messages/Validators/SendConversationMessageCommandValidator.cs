@@ -6,7 +6,7 @@ namespace InteractiveLeads.Application.Feature.Chat.Messages.Validators;
 public sealed class SendConversationMessageCommandValidator : AbstractValidator<SendConversationMessageCommand>
 {
     private static readonly string[] SupportedTypes =
-        ["text", "image", "video", "audio", "document", "reaction", "reply"];
+        ["text", "image", "video", "audio", "document", "reaction", "reply", "template"];
 
     public SendConversationMessageCommandValidator()
     {
@@ -61,6 +61,13 @@ public sealed class SendConversationMessageCommandValidator : AbstractValidator<
             RuleFor(x => x.ReplyToMessageId)
                 .NotNull()
                 .WithMessage("chat.message.reply_to_required:Reply target messageId is required.");
+        });
+
+        When(x => IsType(x.Type, "template"), () =>
+        {
+            RuleFor(x => x.TemplateId)
+                .NotNull()
+                .WithMessage("chat.message.template_id_required:TemplateId is required for template messages.");
         });
     }
 

@@ -80,6 +80,22 @@ public sealed class ConversationsController(IConversationMediaUploadService conv
     }
 
     /// <summary>
+    /// WhatsApp Cloud API: calculates the 24h customer care window state (based on last inbound message).
+    /// When <c>requiresTemplate=true</c>, the UI must force sending a template to re-open the window.
+    /// </summary>
+    [HttpGet("{conversationId:guid}/whatsapp-window")]
+    [OpenApiOperation("Get WhatsApp 24h window policy for a conversation")]
+    public async Task<IActionResult> GetWhatsAppWindowAsync(Guid conversationId)
+    {
+        var response = await Sender.Send(new GetWhatsAppConversationWindowPolicyQuery
+        {
+            ConversationId = conversationId
+        });
+
+        return Ok(response);
+    }
+
+    /// <summary>
     /// Send a message from chat to the backend (MVP: persist outbound only).
     /// </summary>
     [HttpPost("{conversationId:guid}/messages")]
@@ -93,6 +109,7 @@ public sealed class ConversationsController(IConversationMediaUploadService conv
         {
             ConversationId = conversationId,
             Content = request.Content,
+            ClientTimestamp = request.ClientTimestamp,
             ExternalMessageId = request.ExternalMessageId,
             Type = request.Type,
             MediaUrl = request.MediaUrl,
@@ -106,7 +123,10 @@ public sealed class ConversationsController(IConversationMediaUploadService conv
             Voice = request.Voice,
             ReactionEmoji = request.ReactionEmoji,
             ReactionMessageId = request.ReactionMessageId,
-            ReplyToMessageId = request.ReplyToMessageId
+            ReplyToMessageId = request.ReplyToMessageId,
+            TemplateId = request.TemplateId,
+            TemplateBodyParameters = request.TemplateBodyParameters,
+            TemplateHeaderParameter = request.TemplateHeaderParameter
         });
 
         return Ok(response);

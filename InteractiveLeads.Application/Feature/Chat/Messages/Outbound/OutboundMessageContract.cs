@@ -59,3 +59,23 @@ public sealed record OutboundDocumentContentContract(
 public sealed record OutboundAudioContentContract(
     [property: JsonPropertyName("url")] string Url,
     [property: JsonPropertyName("voice")] bool Voice);
+
+/// <summary>
+/// WhatsApp Cloud API template message payload.
+/// Shape is intentionally close to Meta \"messages\" endpoint template format.
+/// </summary>
+public sealed record OutboundTemplateMessageContentContract(
+    [property: JsonPropertyName("templateId")] string TemplateId,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("language")] string Language,
+    [property: JsonPropertyName("components")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<OutboundTemplateComponentContract>? Components);
+
+public sealed record OutboundTemplateComponentContract(
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("parameters")] IReadOnlyList<OutboundTemplateParameterContract> Parameters);
+
+public sealed record OutboundTemplateParameterContract(
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("text")] string Text);

@@ -31,8 +31,8 @@ public sealed class RabbitMqOutboundMessagePublisher(
 
         await DeclareOutboundTopologyAsync(channel, settings, cancellationToken);
 
-        var payload = new OutboundMessageDispatch(contract);
-        var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload, JsonOptions));
+        // Publish the contract directly (no { message: ... } wrapper).
+        var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(contract, JsonOptions));
 
         var props = new BasicProperties
         {
