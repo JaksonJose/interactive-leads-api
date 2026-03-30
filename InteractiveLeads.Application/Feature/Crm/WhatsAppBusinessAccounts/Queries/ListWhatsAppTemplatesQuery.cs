@@ -108,7 +108,10 @@ public sealed class ListWhatsAppTemplatesQueryHandler(
                 t.Category,
                 t.Status,
                 t.LastSyncedAt,
-                t.ComponentsJson
+                t.ComponentsJson,
+                t.SubmissionLastError,
+                t.SubmissionLastErrorCode,
+                t.SubmissionLastErrorAt
             })
             .ToListAsync(cancellationToken);
 
@@ -128,7 +131,13 @@ public sealed class ListWhatsAppTemplatesQueryHandler(
                 LastSyncedAt = r.LastSyncedAt,
                 SubmissionCorrelationId = null,
                 VariableSlotCount = detail.VariableSlotCount,
-                VariableBindingsComplete = detail.VariableBindingsComplete
+                VariableBindingsComplete = detail.VariableBindingsComplete,
+                SubmissionLastError = r.SubmissionLastError,
+                SubmissionLastErrorCode = r.SubmissionLastErrorCode,
+                SubmissionLastErrorAt = r.SubmissionLastErrorAt,
+                IsAvailableForMessaging = WhatsAppTemplateMessagingRules.IsAvailableForMessaging(
+                    r.MetaTemplateId,
+                    r.SubmissionLastErrorAt)
             });
         }
 

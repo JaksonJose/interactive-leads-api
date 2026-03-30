@@ -16,6 +16,15 @@ public class WhatsAppTemplate
 
     public string Status { get; set; } = string.Empty;
 
+    /// <summary>Last error message from the template outbound worker (Meta create failed); cleared when <see cref="MetaTemplateId"/> is set.</summary>
+    public string? SubmissionLastError { get; set; }
+
+    /// <summary>Optional provider or internal error code (e.g. Meta <c>error_subcode</c>).</summary>
+    public string? SubmissionLastErrorCode { get; set; }
+
+    /// <summary>When <see cref="SubmissionLastError"/> was recorded.</summary>
+    public DateTimeOffset? SubmissionLastErrorAt { get; set; }
+
     public Guid WhatsAppBusinessAccountId { get; set; }
 
     public WhatsAppBusinessAccount WhatsAppBusinessAccount { get; set; } = default!;

@@ -149,6 +149,17 @@ public sealed class MessageService(
                 throw new BadRequestException(response);
             }
 
+            if (!WhatsAppTemplateMessagingRules.IsAvailableForMessaging(
+                    templateRow.MetaTemplateId,
+                    templateRow.SubmissionLastErrorAt))
+            {
+                var response = new ResultResponse();
+                response.AddErrorMessage(
+                    "This template is not available on WhatsApp yet (still pending or submission failed). Open Integrations to review status.",
+                    "chat.message.template_not_on_whatsapp");
+                throw new BadRequestException(response);
+            }
+
             outboundTemplateContent = await BuildOutboundTemplateContentAsync(
                 templateRow,
                 request,

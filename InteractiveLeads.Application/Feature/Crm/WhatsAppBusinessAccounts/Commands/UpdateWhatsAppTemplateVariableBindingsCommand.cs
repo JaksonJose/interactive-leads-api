@@ -96,6 +96,12 @@ public sealed class UpdateWhatsAppTemplateVariableBindingsCommandHandler(
         };
 
         WhatsAppTemplateDetailContentMapper.HydrateFromComponentsJson(dto, entity.ComponentsJson);
+        dto.SubmissionLastError = entity.SubmissionLastError;
+        dto.SubmissionLastErrorCode = entity.SubmissionLastErrorCode;
+        dto.SubmissionLastErrorAt = entity.SubmissionLastErrorAt;
+        dto.IsAvailableForMessaging = WhatsAppTemplateMessagingRules.IsAvailableForMessaging(
+            entity.MetaTemplateId,
+            entity.SubmissionLastErrorAt);
 
         return new SingleResponse<WhatsAppTemplateDetailDto>(dto);
     }

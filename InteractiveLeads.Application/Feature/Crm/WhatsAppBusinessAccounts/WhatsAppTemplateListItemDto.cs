@@ -23,4 +23,13 @@ public sealed class WhatsAppTemplateListItemDto
 
     /// <summary>All slots mapped to CRM fields (or no placeholders).</summary>
     public bool VariableBindingsComplete { get; set; } = true;
+
+    public string? SubmissionLastError { get; set; }
+
+    public string? SubmissionLastErrorCode { get; set; }
+
+    public DateTimeOffset? SubmissionLastErrorAt { get; set; }
+
+    /// <summary>False when there is no Meta template id yet, or a submission error was recorded.</summary>
+    public bool IsAvailableForMessaging { get; set; }
 }

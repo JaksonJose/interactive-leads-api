@@ -42,4 +42,13 @@ public sealed class WhatsAppTemplateDetailDto
 
     /// <summary>False when template has Meta placeholders but not all slots have a semantic binding.</summary>
     public bool VariableBindingsComplete { get; set; } = true;
+
+    public string? SubmissionLastError { get; set; }
+
+    public string? SubmissionLastErrorCode { get; set; }
+
+    public DateTimeOffset? SubmissionLastErrorAt { get; set; }
+
+    /// <summary>False when there is no Meta template id yet, or a submission error was recorded.</summary>
+    public bool IsAvailableForMessaging { get; set; }
 }

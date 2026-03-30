@@ -56,7 +56,13 @@ public sealed class GetWhatsAppTemplateQueryHandler(
             Language = entity.Language,
             Category = entity.Category,
             Status = entity.Status,
-            Body = string.Empty
+            Body = string.Empty,
+            SubmissionLastError = entity.SubmissionLastError,
+            SubmissionLastErrorCode = entity.SubmissionLastErrorCode,
+            SubmissionLastErrorAt = entity.SubmissionLastErrorAt,
+            IsAvailableForMessaging = WhatsAppTemplateMessagingRules.IsAvailableForMessaging(
+                entity.MetaTemplateId,
+                entity.SubmissionLastErrorAt)
         };
 
         WhatsAppTemplateDetailContentMapper.HydrateFromComponentsJson(dto, entity.ComponentsJson);

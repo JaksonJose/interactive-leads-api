@@ -32,6 +32,15 @@ public class WhatsAppTemplateConfiguration : IEntityTypeConfiguration<WhatsAppTe
             .IsRequired()
             .HasMaxLength(64);
 
+        builder.Property(t => t.SubmissionLastError)
+            .HasMaxLength(2000);
+
+        builder.Property(t => t.SubmissionLastErrorCode)
+            .HasMaxLength(128);
+
+        builder.Property(t => t.SubmissionLastErrorAt)
+            .HasColumnType("timestamp with time zone");
+
         builder.Property(t => t.ComponentsJson)
             .IsRequired()
             .HasColumnType("jsonb");
