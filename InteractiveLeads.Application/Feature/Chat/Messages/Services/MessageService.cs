@@ -1,6 +1,7 @@
 using System.Text.Json;
 using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Chat;
+using InteractiveLeads.Application.Common.PhoneNumbers;
 using InteractiveLeads.Application.Feature.Chat.Messages.Outbound;
 using InteractiveLeads.Application.Integrations.Settings;
 using InteractiveLeads.Application.Interfaces;
@@ -147,7 +148,7 @@ public sealed class MessageService(
             outboundTemplateContent = BuildOutboundTemplateContent(templateRow, request);
         }
 
-        var normalizedPhone = NormalizePhoneNumber(conversation.Contact.Phone ?? string.Empty);
+        var normalizedPhone = PhoneNumberNormalizer.ToNormalizedDigits(conversation.Contact.Phone ?? string.Empty, "BR");
         if (string.IsNullOrWhiteSpace(normalizedPhone))
         {
             var response = new ResultResponse();
@@ -385,6 +386,8 @@ public sealed class MessageService(
             {
                 Id = message.Id,
                 ConversationId = message.ConversationId,
+                ContactId = conversation.ContactId,
+                ContactName = conversation.Contact?.Name,
                 Text = message.Content,
                 Type = message.Type.ToString().ToLowerInvariant(),
                 Media = media,
@@ -584,21 +587,6 @@ public sealed class MessageService(
             "template" => MessageType.Template,
             _ => MessageType.Text
         };
-    }
-
-    private static string NormalizePhoneNumber(string phoneNumber)
-    {
-        if (string.IsNullOrWhiteSpace(phoneNumber))
-            return string.Empty;
-
-        var digits = new string(phoneNumber.Where(char.IsDigit).ToArray());
-        if (string.IsNullOrWhiteSpace(digits))
-            return string.Empty;
-
-        if (digits.StartsWith("00", StringComparison.Ordinal))
-            digits = digits[2..];
-
-        return digits;
     }
 
     private static OutboundTemplateMessageContentContract BuildOutboundTemplateContent(

@@ -11,6 +11,7 @@ using InteractiveLeads.Application.Realtime.Models;
 using InteractiveLeads.Application.Realtime.Services;
 using InteractiveLeads.Domain.Entities;
 using InteractiveLeads.Domain.Enums;
+using InteractiveLeads.Application.Common.PhoneNumbers;
 using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -203,7 +204,9 @@ public sealed class ProcessInboundEventCommandHandler(
                     return;
                 }
 
-                var phone = request.Event.Identifications?.Contact?.PhoneNumber?.Trim() ?? string.Empty;
+                var phone = PhoneNumberNormalizer.ToNormalizedDigits(
+                    request.Event.Identifications?.Contact?.PhoneNumber,
+                    "BR");
                 var name = request.Event.Identifications?.Contact?.Name?.Trim() ?? string.Empty;
 
                 if (string.IsNullOrWhiteSpace(phone))
@@ -284,7 +287,9 @@ public sealed class ProcessInboundEventCommandHandler(
                         {
                             Id = conversation.Id,
                             InboxId = conversation.InboxId,
-                            CreatedAt = conversation.CreatedAt
+                            CreatedAt = conversation.CreatedAt,
+                            ContactId = contact.Id,
+                            ContactName = contact.Name ?? string.Empty
                         }
                     };
 
@@ -426,6 +431,8 @@ public sealed class ProcessInboundEventCommandHandler(
                     {
                         Id = message.Id,
                         ConversationId = message.ConversationId,
+                        ContactId = contact.Id,
+                        ContactName = contact.Name,
                         Text = message.Content,
                         Type = message.Type.ToString().ToLowerInvariant(),
                         Media = resolvedMedia is null
