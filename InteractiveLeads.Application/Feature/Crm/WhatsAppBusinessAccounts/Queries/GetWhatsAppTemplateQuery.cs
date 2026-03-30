@@ -1,5 +1,3 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using InteractiveLeads.Application.Dispatching;
 using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Crm;
@@ -16,15 +14,11 @@ public sealed class GetWhatsAppTemplateQuery : IApplicationRequest<IResponse>
     public Guid TemplateId { get; set; }
 }
 
-public sealed class GetWhatsAppTemplateQueryHandler(IApplicationDbContext db, ICurrentUserService currentUserService)
+public sealed class GetWhatsAppTemplateQueryHandler(
+    IApplicationDbContext db,
+    ICurrentUserService currentUserService)
     : IApplicationRequestHandler<GetWhatsAppTemplateQuery, IResponse>
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
     public async Task<IResponse> Handle(GetWhatsAppTemplateQuery request, CancellationToken cancellationToken)
     {
         var companyId = await CrmCompanyResolver.GetCompanyIdAsync(db, currentUserService, cancellationToken);
@@ -35,47 +29,37 @@ public sealed class GetWhatsAppTemplateQueryHandler(IApplicationDbContext db, IC
 
         if (!wabaOk)
         {
-            var response = new ResultResponse();
-            response.AddErrorMessage("WhatsApp Business Account not found.", "general.not_found");
-            throw new NotFoundException(response);
+            var r = new ResultResponse();
+            r.AddErrorMessage("WhatsApp Business Account not found.", "general.not_found");
+            throw new NotFoundException(r);
         }
 
         var entity = await db.WhatsAppTemplates
             .AsNoTracking()
-            .Where(t => t.Id == request.TemplateId && t.WhatsAppBusinessAccountId == request.WhatsAppBusinessAccountId)
-            .SingleOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(
+                t => t.Id == request.TemplateId && t.WhatsAppBusinessAccountId == request.WhatsAppBusinessAccountId,
+                cancellationToken);
 
         if (entity == null)
         {
-            var response = new ResultResponse();
-            response.AddErrorMessage("Template not found.", "general.not_found");
-            throw new NotFoundException(response);
-        }
-
-        CreateWhatsAppTemplateRequest? draft = null;
-        try
-        {
-            draft = JsonSerializer.Deserialize<CreateWhatsAppTemplateRequest>(entity.ComponentsJson, JsonOptions);
-        }
-        catch (JsonException)
-        {
-            // Fall through with null draft
+            var r = new ResultResponse();
+            r.AddErrorMessage("Template not found.", "general.not_found");
+            throw new NotFoundException(r);
         }
 
         var dto = new WhatsAppTemplateDetailDto
         {
             Id = entity.Id,
+            MetaTemplateId = entity.MetaTemplateId,
+            LastSyncedAt = entity.LastSyncedAt,
             Name = entity.Name,
             Language = entity.Language,
             Category = entity.Category,
             Status = entity.Status,
-            Body = draft?.Body ?? string.Empty,
-            HeaderText = string.IsNullOrWhiteSpace(draft?.HeaderText) ? null : draft!.HeaderText.Trim(),
-            HeaderExample = string.IsNullOrWhiteSpace(draft?.HeaderExample) ? null : draft.HeaderExample.Trim(),
-            BodyExamples = draft?.BodyExamples,
-            Footer = string.IsNullOrWhiteSpace(draft?.Footer) ? null : draft!.Footer.Trim(),
-            Buttons = draft?.Buttons
+            Body = string.Empty
         };
+
+        WhatsAppTemplateDetailContentMapper.HydrateFromComponentsJson(dto, entity.ComponentsJson);
 
         return new SingleResponse<WhatsAppTemplateDetailDto>(dto);
     }

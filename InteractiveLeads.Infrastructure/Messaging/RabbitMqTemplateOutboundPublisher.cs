@@ -21,7 +21,16 @@ public sealed class RabbitMqTemplateOutboundPublisher(
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
 
-    public async Task PublishCreateTemplateAsync(TemplateCreateOutboundMessage message, CancellationToken cancellationToken)
+    public Task PublishCreateTemplateAsync(TemplateCreateOutboundMessage message, CancellationToken cancellationToken) =>
+        PublishJsonToTemplateOutboundAsync(message, cancellationToken);
+
+    public Task PublishDeleteTemplateAsync(TemplateDeleteOutboundMessage message, CancellationToken cancellationToken) =>
+        PublishJsonToTemplateOutboundAsync(message, cancellationToken);
+
+    public Task PublishTemplateSyncedAsync(TemplateSyncedOutboundMessage message, CancellationToken cancellationToken) =>
+        PublishJsonToTemplateOutboundAsync(message, cancellationToken);
+
+    private async Task PublishJsonToTemplateOutboundAsync(object message, CancellationToken cancellationToken)
     {
         var settings = options.Value;
 

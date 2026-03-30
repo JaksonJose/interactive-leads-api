@@ -10,4 +10,10 @@ public sealed class NoopTemplateOutboundPublisher : ITemplateOutboundPublisher
 
     public Task PublishCreateTemplateAsync(TemplateCreateOutboundMessage message, CancellationToken cancellationToken) =>
         Task.CompletedTask;
+
+    public Task PublishDeleteTemplateAsync(TemplateDeleteOutboundMessage message, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
+    public Task PublishTemplateSyncedAsync(TemplateSyncedOutboundMessage message, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
 }

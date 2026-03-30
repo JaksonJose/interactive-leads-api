@@ -10,7 +10,7 @@ using RabbitMQ.Client.Events;
 
 namespace InteractiveLeads.Infrastructure.Messaging;
 
-/// <summary>Consumes <see cref="RabbitMqSettings.TemplateInboundQueueName"/> (<c>eventType: template</c>).</summary>
+/// <summary>Consumes <see cref="RabbitMqSettings.TemplateInboundQueueName"/> (<c>template</c> lifecycle, <c>template_synced</c> Meta upsert).</summary>
 public sealed class TemplateInboundWorker(
     IRabbitMqConnectionFactoryProvider connectionFactoryProvider,
     IServiceProvider serviceProvider,

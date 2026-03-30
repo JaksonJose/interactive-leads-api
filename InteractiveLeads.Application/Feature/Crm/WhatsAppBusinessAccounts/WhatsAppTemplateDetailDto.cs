@@ -1,9 +1,13 @@
 namespace InteractiveLeads.Application.Feature.Crm.WhatsAppBusinessAccounts;
 
-/// <summary>Template row plus editable fields deserialized from <c>ComponentsJson</c>.</summary>
+/// <summary>Template row plus content hydrated from <c>ComponentsJson</c> (CRM create shape or Meta sync shape).</summary>
 public sealed class WhatsAppTemplateDetailDto
 {
     public Guid Id { get; set; }
+
+    public string MetaTemplateId { get; set; } = string.Empty;
+
+    public DateTimeOffset LastSyncedAt { get; set; }
 
     public string Name { get; set; } = string.Empty;
 

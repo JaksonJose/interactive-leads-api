@@ -2,6 +2,7 @@ using InteractiveLeads.Api.Controllers.Base;
 using InteractiveLeads.Application.Feature.Crm.WhatsAppBusinessAccounts;
 using InteractiveLeads.Application.Feature.Crm.WhatsAppBusinessAccounts.Commands;
 using InteractiveLeads.Application.Feature.Crm.WhatsAppBusinessAccounts.Queries;
+using InteractiveLeads.Application.Requests;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NSwag.Annotations;
@@ -39,12 +40,41 @@ public sealed class WhatsAppBusinessAccountsController : BaseApiController
         return Ok(response);
     }
 
-    /// <summary>List cached message templates for the WABA.</summary>
-    [HttpGet("{wabaId:guid}/templates")]
-    [OpenApiOperation("List WhatsApp message templates for WABA")]
-    public async Task<IActionResult> ListTemplatesAsync(Guid wabaId)
+    /// <summary>Get one template (metadata + body/header/footer/buttons hydrated from <c>ComponentsJson</c>).</summary>
+    [HttpGet("{wabaId:guid}/templates/{templateId:guid}")]
+    [OpenApiOperation("Get WhatsApp message template by id")]
+    public async Task<IActionResult> GetTemplateAsync(Guid wabaId, Guid templateId)
     {
-        var response = await Sender.Send(new ListWhatsAppTemplatesQuery { WhatsAppBusinessAccountId = wabaId });
+        var response = await Sender.Send(new GetWhatsAppTemplateQuery
+        {
+            WhatsAppBusinessAccountId = wabaId,
+            TemplateId = templateId
+        });
+        return Ok(response);
+    }
+
+    /// <summary>List cached message templates for the WABA (<see cref="InquiryRequest"/> body, same as <c>AdminTenants/list</c>).</summary>
+    [HttpPost("{wabaId:guid}/templates/list")]
+    [OpenApiOperation("List WhatsApp message templates for WABA (inquiry)")]
+    public async Task<IActionResult> ListTemplatesInquiryAsync(Guid wabaId, [FromBody] InquiryRequest? inquiry)
+    {
+        var response = await Sender.Send(new ListWhatsAppTemplatesQuery
+        {
+            WhatsAppBusinessAccountId = wabaId,
+            Pagination = inquiry ?? new InquiryRequest()
+        });
+        return Ok(response);
+    }
+
+    /// <summary>Queue a full template list sync from Meta (<c>template_synced</c> on <c>interactive-template-outbound</c> when RabbitMQ is enabled).</summary>
+    [HttpPost("{wabaId:guid}/templates/sync")]
+    [OpenApiOperation("Request WhatsApp templates sync (RabbitMQ)")]
+    public async Task<IActionResult> RequestTemplatesSyncAsync(Guid wabaId)
+    {
+        var response = await Sender.Send(new RequestWhatsAppTemplatesSyncCommand
+        {
+            WhatsAppBusinessAccountId = wabaId
+        });
         return Ok(response);
     }
 
@@ -61,32 +91,19 @@ public sealed class WhatsAppBusinessAccountsController : BaseApiController
         return Ok(response);
     }
 
-    /// <summary>Get one template (for edit).</summary>
-    [HttpGet("{wabaId:guid}/templates/{templateId:guid}")]
-    [OpenApiOperation("Get WhatsApp message template by id")]
-    public async Task<IActionResult> GetTemplateAsync(Guid wabaId, Guid templateId)
-    {
-        var response = await Sender.Send(new GetWhatsAppTemplateQuery
-        {
-            WhatsAppBusinessAccountId = wabaId,
-            TemplateId = templateId
-        });
-        return Ok(response);
-    }
-
-    /// <summary>Update template content (name/language unchanged).</summary>
-    [HttpPut("{wabaId:guid}/templates/{templateId:guid}")]
-    [OpenApiOperation("Update WhatsApp message template for WABA")]
-    public async Task<IActionResult> UpdateTemplateAsync(
+    /// <summary>Delete a template (body must include the template name for Meta); queued as <c>delete_template</c> when RabbitMQ is enabled.</summary>
+    [HttpDelete("{wabaId:guid}/templates/{templateId:guid}")]
+    [OpenApiOperation("Delete WhatsApp message template for WABA")]
+    public async Task<IActionResult> DeleteTemplateAsync(
         Guid wabaId,
         Guid templateId,
-        [FromBody] UpdateWhatsAppTemplateRequest request)
+        [FromBody] DeleteWhatsAppTemplateRequest request)
     {
-        var response = await Sender.Send(new UpdateWhatsAppTemplateCommand
+        var response = await Sender.Send(new DeleteWhatsAppTemplateCommand
         {
             WhatsAppBusinessAccountId = wabaId,
             TemplateId = templateId,
-            Template = request
+            Request = request
         });
         return Ok(response);
     }
