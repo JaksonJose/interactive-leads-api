@@ -29,6 +29,7 @@ public sealed class HttpOutboundMessageDispatcher(
             using var request = new HttpRequestMessage(HttpMethod.Post, SendPath)
             {
                 Content = new StringContent(
+                    // Send payload directly (no { message: ... } wrapper).
                     JsonSerializer.Serialize(payload, JsonOptions),
                     Encoding.UTF8,
                     "application/json")

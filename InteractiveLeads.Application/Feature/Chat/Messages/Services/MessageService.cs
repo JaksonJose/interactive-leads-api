@@ -108,6 +108,45 @@ public sealed class MessageService(
         ValidateProviderSupport(conversation);
         await EnsureReplyAndReactionMessageAsync(conversation.Id, request, messageType, cancellationToken);
 
+        await EnforceWhatsApp24hTemplatePolicyAsync(conversation.Id, conversation.Integration.Type, messageType, cancellationToken);
+
+        OutboundTemplateMessageContentContract? outboundTemplateContent = null;
+        WhatsAppTemplate? templateRow = null;
+        if (messageType == MessageType.Template)
+        {
+            if (!request.TemplateId.HasValue)
+            {
+                var response = new ResultResponse();
+                response.AddErrorMessage("TemplateId is required for template messages.", "chat.message.template_id_required");
+                throw new BadRequestException(response);
+            }
+
+            var wabaId = conversation.Integration.WhatsAppBusinessAccountId;
+            if (!wabaId.HasValue)
+            {
+                var response = new ResultResponse();
+                response.AddErrorMessage(
+                    "WhatsApp Business Account (WABA) is not set for this integration; templates are unavailable.",
+                    "chat.message.waba_missing_for_template");
+                throw new BadRequestException(response);
+            }
+
+            templateRow = await db.WhatsAppTemplates
+                .AsNoTracking()
+                .SingleOrDefaultAsync(t => t.Id == request.TemplateId.Value, cancellationToken);
+
+            if (templateRow is null || templateRow.WhatsAppBusinessAccountId != wabaId.Value)
+            {
+                var response = new ResultResponse();
+                response.AddErrorMessage(
+                    "Template does not belong to this WhatsApp Business Account (WABA).",
+                    "chat.message.template_not_available");
+                throw new BadRequestException(response);
+            }
+
+            outboundTemplateContent = BuildOutboundTemplateContent(templateRow, request);
+        }
+
         var normalizedPhone = NormalizePhoneNumber(conversation.Contact.Phone ?? string.Empty);
         if (string.IsNullOrWhiteSpace(normalizedPhone))
         {
@@ -123,6 +162,13 @@ public sealed class MessageService(
         var senderUserId = Guid.TryParse(currentUserService.GetUserId(), out var userGuid) ? userGuid : (Guid?)null;
         var metadataJson = BuildMessageMetadataJson(conversation, request, idempotencyMessageId);
         var messageContent = ResolvePersistedMessageContent(request, messageType);
+        if (messageType == MessageType.Template && templateRow is not null)
+        {
+            var friendly = $"[Template] {templateRow.Name}";
+            if (!string.IsNullOrWhiteSpace(request.Content))
+                friendly = request.Content.Trim();
+            messageContent = friendly;
+        }
 
         var message = new Message
         {
@@ -161,8 +207,8 @@ public sealed class MessageService(
             tenantId,
             conversation,
             normalizedPhone,
-            idempotencyMessageId,
             message.Id,
+            idempotencyMessageId,
             messageType,
             request.Content?.Trim() ?? string.Empty,
             request.MediaUrl?.Trim(),
@@ -172,7 +218,8 @@ public sealed class MessageService(
             request.ReactionEmoji?.Trim(),
             request.ReactionMessageId,
             request.ReplyToMessageId,
-            whatsappSettings);
+            whatsappSettings,
+            outboundTemplateContent);
 
         var dispatchOutcome = await outboundDispatcher.SendMessageAsync(payload, cancellationToken);
         if (dispatchOutcome.Response.HasAnyErrorMessage)
@@ -425,6 +472,8 @@ public sealed class MessageService(
             MessageType.Audio => request.Caption?.Trim()
                 ?? request.FileName?.Trim()
                 ?? string.Empty,
+            MessageType.Template => request.Content?.Trim()
+                ?? (!request.TemplateId.HasValue ? "[Template]" : $"[Template] {request.TemplateId.Value:D}"),
             MessageType.Reaction => request.ReactionEmoji?.Trim() ?? string.Empty,
             _ => request.Content?.Trim() ?? string.Empty
         };
@@ -452,7 +501,10 @@ public sealed class MessageService(
                 voice = request.Voice,
                 reactionEmoji = request.ReactionEmoji?.Trim(),
                 reactionMessageId = request.ReactionMessageId,
-                replyToMessageId = request.ReplyToMessageId
+                replyToMessageId = request.ReplyToMessageId,
+                templateId = request.TemplateId,
+                templateBodyParameters = request.TemplateBodyParameters,
+                templateHeaderParameter = request.TemplateHeaderParameter
             }
         };
 
@@ -478,6 +530,45 @@ public sealed class MessageService(
         throw new BadRequestException(response);
     }
 
+    private async Task EnforceWhatsApp24hTemplatePolicyAsync(
+        Guid conversationId,
+        IntegrationType integrationType,
+        MessageType messageType,
+        CancellationToken cancellationToken)
+    {
+        if (integrationType != IntegrationType.WhatsApp)
+            return;
+
+        if (messageType == MessageType.Template)
+            return;
+
+        var lastInboundAt = await db.Messages
+            .AsNoTracking()
+            .Where(m => m.ConversationId == conversationId && m.Direction == MessageDirection.Inbound)
+            .OrderByDescending(m => m.MessageDate)
+            .Select(m => (DateTimeOffset?)m.MessageDate)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (!lastInboundAt.HasValue)
+        {
+            var response = new ResultResponse();
+            response.AddErrorMessage(
+                "WhatsApp 24h window expired or missing; template is required to re-open the conversation.",
+                "chat.message.whatsapp_template_required");
+            throw new BadRequestException(response);
+        }
+
+        var freeReplyUntil = lastInboundAt.Value.AddHours(24);
+        if (DateTimeOffset.UtcNow <= freeReplyUntil)
+            return;
+
+        var responseExpired = new ResultResponse();
+        responseExpired.AddErrorMessage(
+            "WhatsApp 24h window expired; template is required to re-open the conversation.",
+            "chat.message.whatsapp_template_required");
+        throw new BadRequestException(responseExpired);
+    }
+
     private static MessageType ParseMessageType(string? type)
     {
         var normalized = type?.Trim().ToLowerInvariant() ?? "text";
@@ -490,6 +581,7 @@ public sealed class MessageService(
             "document" => MessageType.Document,
             "reaction" => MessageType.Reaction,
             "reply" => MessageType.Reply,
+            "template" => MessageType.Template,
             _ => MessageType.Text
         };
     }
@@ -507,6 +599,44 @@ public sealed class MessageService(
             digits = digits[2..];
 
         return digits;
+    }
+
+    private static OutboundTemplateMessageContentContract BuildOutboundTemplateContent(
+        WhatsAppTemplate templateRow,
+        SendConversationMessageRequest request)
+    {
+        var components = new List<OutboundTemplateComponentContract>();
+
+        var headerParam = (request.TemplateHeaderParameter ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(headerParam))
+        {
+            components.Add(new OutboundTemplateComponentContract(
+                Type: "header",
+                Parameters: new[]
+                {
+                    new OutboundTemplateParameterContract(Type: "text", Text: headerParam)
+                }));
+        }
+
+        var bodyParams = request.TemplateBodyParameters ?? Array.Empty<string>();
+        if (bodyParams.Length > 0)
+        {
+            components.Add(new OutboundTemplateComponentContract(
+                Type: "body",
+                Parameters: bodyParams
+                    .Select(x => new OutboundTemplateParameterContract(Type: "text", Text: (x ?? string.Empty).Trim()))
+                    .ToList()));
+        }
+
+        var providerTemplateId = string.IsNullOrWhiteSpace(templateRow.MetaTemplateId)
+            ? templateRow.Id.ToString("D")
+            : templateRow.MetaTemplateId.Trim();
+
+        return new OutboundTemplateMessageContentContract(
+            TemplateId: providerTemplateId,
+            Name: templateRow.Name,
+            Language: templateRow.Language,
+            Components: components.Count == 0 ? null : components);
     }
 
     /// <summary>CRM row: for transcoded audio, store the M4A file name; otherwise the delivery file name.</summary>

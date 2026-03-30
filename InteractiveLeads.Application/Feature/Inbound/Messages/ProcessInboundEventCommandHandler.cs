@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using InteractiveLeads.Application.Feature.Chat.Messages;
 using InteractiveLeads.Application.Feature.Inbound;
@@ -187,6 +187,7 @@ public sealed class ProcessInboundEventCommandHandler(
                             outboundForAck.Id,
                             outboundForAck.ConversationId,
                             outboundForAck.Status,
+                            failureMessage: null,
                             cancellationToken);
 
                         return;
@@ -516,13 +517,11 @@ public sealed class ProcessInboundEventCommandHandler(
         }
 
         var providerMessageId = ResolveStatusProviderMessageId(statusPayload);
-        Guid? clientMessageId = null;
-        if (string.IsNullOrWhiteSpace(providerMessageId) &&
-            !string.IsNullOrWhiteSpace(statusPayload.ClientMessageId) &&
-            Guid.TryParse(statusPayload.ClientMessageId.Trim(), out var parsedClient))
-            clientMessageId = parsedClient;
+        var clientMessageId = string.IsNullOrWhiteSpace(statusPayload.ClientMessageId)
+            ? null
+            : statusPayload.ClientMessageId.Trim();
 
-        if (string.IsNullOrWhiteSpace(providerMessageId) && clientMessageId is null)
+        if (string.IsNullOrWhiteSpace(providerMessageId) && string.IsNullOrWhiteSpace(clientMessageId))
         {
             SetPermanent(result, "missing_message_id");
             return;
@@ -581,16 +580,24 @@ public sealed class ProcessInboundEventCommandHandler(
 
                 var companyId = integration.CompanyId;
 
-                var message = clientMessageId.HasValue
-                    ? await (
+                // clientMessageId here is the outbound ExternalMessageId (idempotency key sent by the frontend),
+                // NOT the internal Message.Id.
+                Message? message = null;
+                if (!string.IsNullOrWhiteSpace(clientMessageId))
+                {
+                    message = await (
                         from m in db.Messages
                         join c in db.Conversations on m.ConversationId equals c.Id
-                        where m.Id == clientMessageId.Value
+                        where m.ExternalMessageId == clientMessageId
                               && c.IntegrationId == integration.Id
                               && c.CompanyId == companyId
                               && m.Direction == MessageDirection.Outbound
-                        select m).SingleOrDefaultAsync(cancellationToken)
-                    : await (
+                        select m).SingleOrDefaultAsync(cancellationToken);
+                }
+
+                if (message == null && !string.IsNullOrWhiteSpace(providerMessageId))
+                {
+                    message = await (
                         from m in db.Messages
                         join c in db.Conversations on m.ConversationId equals c.Id
                         where m.ExternalMessageId == providerMessageId!.Trim()
@@ -598,6 +605,7 @@ public sealed class ProcessInboundEventCommandHandler(
                               && c.CompanyId == companyId
                               && m.Direction == MessageDirection.Outbound
                         select m).SingleOrDefaultAsync(cancellationToken);
+                }
 
                 if (message == null)
                 {
@@ -634,11 +642,16 @@ public sealed class ProcessInboundEventCommandHandler(
                     message.Id,
                     newStatus);
 
+                var failureMessage = newStatus == MessageStatus.Failed
+                    ? ResolveStatusFailureMessage(request.Event.Payload)
+                    : null;
+
                 await TryPublishMessageStatusUpdatedAsync(
                     lookup.TenantId,
                     message.Id,
                     message.ConversationId,
                     message.Status,
+                    failureMessage,
                     cancellationToken);
             });
         });
@@ -649,6 +662,7 @@ public sealed class ProcessInboundEventCommandHandler(
         Guid messageId,
         Guid conversationId,
         MessageStatus status,
+        string? failureMessage,
         CancellationToken cancellationToken)
     {
         try
@@ -662,7 +676,8 @@ public sealed class ProcessInboundEventCommandHandler(
                 {
                     Id = messageId,
                     ConversationId = conversationId,
-                    Status = MessageListItemDtoMapper.ToStatusString(status)
+                    Status = MessageListItemDtoMapper.ToStatusString(status),
+                    FailureMessage = string.IsNullOrWhiteSpace(failureMessage) ? null : failureMessage.Trim()
                 }
             };
 
@@ -681,6 +696,42 @@ public sealed class ProcessInboundEventCommandHandler(
             var t = candidate?.Trim();
             if (!string.IsNullOrWhiteSpace(t))
                 return t;
+        }
+
+        return null;
+    }
+
+    private static string? ResolveStatusFailureMessage(JsonElement payload)
+    {
+        // Expected (example):
+        // payload.error.error.message
+        try
+        {
+            if (payload.ValueKind != JsonValueKind.Object)
+                return null;
+
+            if (!payload.TryGetProperty("error", out var e1))
+                return null;
+
+            if (e1.ValueKind == JsonValueKind.Object &&
+                e1.TryGetProperty("error", out var e2) &&
+                e2.ValueKind == JsonValueKind.Object &&
+                e2.TryGetProperty("message", out var msgEl))
+            {
+                var msg = msgEl.GetString();
+                return string.IsNullOrWhiteSpace(msg) ? null : msg;
+            }
+
+            // Fallbacks
+            if (e1.ValueKind == JsonValueKind.Object && e1.TryGetProperty("message", out var msgEl2))
+            {
+                var msg = msgEl2.GetString();
+                return string.IsNullOrWhiteSpace(msg) ? null : msg;
+            }
+        }
+        catch
+        {
+            // ignore parse issues; do not break status handling
         }
 
         return null;

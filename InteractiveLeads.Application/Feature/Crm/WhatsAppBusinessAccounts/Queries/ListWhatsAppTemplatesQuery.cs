@@ -45,6 +45,30 @@ public sealed class ListWhatsAppTemplatesQueryHandler(
             .AsNoTracking()
             .Where(t => t.WhatsAppBusinessAccountId == request.WhatsAppBusinessAccountId);
 
+        // Optional text search (q): matches both template name and serialized components (header/body/footer).
+        var q = (pagination.Filters ?? [])
+            .FirstOrDefault(f => string.Equals(f.Field?.Trim(), "q", StringComparison.OrdinalIgnoreCase))
+            ?.Value
+            ?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            // ComponentsJson is stored as jsonb; use ::text to enable text search.
+            // Using raw SQL here avoids generating invalid SQL like lower(jsonb).
+            var like = $"%{q}%";
+            baseQuery = db.WhatsAppTemplates
+                .FromSqlInterpolated($"""
+                    SELECT *
+                    FROM "Crm"."WhatsAppTemplate" t
+                    WHERE t."WhatsAppBusinessAccountId" = {request.WhatsAppBusinessAccountId}
+                      AND (
+                        t."Name" ILIKE {like}
+                        OR t."ComponentsJson"::text ILIKE {like}
+                      )
+                    """)
+                .AsNoTracking();
+        }
+
         var total = await baseQuery.CountAsync(cancellationToken);
 
         var field = (pagination.SortBy ?? "name").Trim().ToLowerInvariant();

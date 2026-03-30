@@ -1,4 +1,4 @@
-﻿using InteractiveLeads.Application.Interfaces;
+using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Feature.Chat.Messages;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Application.Dispatching;
@@ -9,6 +9,7 @@ public sealed class SendConversationMessageCommand : IApplicationRequest<IRespon
 {
     public Guid ConversationId { get; set; }
     public string Content { get; set; } = string.Empty;
+    public long? ClientTimestamp { get; set; }
     public string? ExternalMessageId { get; set; }
     public string Type { get; set; } = "text";
     public string? MediaUrl { get; set; }
@@ -23,6 +24,15 @@ public sealed class SendConversationMessageCommand : IApplicationRequest<IRespon
     public string? ReactionEmoji { get; set; }
     public Guid? ReactionMessageId { get; set; }
     public Guid? ReplyToMessageId { get; set; }
+
+    /// <summary>WhatsApp template (CRM) id to send when <see cref="Type"/> is <c>template</c>.</summary>
+    public Guid? TemplateId { get; set; }
+
+    /// <summary>Template variables for BODY, in order {{1}}, {{2}}, ...</summary>
+    public string[]? TemplateBodyParameters { get; set; }
+
+    /// <summary>Optional single variable for HEADER when the template uses a text header.</summary>
+    public string? TemplateHeaderParameter { get; set; }
 }
 
 public sealed class SendConversationMessageCommandHandler(
@@ -35,6 +45,7 @@ public sealed class SendConversationMessageCommandHandler(
             new SendConversationMessageRequest
             {
                 Content = request.Content,
+                ClientTimestamp = request.ClientTimestamp,
                 ExternalMessageId = request.ExternalMessageId,
                 Type = request.Type,
                 MediaUrl = request.MediaUrl,
@@ -48,7 +59,10 @@ public sealed class SendConversationMessageCommandHandler(
                 Voice = request.Voice,
                 ReactionEmoji = request.ReactionEmoji,
                 ReactionMessageId = request.ReactionMessageId,
-                ReplyToMessageId = request.ReplyToMessageId
+                ReplyToMessageId = request.ReplyToMessageId,
+                TemplateId = request.TemplateId,
+                TemplateBodyParameters = request.TemplateBodyParameters,
+                TemplateHeaderParameter = request.TemplateHeaderParameter
             },
             cancellationToken);
 

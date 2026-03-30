@@ -27,5 +27,14 @@ public sealed class SendConversationMessageRequest
     public string? ReactionEmoji { get; set; }
     public Guid? ReactionMessageId { get; set; }
     public Guid? ReplyToMessageId { get; set; }
+
+    /// <summary>WhatsApp template (CRM) id to send when <see cref="Type"/> is <c>template</c>.</summary>
+    public Guid? TemplateId { get; set; }
+
+    /// <summary>Template variables for BODY, in order {{1}}, {{2}}, ...</summary>
+    public string[]? TemplateBodyParameters { get; set; }
+
+    /// <summary>Optional single variable for HEADER when the template uses a text header.</summary>
+    public string? TemplateHeaderParameter { get; set; }
 }
 

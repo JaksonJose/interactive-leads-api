@@ -7,4 +7,7 @@ public sealed class MessageStatusUpdatedPayloadDto
 
     /// <summary>Lowercase: pending, sent, delivered, read, failed.</summary>
     public string Status { get; set; } = "pending";
+
+    /// <summary>Optional detail when status is <c>failed</c> (outbound).</summary>
+    public string? FailureMessage { get; set; }
 }
