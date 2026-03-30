@@ -21,9 +21,21 @@ public static class IntegrationDtoMapper
                 {
                     accessToken = "******",
                     phoneNumberId = whatsapp.PhoneNumberId,
-                    businessAccountId = whatsapp.BusinessAccountId
+                    businessAccountId = whatsapp.BusinessAccountId,
+                    inboxId = whatsapp.InboxId
                 },
                 _ => null
+            };
+        }
+
+        WhatsAppBusinessAccountSummary? wabaSummary = null;
+        if (integration.WhatsAppBusinessAccount is { } waba)
+        {
+            wabaSummary = new WhatsAppBusinessAccountSummary
+            {
+                Id = waba.Id,
+                WabaId = waba.WabaId,
+                Name = waba.Name
             };
         }
 
@@ -33,6 +45,8 @@ public static class IntegrationDtoMapper
             Name = integration.Name,
             Provider = integration.Type,
             IsActive = integration.IsActive,
+            WhatsAppBusinessAccountId = integration.WhatsAppBusinessAccountId,
+            WhatsAppBusinessAccount = wabaSummary,
             Settings = maskedSettings
         };
     }

@@ -86,6 +86,45 @@ public sealed class RabbitMqTopologyInitializer(
             arguments: quorumArgs,
             cancellationToken: cancellationToken);
 
+        // WhatsApp template create jobs (API → worker) + inbound template status
+        await channel.ExchangeDeclareAsync(
+            exchange: settings.TemplateOutboundExchangeName,
+            type: ExchangeType.Fanout,
+            durable: true,
+            autoDelete: false,
+            arguments: null,
+            cancellationToken: cancellationToken);
+
+        await channel.QueueDeclareAsync(
+            queue: settings.TemplateOutboundQueueName,
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            arguments: quorumArgs,
+            cancellationToken: cancellationToken);
+
+        await channel.QueueBindAsync(
+            queue: settings.TemplateOutboundQueueName,
+            exchange: settings.TemplateOutboundExchangeName,
+            routingKey: string.Empty,
+            cancellationToken: cancellationToken);
+
+        await channel.QueueDeclareAsync(
+            queue: settings.TemplateInboundQueueName,
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            arguments: quorumArgs,
+            cancellationToken: cancellationToken);
+
+        await channel.QueueDeclareAsync(
+            queue: $"{settings.TemplateInboundQueueName}.error",
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            arguments: quorumArgs,
+            cancellationToken: cancellationToken);
+
         // Delayed redelivery queues for inbound (TTL -> dead-letter back to inbound queue via default exchange).
         await DeclareDelayQueueAsync(channel, settings, "30s", ttlMs: 30_000, quorumArgs, cancellationToken);
         await DeclareDelayQueueAsync(channel, settings, "2m", ttlMs: 120_000, quorumArgs, cancellationToken);

@@ -1,6 +1,7 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Integrations.Settings;
+using InteractiveLeads.Application.Integrations.WhatsApp;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Domain.Entities;
@@ -20,7 +21,8 @@ public sealed class CreateIntegrationCommandHandler(
     ICurrentUserService currentUserService,
     IIntegrationSettingsResolver settingsResolver,
     IIntegrationExternalIdentifierResolver externalIdentifierResolver,
-    IIntegrationExternalIdentifierLookupRepository integrationLookupRepository) : IApplicationRequestHandler<CreateIntegrationCommand, IResponse>
+    IIntegrationExternalIdentifierLookupRepository integrationLookupRepository,
+    IWhatsAppBusinessAccountLinker wabaLinker) : IApplicationRequestHandler<CreateIntegrationCommand, IResponse>
 {
     public async Task<IResponse> Handle(CreateIntegrationCommand request, CancellationToken cancellationToken)
     {
@@ -102,6 +104,13 @@ public sealed class CreateIntegrationCommandHandler(
             throw new BadRequestException(response);
         }
 
+        if (string.IsNullOrWhiteSpace(whatsappSettings.BusinessAccountId?.Trim()))
+        {
+            var response = new ResultResponse();
+            response.AddErrorMessage("WhatsApp Business Account id is required.", "integrations.whatsapp.business_account_id_required");
+            throw new BadRequestException(response);
+        }
+
         var externalIdentifier = externalIdentifierResolver.ResolveExternalIdentifier(provider, whatsappSettings);
 
         var hasDuplicate = await db.Integrations
@@ -151,6 +160,16 @@ public sealed class CreateIntegrationCommandHandler(
 
         var settingsJson = settingsResolver.Serialize(provider, whatsappSettings);
 
+        var wabaId = await wabaLinker.EnsureWabaIdAsync(companyId, whatsappSettings.BusinessAccountId, cancellationToken);
+        if (!wabaId.HasValue)
+        {
+            var wabaMissing = new ResultResponse();
+            wabaMissing.AddErrorMessage(
+                "Register this WhatsApp Business Account under Integrations (WhatsApp → New business account) before adding a phone number.",
+                "integrations.whatsapp.waba_not_registered");
+            throw new BadRequestException(wabaMissing);
+        }
+
         var integration = new Integration
         {
             Id = Guid.NewGuid(),
@@ -160,7 +179,8 @@ public sealed class CreateIntegrationCommandHandler(
             ExternalIdentifier = externalIdentifier,
             Settings = settingsJson,
             IsActive = request.Integration.IsActive,
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow,
+            WhatsAppBusinessAccountId = wabaId
         };
 
         db.Integrations.Add(integration);

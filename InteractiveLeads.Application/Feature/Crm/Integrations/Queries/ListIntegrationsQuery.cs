@@ -1,4 +1,4 @@
-﻿using InteractiveLeads.Application.Exceptions;
+using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Integrations.Settings;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
@@ -61,6 +61,7 @@ public sealed class ListIntegrationsQueryHandler(
         }
 
         var integrations = await query
+            .Include(i => i.WhatsAppBusinessAccount)
             .OrderBy(i => i.Name)
             .ToListAsync(cancellationToken);
 

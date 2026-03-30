@@ -143,12 +143,17 @@ namespace InteractiveLeads.Infrastructure
                 services.AddSingleton<IRabbitMqConnectionFactoryProvider, RabbitMqConnectionFactoryProvider>();
                 services.AddHostedService<RabbitMqTopologyInitializer>();
                 services.AddHostedService<InboundRawJsonWorker>();
+                services.AddHostedService<TemplateInboundWorker>();
                 services.AddInteractiveLeadsRebus(config);
                 services.AddScoped<IOutboundMessagePublisher, RabbitMqOutboundMessagePublisher>();
+                services.AddScoped<ITemplateOutboundPublisher, RabbitMqTemplateOutboundPublisher>();
                 services.AddScoped<IMediaProcessingJobPublisher, MediaProcessingJobPublisher>();
             }
             else
+            {
                 services.AddScoped<IMediaProcessingJobPublisher, NoopMediaProcessingJobPublisher>();
+                services.AddScoped<ITemplateOutboundPublisher, NoopTemplateOutboundPublisher>();
+            }
 
             if (!rabbitMqSettings.Enabled || messageSenderRouting.UseHttpFallback)
                 services.AddScoped<IOutboundMessageDispatcher, HttpOutboundMessageDispatcher>();

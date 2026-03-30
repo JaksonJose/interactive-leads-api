@@ -19,6 +19,9 @@ namespace InteractiveLeads.Infrastructure.Configuration;
 /// <item><description>RabbitMq__UseQuorumQueues</description> — when true (default), inbound receive endpoint and outbound queue binding use quorum queues.</item>
 /// <item><description>RabbitMq__UnprocessedQueueName</description> — optional queue for permanently rejected inbound copies (default <c>chat.unprocessed</c>).</item>
 /// <item><description>RabbitMq__ForwardPermanentRejectionsToUnprocessedQueue</description> — when true, send a copy to the unprocessed queue on permanent reject.</item>
+/// <item><description>RabbitMq__TemplateOutboundExchangeName</description> — fanout exchange for WhatsApp template jobs (default <c>interactive-template-outbound</c>).</item>
+/// <item><description>RabbitMq__TemplateOutboundQueueName</description> — queue bound to the template outbound exchange (default <c>interactive-template-outbound</c>).</item>
+/// <item><description>RabbitMq__TemplateInboundQueueName</description> — queue this API consumes for template status / Meta replies (default <c>interactive-template-inbound</c>).</item>
 /// </list>
 /// </remarks>
 public sealed class RabbitMqSettings
@@ -56,4 +59,13 @@ public sealed class RabbitMqSettings
 
     /// <summary>When true, publish a copy of the event to <see cref="UnprocessedQueueName"/> on permanent rejection.</summary>
     public bool ForwardPermanentRejectionsToUnprocessedQueue { get; set; }
+
+    /// <summary>Fanout exchange for <c>create_template</c> jobs consumed by the Meta template worker.</summary>
+    public string TemplateOutboundExchangeName { get; set; } = "interactive-template-outbound";
+
+    /// <summary>Queue bound to <see cref="TemplateOutboundExchangeName"/>.</summary>
+    public string TemplateOutboundQueueName { get; set; } = "interactive-template-outbound";
+
+    /// <summary>Queue for template lifecycle events (<c>eventType: template</c>) from workers or webhooks.</summary>
+    public string TemplateInboundQueueName { get; set; } = "interactive-template-inbound";
 }

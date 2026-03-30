@@ -1,9 +1,11 @@
 using FluentValidation;
 using InteractiveLeads.Application.Feature.Chat.Media;
 using InteractiveLeads.Application.Feature.Chat.Messages.Services;
+using InteractiveLeads.Application.Feature.Crm.WhatsAppBusinessAccounts.TemplateQueue;
 using InteractiveLeads.Application.Dispatching;
 using InteractiveLeads.Application.Pipelines;
 using InteractiveLeads.Application.Integrations.Settings;
+using InteractiveLeads.Application.Integrations.WhatsApp;
 using InteractiveLeads.Application.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
@@ -51,7 +53,9 @@ namespace InteractiveLeads.Application
             }
 
             services.AddScoped<IIntegrationSettingsResolver, IntegrationSettingsResolver>();
+            services.AddScoped<ITemplateInboundMessageHandler, TemplateInboundMessageHandler>();
             services.AddScoped<IIntegrationExternalIdentifierResolver, IntegrationExternalIdentifierResolver>();
+            services.AddScoped<IWhatsAppBusinessAccountLinker, WhatsAppBusinessAccountLinker>();
             services.AddScoped<IMessageService, MessageService>();
             services.AddScoped<IConversationMediaUploadService, ConversationMediaUploadService>();
 
