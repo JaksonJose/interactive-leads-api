@@ -17,4 +17,10 @@ public sealed class WhatsAppTemplateListItemDto
     public DateTimeOffset LastSyncedAt { get; set; }
 
     public string? SubmissionCorrelationId { get; set; }
+
+    /// <summary>Number of Meta placeholders ({{n}}) in header+body.</summary>
+    public int VariableSlotCount { get; set; }
+
+    /// <summary>All slots mapped to CRM fields (or no placeholders).</summary>
+    public bool VariableBindingsComplete { get; set; } = true;
 }

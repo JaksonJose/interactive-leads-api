@@ -76,4 +76,30 @@ internal static class WhatsAppTemplateMutationValidation
 
         return badRequest.Messages is { Count: > 0 } ? badRequest : null;
     }
+
+    /// <summary>Meta submission requires examples when header/body contain <c>{{n}}</c> placeholders.</summary>
+    public static ResultResponse? ValidateMetaPlaceholderExamples(
+        string? metaHeader,
+        string? headerExample,
+        string metaBody,
+        string[]? bodyExamples)
+    {
+        var badRequest = new ResultResponse();
+        var headerSlots = WhatsAppTemplatePlaceholderCompiler.ParseMetaSlots(metaHeader).Count;
+        if (headerSlots > 0 && string.IsNullOrWhiteSpace(headerExample))
+            badRequest.AddErrorMessage(
+                "Header example is required when the header contains a variable.",
+                "integrations.templates.header_example_required");
+
+        var bodySlotCount = WhatsAppTemplatePlaceholderCompiler.ParseMetaSlots(metaBody).Count;
+        if (bodySlotCount > 0)
+        {
+            if (bodyExamples is not { Length: > 0 } || bodyExamples.Length != bodySlotCount)
+                badRequest.AddErrorMessage(
+                    "Body examples: provide exactly one line per variable, in order {{1}}, {{2}}, …",
+                    "integrations.templates.body_examples_required");
+        }
+
+        return badRequest.Messages is { Count: > 0 } ? badRequest : null;
+    }
 }

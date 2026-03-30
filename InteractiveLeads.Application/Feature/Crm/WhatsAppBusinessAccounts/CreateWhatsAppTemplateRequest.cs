@@ -19,6 +19,12 @@ public sealed class CreateWhatsAppTemplateRequest
 
     public string Category { get; set; } = string.Empty;
 
+    /// <summary>Optional: authoring header with semantic tokens; when null, <see cref="HeaderText"/> is used as authoring input.</summary>
+    public string? AuthoringHeaderText { get; set; }
+
+    /// <summary>Optional: authoring body with semantic tokens; when null, <see cref="Body"/> is used as authoring input.</summary>
+    public string? AuthoringBody { get; set; }
+
     public string? HeaderText { get; set; }
 
     public string? HeaderExample { get; set; }

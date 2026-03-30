@@ -53,7 +53,25 @@ public sealed class CreateWhatsAppTemplateCommandHandler(
         if (language.Length is < 1 or > 32)
             badRequest.AddErrorMessage("Template language is invalid.", "integrations.templates.invalid_language");
 
+        if (badRequest.Messages is { Count: > 0 })
+            throw new BadRequestException(badRequest);
+
         var headerText = string.IsNullOrWhiteSpace(t.HeaderText) ? null : t.HeaderText.Trim();
+        var headerExample = string.IsNullOrWhiteSpace(t.HeaderExample) ? null : t.HeaderExample.Trim();
+        var bodyExamples = t.BodyExamples;
+        var compileError = WhatsAppTemplatePlaceholderCompiler.TryCompileAndApply(
+            ref headerText,
+            ref body,
+            ref headerExample,
+            ref bodyExamples,
+            t.AuthoringHeaderText,
+            t.AuthoringBody,
+            out var persistedAuthoringHeader,
+            out var persistedAuthoringBody,
+            out var variableBindings);
+        if (compileError != null)
+            throw new BadRequestException(compileError);
+
         var footer = string.IsNullOrWhiteSpace(t.Footer) ? null : t.Footer.Trim();
         var fieldErrors = WhatsAppTemplateMutationValidation.ValidateEditableFields(
             category,
@@ -63,6 +81,14 @@ public sealed class CreateWhatsAppTemplateCommandHandler(
             t.Buttons);
         if (fieldErrors != null)
             badRequest.Messages.AddRange(fieldErrors.Messages);
+
+        var exampleErrors = WhatsAppTemplateMutationValidation.ValidateMetaPlaceholderExamples(
+            headerText,
+            headerExample,
+            body,
+            bodyExamples);
+        if (exampleErrors != null)
+            badRequest.Messages.AddRange(exampleErrors.Messages);
 
         if (badRequest.Messages is { Count: > 0 })
             throw new BadRequestException(badRequest);
@@ -81,7 +107,38 @@ public sealed class CreateWhatsAppTemplateCommandHandler(
             throw new BadRequestException(conflict);
         }
 
-        var componentsJson = JsonSerializer.Serialize(t, new JsonSerializerOptions
+        var persisted = new WhatsAppTemplatePersistedComponents
+        {
+            SchemaVersion = 1,
+            Name = name,
+            Language = language,
+            Category = category,
+            AuthoringHeaderText = persistedAuthoringHeader,
+            AuthoringBody = persistedAuthoringBody,
+            HeaderText = headerText,
+            HeaderExample = headerExample,
+            Body = body,
+            BodyExamples = bodyExamples,
+            Footer = footer,
+            Buttons = t.Buttons,
+            VariableBindings = variableBindings.Count > 0 ? variableBindings.ToArray() : null,
+            IsMetaSynced = false
+        };
+
+        var forMetaBuild = new CreateWhatsAppTemplateRequest
+        {
+            Name = name,
+            Language = language,
+            Category = category,
+            HeaderText = headerText,
+            HeaderExample = headerExample,
+            Body = body,
+            BodyExamples = bodyExamples,
+            Footer = footer,
+            Buttons = t.Buttons
+        };
+
+        var componentsJson = JsonSerializer.Serialize(persisted, new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
@@ -159,7 +216,7 @@ public sealed class CreateWhatsAppTemplateCommandHandler(
                 Name = name,
                 Language = language,
                 Category = category,
-                Components = WhatsAppTemplateMetaComponentsBuilder.Build(t)
+                Components = WhatsAppTemplateMetaComponentsBuilder.Build(forMetaBuild)
             },
             Metadata = new TemplateCreateOutboundMetadata
             {

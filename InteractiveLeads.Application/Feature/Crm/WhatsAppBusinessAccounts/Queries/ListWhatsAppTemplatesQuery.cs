@@ -96,21 +96,41 @@ public sealed class ListWhatsAppTemplatesQueryHandler(
                 : baseQuery.OrderBy(t => t.Name).ThenBy(t => t.Language)
         };
 
-        var items = await ordered
+        var rows = await ordered
             .Skip(pagination.CalculateSkip())
             .Take(pagination.PageSize)
-            .Select(t => new WhatsAppTemplateListItemDto
+            .Select(t => new
             {
-                Id = t.Id,
-                MetaTemplateId = t.MetaTemplateId,
-                Name = t.Name,
-                Language = t.Language,
-                Category = t.Category,
-                Status = t.Status,
-                LastSyncedAt = t.LastSyncedAt,
-                SubmissionCorrelationId = null
+                t.Id,
+                t.MetaTemplateId,
+                t.Name,
+                t.Language,
+                t.Category,
+                t.Status,
+                t.LastSyncedAt,
+                t.ComponentsJson
             })
             .ToListAsync(cancellationToken);
+
+        var items = new List<WhatsAppTemplateListItemDto>(rows.Count);
+        foreach (var r in rows)
+        {
+            var detail = new WhatsAppTemplateDetailDto();
+            WhatsAppTemplateDetailContentMapper.HydrateFromComponentsJson(detail, r.ComponentsJson ?? "{}");
+            items.Add(new WhatsAppTemplateListItemDto
+            {
+                Id = r.Id,
+                MetaTemplateId = r.MetaTemplateId,
+                Name = r.Name,
+                Language = r.Language,
+                Category = r.Category,
+                Status = r.Status,
+                LastSyncedAt = r.LastSyncedAt,
+                SubmissionCorrelationId = null,
+                VariableSlotCount = detail.VariableSlotCount,
+                VariableBindingsComplete = detail.VariableBindingsComplete
+            });
+        }
 
         return new ListResponse<WhatsAppTemplateListItemDto>(items, total);
     }

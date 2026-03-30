@@ -91,6 +91,25 @@ public sealed class WhatsAppBusinessAccountsController : BaseApiController
         return Ok(response);
     }
 
+    /// <summary>
+    /// Merge CRM semantic bindings for Meta <c>{{1}}..{{n}}</c> placeholders (synced or legacy templates). Does not re-submit the template to Meta.
+    /// </summary>
+    [HttpPatch("{wabaId:guid}/templates/{templateId:guid}/variable-bindings")]
+    [OpenApiOperation("Update WhatsApp template variable bindings (CRM only)")]
+    public async Task<IActionResult> UpdateTemplateVariableBindingsAsync(
+        Guid wabaId,
+        Guid templateId,
+        [FromBody] UpdateWhatsAppTemplateVariableBindingsRequest request)
+    {
+        var response = await Sender.Send(new UpdateWhatsAppTemplateVariableBindingsCommand
+        {
+            WhatsAppBusinessAccountId = wabaId,
+            TemplateId = templateId,
+            Request = request ?? new UpdateWhatsAppTemplateVariableBindingsRequest()
+        });
+        return Ok(response);
+    }
+
     /// <summary>Delete a template (body must include the template name for Meta); queued as <c>delete_template</c> when RabbitMQ is enabled.</summary>
     [HttpDelete("{wabaId:guid}/templates/{templateId:guid}")]
     [OpenApiOperation("Delete WhatsApp message template for WABA")]
