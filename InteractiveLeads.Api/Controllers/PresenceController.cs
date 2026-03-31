@@ -4,7 +4,6 @@ using InteractiveLeads.Application.Responses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NSwag.Annotations;
-using System.Security.Claims;
 
 namespace InteractiveLeads.Api.Controllers;
 
