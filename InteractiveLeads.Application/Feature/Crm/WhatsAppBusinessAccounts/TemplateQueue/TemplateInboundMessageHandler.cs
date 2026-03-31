@@ -9,9 +9,10 @@ using Microsoft.Extensions.Logging;
 namespace InteractiveLeads.Application.Feature.Crm.WhatsAppBusinessAccounts.TemplateQueue;
 
 /// <summary>
-/// Handles <c>template</c> lifecycle replies (create/delete outcomes) and <c>template_synced</c> from Meta.
+/// Handles <c>template</c> lifecycle replies (create/delete outcomes), explicit <c>delete_template</c> replies, and <c>template_synced</c> from Meta.
 /// For create failures, the worker should POST <c>eventType: update_template</c> with <c>identifications.correlationId</c> = CRM template id
 /// and a payload such as: <c>success: false</c>, <c>error: "text"</c>, or <c>error: { "message", "code" }</c> (Graph API shapes with <c>error_user_msg</c> are recognized).
+/// For delete outcomes, prefer <c>eventType: delete_template</c> with the same correlation id and <c>payload.deleted: true</c> on success.
 /// </summary>
 public sealed class TemplateInboundMessageHandler(
     IApplicationDbContext db,
@@ -23,6 +24,8 @@ public sealed class TemplateInboundMessageHandler(
     private const string EventUpdateTemplate = "update_template";
     private const string EventTemplateLegacy = "template";
     private const string EventTemplateSynced = "template_synced";
+    /// <summary>Explicit delete outcome from worker (preferred for success/failure after <c>delete_template</c> outbound).</summary>
+    private const string EventDeleteTemplate = "delete_template";
 
     public async Task<bool> TryHandleAsync(string jsonBody, CancellationToken cancellationToken)
     {
@@ -56,8 +59,9 @@ public sealed class TemplateInboundMessageHandler(
             if (string.IsNullOrEmpty(eventType))
             {
                 logger.LogWarning(
-                    "Template inbound: missing/empty eventType — expected \"{UpdateTemplate}\" or \"{Synced}\". Message was ACKed but not applied. Enable RabbitMQ on the API host and publish to queue {QueueHint} (see appsettings RabbitMq:TemplateInboundQueueName).",
+                    "Template inbound: missing/empty eventType — expected \"{UpdateTemplate}\", \"{DeleteTemplate}\", or \"{Synced}\". Message was ACKed but not applied. Enable RabbitMQ on the API host and publish to queue {QueueHint} (see appsettings RabbitMq:TemplateInboundQueueName).",
                     EventUpdateTemplate,
+                    EventDeleteTemplate,
                     EventTemplateSynced,
                     "interactive-template-inbound");
                 return true;
@@ -66,9 +70,12 @@ public sealed class TemplateInboundMessageHandler(
             if (string.Equals(eventType, EventTemplateSynced, StringComparison.OrdinalIgnoreCase))
                 return await HandleTemplateSyncedAsync(root, cancellationToken);
 
+            if (string.Equals(eventType, EventDeleteTemplate, StringComparison.OrdinalIgnoreCase))
+                return await HandleTemplateAsync(root, cancellationToken, deleteReplySemantics: true);
+
             if (string.Equals(eventType, EventUpdateTemplate, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(eventType, EventTemplateLegacy, StringComparison.OrdinalIgnoreCase))
-                return await HandleTemplateAsync(root, cancellationToken);
+                return await HandleTemplateAsync(root, cancellationToken, deleteReplySemantics: false);
 
             logger.LogWarning("Template inbound: ignored unsupported eventType {EventType}", eventType);
             return true;
@@ -109,7 +116,10 @@ public sealed class TemplateInboundMessageHandler(
     }
 
     /// <summary>Status/details for a template row we already have (<c>correlationId</c> = CRM template id from create flow).</summary>
-    private async Task<bool> HandleTemplateAsync(JsonElement root, CancellationToken cancellationToken)
+    private async Task<bool> HandleTemplateAsync(
+        JsonElement root,
+        CancellationToken cancellationToken,
+        bool deleteReplySemantics = false)
     {
         if (!root.TryGetProperty("payload", out var payload))
         {
@@ -130,13 +140,29 @@ public sealed class TemplateInboundMessageHandler(
 
         // If this reply corresponds to an async delete request, either delete the row (on success)
         // or keep it disabled and record the delete error (on failure).
-        if (IsDeleteReply(template, payload))
+        if (deleteReplySemantics || IsDeleteReply(template, payload))
         {
-            if (IsSuccessReply(payload))
+            var deleteOk = deleteReplySemantics
+                ? IsDeleteConfirmationSuccess(payload)
+                : IsSuccessReply(payload);
+            if (deleteOk)
             {
-                db.WhatsAppTemplates.Remove(template);
-                await db.SaveChangesAsync(cancellationToken);
-                logger.LogInformation("Template inbound: delete succeeded; removed template {TemplateId}", template.Id);
+                // ExecuteDelete avoids change-tracker edge cases and removes regardless of IsDisabled / errors on the row.
+                var templateId = template.Id;
+                var removed = await db.WhatsAppTemplates
+                    .Where(t => t.Id == templateId)
+                    .ExecuteDeleteAsync(cancellationToken);
+                if (removed == 0)
+                {
+                    logger.LogWarning(
+                        "Template inbound: delete confirmed but no row was removed (already gone?). templateId={TemplateId}",
+                        templateId);
+                }
+                else
+                {
+                    logger.LogInformation("Template inbound: delete succeeded; removed template {TemplateId}", templateId);
+                }
+
                 return true;
             }
 
@@ -313,6 +339,13 @@ public sealed class TemplateInboundMessageHandler(
 
     private static bool IsDeleteReply(WhatsAppTemplate template, JsonElement payload)
     {
+        // Some workers return "deleted: true" without additional operation fields.
+        // Treat it as a delete lifecycle reply regardless of local DeletePending flag.
+        if (payload.ValueKind == JsonValueKind.Object &&
+            payload.TryGetProperty("deleted", out var del) &&
+            del.ValueKind is JsonValueKind.True)
+            return true;
+
         if (template.DeletePending)
             return true;
 
@@ -322,6 +355,76 @@ public sealed class TemplateInboundMessageHandler(
         return !string.IsNullOrWhiteSpace(op) &&
                (op.Equals("delete", StringComparison.OrdinalIgnoreCase) ||
                 op.Equals("delete_template", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Success semantics for <c>eventType: delete_template</c>: explicit failure loses; if there is no explicit failure,
+    /// treat as confirmed delete (workers often send only name/id/<c>deleted</c>).
+    /// </summary>
+    private static bool IsDeleteConfirmationSuccess(JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object)
+            return false;
+
+        if (payload.TryGetProperty("success", out var suc0) && IsJsonExplicitFalse(suc0))
+            return false;
+
+        if (payload.TryGetProperty("deleted", out var del0) && IsJsonExplicitFalse(del0))
+            return false;
+
+        if (payload.TryGetProperty("status", out var st0) && st0.ValueKind == JsonValueKind.String)
+        {
+            var s0 = st0.GetString()?.Trim();
+            if (!string.IsNullOrWhiteSpace(s0) && s0.Equals("failed", StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+
+        if (payload.TryGetProperty("error", out var err) && err.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined)
+        {
+            if (!IsEffectivelyEmptyJsonError(err))
+                return false;
+        }
+
+        if (payload.TryGetProperty("success", out var suc) && IsJsonExplicitTrue(suc))
+            return true;
+
+        if (payload.TryGetProperty("deleted", out var del) && IsJsonExplicitTrue(del))
+            return true;
+
+        if (payload.TryGetProperty("status", out var st) && st.ValueKind == JsonValueKind.String)
+        {
+            var s = st.GetString()?.Trim();
+            if (!string.IsNullOrWhiteSpace(s) &&
+                (s.Equals("success", StringComparison.OrdinalIgnoreCase) ||
+                 s.Equals("deleted", StringComparison.OrdinalIgnoreCase) ||
+                 s.Equals("ok", StringComparison.OrdinalIgnoreCase)))
+                return true;
+        }
+
+        return true;
+    }
+
+    private static bool IsJsonExplicitFalse(JsonElement el) =>
+        el.ValueKind == JsonValueKind.False ||
+        (el.ValueKind == JsonValueKind.String &&
+         string.Equals(el.GetString()?.Trim(), "false", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsJsonExplicitTrue(JsonElement el) =>
+        el.ValueKind == JsonValueKind.True ||
+        (el.ValueKind == JsonValueKind.String &&
+         string.Equals(el.GetString()?.Trim(), "true", StringComparison.OrdinalIgnoreCase)) ||
+        (el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out var n) && n == 1);
+
+    /// <summary>True when <paramref name="err"/> is empty object, empty array, or whitespace string — not a real Graph error.</summary>
+    private static bool IsEffectivelyEmptyJsonError(JsonElement err)
+    {
+        return err.ValueKind switch
+        {
+            JsonValueKind.Object => !err.EnumerateObject().Any(),
+            JsonValueKind.Array => err.GetArrayLength() == 0,
+            JsonValueKind.String => string.IsNullOrWhiteSpace(err.GetString()),
+            _ => false
+        };
     }
 
     private static bool IsSuccessReply(JsonElement payload)
@@ -515,6 +618,49 @@ public sealed class TemplateInboundMessageHandler(
             if (byId != null)
                 return byId;
             logger.LogWarning("Template inbound: correlationId {CorrelationId} is not a WhatsAppTemplate primary key in this database.", correlationId);
+        }
+
+        // Workers sometimes put CRM template PK only in payload.id (GUID string); Meta numeric ids won't parse as Guid.
+        if (payload.ValueKind == JsonValueKind.Object &&
+            payload.TryGetProperty("id", out var payloadIdEl))
+        {
+            var idRaw = JsonStringOrRaw(payloadIdEl).Trim();
+            if (!string.IsNullOrWhiteSpace(idRaw) && Guid.TryParse(idRaw, out var payloadPk))
+            {
+                var byPayloadId = await db.WhatsAppTemplates
+                    .FirstOrDefaultAsync(t => t.Id == payloadPk, cancellationToken);
+                if (byPayloadId != null)
+                    return byPayloadId;
+            }
+        }
+
+        // CRM WABA row id (from API) + template name — reliable when identifications use correct keys but Meta WABA id mismatches DB.
+        if (identifications.ValueKind == JsonValueKind.Object &&
+            TryGetPropertyIgnoreCase(identifications, "whatsAppBusinessAccountId", out var crmWabaTplEl))
+        {
+            var crmWabaStr = JsonStringOrRaw(crmWabaTplEl).Trim();
+            if (!string.IsNullOrWhiteSpace(crmWabaStr) && Guid.TryParse(crmWabaStr, out var crmWabaPk) &&
+                payload.ValueKind == JsonValueKind.Object &&
+                payload.TryGetProperty("name", out var nameByWabaEl))
+            {
+                var nameByWaba = JsonStringOrRaw(nameByWabaEl);
+                if (!string.IsNullOrWhiteSpace(nameByWaba))
+                {
+                    var qWaba = db.WhatsAppTemplates.Where(t =>
+                        t.WhatsAppBusinessAccountId == crmWabaPk && t.Name == nameByWaba.Trim());
+                    if ((payload.TryGetProperty("language", out var langWabaEl) ||
+                         payload.TryGetProperty("languague", out langWabaEl)) && langWabaEl.ValueKind == JsonValueKind.String)
+                    {
+                        var langWaba = langWabaEl.GetString();
+                        if (!string.IsNullOrWhiteSpace(langWaba))
+                            qWaba = qWaba.Where(t => t.Language == langWaba);
+                    }
+
+                    var byCrmWaba = await qWaba.FirstOrDefaultAsync(cancellationToken);
+                    if (byCrmWaba != null)
+                        return byCrmWaba;
+                }
+            }
         }
 
         string? wabaId = null;
