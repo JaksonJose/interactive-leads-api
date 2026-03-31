@@ -30,13 +30,11 @@ public class ChatHub : Hub
             try
             {
                 var state = await _presence.ConnectionOpenedAsync(tenantId!, userId!, Context.ConnectionId, Context.ConnectionAborted);
-                await _realtime.SendToTenantAsync(state.TenantId, new
-                {
-                    type = "presence.updated",
-                    tenantId = state.TenantId,
-                    timestamp = DateTimeOffset.UtcNow.ToString("O"),
-                    payload = new { userId = state.UserId, isOnline = state.IsOnline, lastSeenAtUtc = state.LastSeenAtUtc }
-                });
+                await _realtime.SendPresenceUpdatedToTenantAsync(
+                    state.TenantId,
+                    state.UserId,
+                    state.IsOnline,
+                    state.LastSeenAtUtc);
             }
             catch (OperationCanceledException)
             {
@@ -55,13 +53,11 @@ public class ChatHub : Hub
             var state = await _presence.ConnectionClosedAsync(Context.ConnectionId, CancellationToken.None);
             if (state is not null)
             {
-                await _realtime.SendToTenantAsync(state.TenantId, new
-                {
-                    type = "presence.updated",
-                    tenantId = state.TenantId,
-                    timestamp = DateTimeOffset.UtcNow.ToString("O"),
-                    payload = new { userId = state.UserId, isOnline = state.IsOnline, lastSeenAtUtc = state.LastSeenAtUtc }
-                });
+                await _realtime.SendPresenceUpdatedToTenantAsync(
+                    state.TenantId,
+                    state.UserId,
+                    state.IsOnline,
+                    state.LastSeenAtUtc);
             }
         }
         catch (OperationCanceledException)
