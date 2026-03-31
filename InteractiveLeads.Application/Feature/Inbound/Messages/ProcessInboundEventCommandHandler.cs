@@ -146,22 +146,36 @@ public sealed class ProcessInboundEventCommandHandler(
 
                 var companyId = integration.CompanyId;
 
-                Guid? outboundAckClientGuid = null;
-                if (!string.IsNullOrWhiteSpace(messagePayload.ClientMessageId) &&
-                    Guid.TryParse(messagePayload.ClientMessageId.Trim(), out var parsedClientId))
-                    outboundAckClientGuid = parsedClientId;
+                var ackClientMessageId = string.IsNullOrWhiteSpace(messagePayload.ClientMessageId)
+                    ? null
+                    : messagePayload.ClientMessageId.Trim();
 
-                if (outboundAckClientGuid.HasValue)
+                if (!string.IsNullOrWhiteSpace(ackClientMessageId))
                 {
-                    var ackClientId = outboundAckClientGuid.Value;
-                    var outboundForAck = await (
+                    // n8n/provider should echo our idempotency key (frontend externalMessageId) in clientMessageId.
+                    // Older flows used an internal Message.Id (GUID). Support both:
+                    // - Prefer ExternalMessageId match (string)
+                    // - Fallback to Message.Id when clientMessageId parses as GUID
+                    Message? outboundForAck = await (
                         from m in db.Messages
                         join c in db.Conversations on m.ConversationId equals c.Id
-                        where m.Id == ackClientId
+                        where m.ExternalMessageId == ackClientMessageId
                               && m.Direction == MessageDirection.Outbound
                               && c.IntegrationId == integration.Id
                               && c.CompanyId == companyId
                         select m).SingleOrDefaultAsync(cancellationToken);
+
+                    if (outboundForAck is null && Guid.TryParse(ackClientMessageId, out var ackGuid))
+                    {
+                        outboundForAck = await (
+                            from m in db.Messages
+                            join c in db.Conversations on m.ConversationId equals c.Id
+                            where m.Id == ackGuid
+                                  && m.Direction == MessageDirection.Outbound
+                                  && c.IntegrationId == integration.Id
+                                  && c.CompanyId == companyId
+                            select m).SingleOrDefaultAsync(cancellationToken);
+                    }
 
                     if (outboundForAck is not null)
                     {
@@ -171,9 +185,11 @@ public sealed class ProcessInboundEventCommandHandler(
                                 m => m.ExternalMessageId == messagePayload.Id && m.Id != outboundForAck.Id,
                                 cancellationToken);
 
-                        var metadataJsonAck = JsonSerializer.Serialize(request.Event, JsonOptions);
                         outboundForAck.Status = MessageStatus.Sent;
-                        outboundForAck.Metadata = metadataJsonAck;
+                        outboundForAck.Metadata = MessageMetadataMerge.WithLastInboundProviderEvent(
+                            outboundForAck.Metadata,
+                            request.Event,
+                            JsonOptions);
                         outboundForAck.UpdatedAt = DateTimeOffset.UtcNow;
                         if (!providerIdTaken)
                             outboundForAck.ExternalMessageId = messagePayload.Id;
@@ -196,7 +212,7 @@ public sealed class ProcessInboundEventCommandHandler(
 
                     tenantLogger.LogWarning(
                         "Inbound outbound ack: no message for clientMessageId {ClientMessageId} integrationId {IntegrationId} externalIdentifier {ExternalIdentifier} providerMessageId {ProviderMessageId}",
-                        messagePayload.ClientMessageId,
+                        ackClientMessageId,
                         integration.Id,
                         externalIdentifier,
                         messagePayload.Id);
@@ -634,7 +650,10 @@ public sealed class ProcessInboundEventCommandHandler(
                 }
 
                 message.Status = newStatus;
-                message.Metadata = JsonSerializer.Serialize(request.Event, JsonOptions);
+                message.Metadata = MessageMetadataMerge.WithLastInboundProviderEvent(
+                    message.Metadata,
+                    request.Event,
+                    JsonOptions);
                 message.UpdatedAt = DateTimeOffset.UtcNow;
 
                 await db.SaveChangesAsync(cancellationToken);

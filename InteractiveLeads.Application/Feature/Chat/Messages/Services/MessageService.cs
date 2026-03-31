@@ -85,7 +85,8 @@ public sealed class MessageService(
                 m.CreatedAt,
                 m.UpdatedAt,
                 m.Direction,
-                m.Status
+                m.Status,
+                m.Metadata
             })
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -106,7 +107,10 @@ public sealed class MessageService(
                 MessageDate = existingMessage.MessageDate,
                 CreatedAt = existingMessage.CreatedAt,
                 UpdatedAt = existingMessage.UpdatedAt,
-                Status = MessageListItemDtoMapper.ToStatusString(existingMessage.Status)
+                Status = MessageListItemDtoMapper.ToStatusString(existingMessage.Status),
+                TemplateSnapshot = MessageMetadataSerializer.TryReadTemplateSnapshot(
+                    existingMessage.Metadata,
+                    existingMessage.Type)
             };
         }
 
@@ -116,6 +120,7 @@ public sealed class MessageService(
         await EnforceWhatsApp24hTemplatePolicyAsync(conversation.Id, conversation.Integration.Type, messageType, cancellationToken);
 
         OutboundTemplateMessageContentContract? outboundTemplateContent = null;
+        MessageTemplateSnapshotDto? templateSnapshotForMeta = null;
         WhatsAppTemplate? templateRow = null;
         if (messageType == MessageType.Template)
         {
@@ -162,13 +167,15 @@ public sealed class MessageService(
                 throw new BadRequestException(response);
             }
 
-            outboundTemplateContent = await BuildOutboundTemplateContentAsync(
+            var templateBuilt = await BuildOutboundTemplateContentAsync(
                 templateRow,
                 request,
                 conversation,
                 companyId,
                 senderUserId,
                 cancellationToken);
+            outboundTemplateContent = templateBuilt.Contract;
+            templateSnapshotForMeta = templateBuilt.Snapshot;
         }
 
         var normalizedPhone = PhoneNumberNormalizer.ToNormalizedDigits(conversation.Contact.Phone ?? string.Empty, "BR");
@@ -183,7 +190,7 @@ public sealed class MessageService(
         var messageDate = request.ClientTimestamp is { } ts && ts > 0
             ? DateTimeOffset.FromUnixTimeSeconds(ts)
             : persistNow;
-        var metadataJson = BuildMessageMetadataJson(conversation, request, idempotencyMessageId);
+        var metadataJson = BuildMessageMetadataJson(conversation, request, idempotencyMessageId, templateSnapshotForMeta);
         var messageContent = ResolvePersistedMessageContent(request, messageType);
         if (messageType == MessageType.Template && templateRow is not null)
         {
@@ -293,7 +300,8 @@ public sealed class MessageService(
             CreatedAt = message.CreatedAt,
             UpdatedAt = message.UpdatedAt,
             Status = MessageListItemDtoMapper.ToStatusString(message.Status),
-            MediaProcessingStatus = "completed"
+            MediaProcessingStatus = "completed",
+            TemplateSnapshot = templateSnapshotForMeta
         };
     }
 
@@ -418,7 +426,10 @@ public sealed class MessageService(
                 MessageDate = message.MessageDate,
                 CreatedAt = message.MessageDate,
                 Status = MessageListItemDtoMapper.ToStatusString(message.Status),
-                MediaProcessingStatus = "completed"
+                MediaProcessingStatus = "completed",
+                TemplateSnapshot = MessageMetadataSerializer.TryReadTemplateSnapshot(
+                    message.Metadata,
+                    message.Type.ToString().ToLowerInvariant())
             }
         };
 
@@ -504,36 +515,45 @@ public sealed class MessageService(
         };
     }
 
-    private static string BuildMessageMetadataJson(Conversation conversation, SendConversationMessageRequest request, string messageId)
+    private static string BuildMessageMetadataJson(
+        Conversation conversation,
+        SendConversationMessageRequest request,
+        string messageId,
+        MessageTemplateSnapshotDto? templateSnapshot = null)
     {
-        var metadata = new
+        var outbound = new Dictionary<string, object?>
         {
-            integrationType = conversation.Integration.Type.ToString(),
-            outbound = new
-            {
-                messageId,
-                messageType = request.Type?.Trim().ToLowerInvariant(),
-                mediaUrl = request.MediaUrl?.Trim(),
-                mediaOptimizedUrl = string.IsNullOrWhiteSpace(request.MediaOptimizedUrl)
-                    ? null
-                    : request.MediaOptimizedUrl.Trim(),
-                mediaThumbnailUrl = string.IsNullOrWhiteSpace(request.MediaThumbnailUrl)
-                    ? null
-                    : request.MediaThumbnailUrl.Trim(),
-                caption = request.Caption?.Trim(),
-                fileName = request.FileName?.Trim(),
-                mimeType = request.MimeType?.Trim(),
-                voice = request.Voice,
-                reactionEmoji = request.ReactionEmoji?.Trim(),
-                reactionMessageId = request.ReactionMessageId,
-                replyToMessageId = request.ReplyToMessageId,
-                templateId = request.TemplateId,
-                templateBodyParameters = request.TemplateBodyParameters,
-                templateHeaderParameter = request.TemplateHeaderParameter
-            }
+            ["messageId"] = messageId,
+            ["messageType"] = request.Type?.Trim().ToLowerInvariant(),
+            ["mediaUrl"] = request.MediaUrl?.Trim(),
+            ["mediaOptimizedUrl"] = string.IsNullOrWhiteSpace(request.MediaOptimizedUrl)
+                ? null
+                : request.MediaOptimizedUrl.Trim(),
+            ["mediaThumbnailUrl"] = string.IsNullOrWhiteSpace(request.MediaThumbnailUrl)
+                ? null
+                : request.MediaThumbnailUrl.Trim(),
+            ["caption"] = request.Caption?.Trim(),
+            ["fileName"] = request.FileName?.Trim(),
+            ["mimeType"] = request.MimeType?.Trim(),
+            ["voice"] = request.Voice,
+            ["reactionEmoji"] = request.ReactionEmoji?.Trim(),
+            ["reactionMessageId"] = request.ReactionMessageId,
+            ["replyToMessageId"] = request.ReplyToMessageId,
+            ["templateId"] = request.TemplateId,
+            ["templateBodyParameters"] = request.TemplateBodyParameters,
+            ["templateHeaderParameter"] = request.TemplateHeaderParameter
         };
 
-        return JsonSerializer.Serialize(metadata, JsonOptions);
+        var root = new Dictionary<string, object?>
+        {
+            ["integrationType"] = conversation.Integration.Type.ToString(),
+            ["outbound"] = outbound
+        };
+
+        if (templateSnapshot is not null)
+            root["templateSnapshot"] = templateSnapshot;
+
+        return JsonSerializer.Serialize(root, JsonOptions);
     }
 
     private WhatsAppSettings? TryGetWhatsAppSettings(Conversation conversation)
@@ -611,7 +631,7 @@ public sealed class MessageService(
         };
     }
 
-    private async Task<OutboundTemplateMessageContentContract> BuildOutboundTemplateContentAsync(
+    private async Task<(OutboundTemplateMessageContentContract Contract, MessageTemplateSnapshotDto Snapshot)> BuildOutboundTemplateContentAsync(
         WhatsAppTemplate templateRow,
         SendConversationMessageRequest request,
         Conversation conversation,
@@ -631,7 +651,11 @@ public sealed class MessageService(
         var hasManualBody = request.TemplateBodyParameters is { Length: > 0 };
 
         if (headerSlots == 0 && bodySlots == 0)
-            return CreateOutboundTemplateContract(templateRow, null, []);
+        {
+            var earlyContract = CreateOutboundTemplateContract(templateRow, null, []);
+            var earlySnapshot = TemplateMessageSnapshotBuilder.BuildSnapshot(detail, null, []);
+            return (earlyContract, earlySnapshot);
+        }
 
         if (!detail.VariableBindingsComplete)
         {
@@ -726,10 +750,10 @@ public sealed class MessageService(
             throw new BadRequestException(response);
         }
 
-        return CreateOutboundTemplateContract(
-            templateRow,
-            headerParam,
-            bodyParams.Select(x => (x ?? string.Empty).Trim()).ToList());
+        var trimmedBody = bodyParams.Select(x => (x ?? string.Empty).Trim()).ToList();
+        var contract = CreateOutboundTemplateContract(templateRow, headerParam, trimmedBody);
+        var snapshot = TemplateMessageSnapshotBuilder.BuildSnapshot(detail, headerParam, trimmedBody);
+        return (contract, snapshot);
     }
 
     private static OutboundTemplateMessageContentContract CreateOutboundTemplateContract(
