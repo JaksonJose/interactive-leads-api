@@ -4,6 +4,7 @@ using InteractiveLeads.Application.Responses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NSwag.Annotations;
+using System.Security.Claims;
 
 namespace InteractiveLeads.Api.Controllers;
 
@@ -18,6 +19,12 @@ public sealed class PresenceController(IPresenceService presence) : BaseApiContr
     public async Task<IActionResult> ListOnlineAsync(CancellationToken cancellationToken)
     {
         var tenantId = HttpContext?.Request?.Headers["tenant"].ToString();
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            // Some clients rely on tenant claim (e.g. SignalR) instead of header.
+            tenantId = User?.FindFirst("tenant")?.Value ?? User?.FindFirst("tenantId")?.Value;
+        }
+
         if (string.IsNullOrWhiteSpace(tenantId))
         {
             // Tenant middleware uses header strategy; without tenant header we can't scope presence safely.
