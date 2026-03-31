@@ -133,17 +133,57 @@ public sealed class DeleteWhatsAppTemplateCommandHandler(
             }
         };
 
-        await templatePublisher.PublishDeleteTemplateAsync(outbound, cancellationToken);
+        var deleteImmediately = request.Request?.DeleteImmediatelyFromDatabase ?? false;
+        if (!deleteImmediately)
+        {
+            entity.IsDisabled = true;
+            entity.DisabledAt = DateTimeOffset.UtcNow;
+            entity.DisabledReason = "delete_requested";
+            entity.DeletePending = true;
+            entity.DeleteRequestedAt = DateTimeOffset.UtcNow;
+            entity.DeleteLastError = null;
+            entity.DeleteLastErrorCode = null;
+            entity.DeleteLastErrorAt = null;
+            await db.SaveChangesAsync(cancellationToken);
+        }
 
-        db.WhatsAppTemplates.Remove(entity);
-        await db.SaveChangesAsync(cancellationToken);
+        string message;
+        try
+        {
+            await templatePublisher.PublishDeleteTemplateAsync(outbound, cancellationToken);
+            message = templatePublisher.PublishesToBroker
+                ? (deleteImmediately
+                    ? "Template delete queued for WhatsApp (Meta) and removed locally."
+                    : "Template disabled and delete queued for WhatsApp (Meta).")
+                : (deleteImmediately
+                    ? "Template removed locally. Enable RabbitMQ to publish delete to the template queue."
+                    : "Template disabled locally. Enable RabbitMQ to publish delete to the template queue.");
+        }
+        catch (Exception ex)
+        {
+            entity.IsDisabled = true;
+            entity.DisabledAt ??= DateTimeOffset.UtcNow;
+            entity.DisabledReason ??= "delete_failed";
+            entity.DeletePending = false;
+            entity.DeleteRequestedAt ??= DateTimeOffset.UtcNow;
+            entity.DeleteLastError = ex.Message;
+            entity.DeleteLastErrorCode = "rabbitmq_publish_failed";
+            entity.DeleteLastErrorAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+
+            message = "Template disabled, but delete queuing failed. Fix and try again.";
+        }
+
+        if (deleteImmediately)
+        {
+            db.WhatsAppTemplates.Remove(entity);
+            await db.SaveChangesAsync(cancellationToken);
+        }
 
         var data = new CreateWhatsAppTemplateAcceptedDto
         {
             CorrelationId = correlationId,
-            Message = templatePublisher.PublishesToBroker
-                ? "Template delete queued for WhatsApp (Meta)."
-                : "Template removed locally. Enable RabbitMQ to publish delete to the template queue."
+            Message = message
         };
 
         return new SingleResponse<CreateWhatsAppTemplateAcceptedDto>(data);

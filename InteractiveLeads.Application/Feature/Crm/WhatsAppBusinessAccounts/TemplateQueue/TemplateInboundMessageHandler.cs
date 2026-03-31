@@ -128,6 +128,35 @@ public sealed class TemplateInboundMessageHandler(
             return true;
         }
 
+        // If this reply corresponds to an async delete request, either delete the row (on success)
+        // or keep it disabled and record the delete error (on failure).
+        if (IsDeleteReply(template, payload))
+        {
+            if (IsSuccessReply(payload))
+            {
+                db.WhatsAppTemplates.Remove(template);
+                await db.SaveChangesAsync(cancellationToken);
+                logger.LogInformation("Template inbound: delete succeeded; removed template {TemplateId}", template.Id);
+                return true;
+            }
+
+            var (errMsg, errCode) = ReadErrorFromPayload(payload);
+            template.IsDisabled = true;
+            template.DisabledAt ??= DateTimeOffset.UtcNow;
+            template.DisabledReason = "delete_failed";
+            template.DeletePending = false;
+            template.DeleteLastError = string.IsNullOrWhiteSpace(errMsg) ? "Delete failed." : Truncate(errMsg.Trim(), 2000);
+            template.DeleteLastErrorCode = string.IsNullOrWhiteSpace(errCode) ? null : Truncate(errCode.Trim(), 128);
+            template.DeleteLastErrorAt = DateTimeOffset.UtcNow;
+            template.LastSyncedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+            logger.LogWarning(
+                "Template inbound: delete failed; template kept disabled. templateId={TemplateId} code={Code}",
+                template.Id,
+                template.DeleteLastErrorCode);
+            return true;
+        }
+
         ApplyMetaPayloadFields(template, payload);
         template.LastSyncedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
@@ -264,57 +293,15 @@ public sealed class TemplateInboundMessageHandler(
 
     private static bool TryApplySubmissionErrorFromPayload(WhatsAppTemplate template, JsonElement payload)
     {
-        string? message = null;
-        string? code = null;
-
-        if (payload.TryGetProperty("success", out var suc) && suc.ValueKind == JsonValueKind.False)
-            message = "Template submission was rejected by WhatsApp (Meta).";
-
-        // Accept Graph-ish shapes:
-        // - payload.error: "text"
-        // - payload.error: { message, code, error_user_msg, error_subcode, ... }
-        // - payload.error: { error: { message, code, ... } }  (some workers wrap it)
-        // - payload.errorMessage: { error: { ... } }          (legacy worker naming)
-        if (!payload.TryGetProperty("error", out var errEl) &&
-            payload.TryGetProperty("errorMessage", out var legacyErr))
-        {
-            errEl = legacyErr;
-        }
-
-        if (errEl.ValueKind != JsonValueKind.Undefined)
-        {
-            if (errEl.ValueKind == JsonValueKind.String)
-            {
-                var s = errEl.GetString();
-                if (!string.IsNullOrWhiteSpace(s))
-                    message = s.Trim();
-            }
-            else if (errEl.ValueKind == JsonValueKind.Object)
-            {
-                if (errEl.TryGetProperty("error", out var nestedErr) && nestedErr.ValueKind == JsonValueKind.Object)
-                    errEl = nestedErr;
-
-                message = ReadOptionalString(errEl, "message")
-                    ?? ReadOptionalString(errEl, "error_user_msg")
-                    ?? ReadOptionalString(errEl, "error_user_title");
-                code = ReadJsonScalarAsTrimmedString(errEl, "code")
-                    ?? ReadJsonScalarAsTrimmedString(errEl, "error_subcode");
-                if (string.IsNullOrWhiteSpace(message) && errEl.TryGetProperty("error", out var nested) &&
-                    nested.ValueKind == JsonValueKind.Object)
-                {
-                    message = ReadOptionalString(nested, "message")
-                        ?? ReadOptionalString(nested, "error_user_msg");
-                    code ??= ReadJsonScalarAsTrimmedString(nested, "code")
-                        ?? ReadJsonScalarAsTrimmedString(nested, "error_subcode");
-                }
-
-                if (string.IsNullOrWhiteSpace(message))
-                    message = errEl.GetRawText();
-            }
-        }
-
-        if (string.IsNullOrWhiteSpace(message))
+        if (payload.TryGetProperty("success", out var suc) && suc.ValueKind == JsonValueKind.True)
             return false;
+
+        if (!LooksLikeTemplateLifecycleReply(payload))
+            return false;
+
+        var (message, code) = ReadErrorFromPayload(payload);
+        if (string.IsNullOrWhiteSpace(message))
+            message = "Template submission was rejected by WhatsApp (Meta).";
 
         template.SubmissionLastError = Truncate(message.Trim(), 2000);
         template.SubmissionLastErrorCode = string.IsNullOrWhiteSpace(code) ? null : Truncate(code.Trim(), 128);
@@ -323,6 +310,95 @@ public sealed class TemplateInboundMessageHandler(
     }
 
     private static string Truncate(string s, int maxLen) => s.Length <= maxLen ? s : s[..maxLen];
+
+    private static bool IsDeleteReply(WhatsAppTemplate template, JsonElement payload)
+    {
+        if (template.DeletePending)
+            return true;
+
+        var op = ReadOptionalString(payload, "operation")
+                 ?? ReadOptionalString(payload, "action")
+                 ?? ReadOptionalString(payload, "eventType");
+        return !string.IsNullOrWhiteSpace(op) &&
+               (op.Equals("delete", StringComparison.OrdinalIgnoreCase) ||
+                op.Equals("delete_template", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsSuccessReply(JsonElement payload)
+    {
+        if (payload.TryGetProperty("success", out var suc) && suc.ValueKind is JsonValueKind.True)
+            return true;
+
+        if (payload.TryGetProperty("deleted", out var del) && del.ValueKind is JsonValueKind.True)
+            return true;
+
+        if (payload.TryGetProperty("status", out var st) && st.ValueKind == JsonValueKind.String)
+        {
+            var s = st.GetString()?.Trim();
+            if (!string.IsNullOrWhiteSpace(s) &&
+                (s.Equals("success", StringComparison.OrdinalIgnoreCase) ||
+                 s.Equals("deleted", StringComparison.OrdinalIgnoreCase) ||
+                 s.Equals("ok", StringComparison.OrdinalIgnoreCase)))
+                return true;
+        }
+
+        // If a lifecycle reply has no error and does not indicate failure, treat as success.
+        if (payload.TryGetProperty("error", out var err) &&
+            err.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined)
+            return false;
+
+        if (payload.TryGetProperty("success", out var suc2) && suc2.ValueKind == JsonValueKind.False)
+            return false;
+
+        return true;
+    }
+
+    private static (string? Message, string? Code) ReadErrorFromPayload(JsonElement payload)
+    {
+        string? message = null;
+        string? code = null;
+
+        if (!payload.TryGetProperty("error", out var errEl) &&
+            payload.TryGetProperty("errorMessage", out var legacyErr))
+        {
+            errEl = legacyErr;
+        }
+
+        if (errEl.ValueKind == JsonValueKind.String)
+        {
+            var s = errEl.GetString();
+            if (!string.IsNullOrWhiteSpace(s))
+                message = s.Trim();
+        }
+        else if (errEl.ValueKind == JsonValueKind.Object)
+        {
+            if (errEl.TryGetProperty("error", out var nestedErr) && nestedErr.ValueKind == JsonValueKind.Object)
+                errEl = nestedErr;
+
+            message = ReadOptionalString(errEl, "message")
+                      ?? ReadOptionalString(errEl, "error_user_msg")
+                      ?? ReadOptionalString(errEl, "error_user_title");
+            code = ReadJsonScalarAsTrimmedString(errEl, "code")
+                   ?? ReadJsonScalarAsTrimmedString(errEl, "error_subcode");
+            if (string.IsNullOrWhiteSpace(message) && errEl.TryGetProperty("error", out var nested) &&
+                nested.ValueKind == JsonValueKind.Object)
+            {
+                message = ReadOptionalString(nested, "message")
+                          ?? ReadOptionalString(nested, "error_user_msg");
+                code ??= ReadJsonScalarAsTrimmedString(nested, "code")
+                         ?? ReadJsonScalarAsTrimmedString(nested, "error_subcode");
+            }
+
+            if (string.IsNullOrWhiteSpace(message))
+                message = errEl.GetRawText();
+        }
+
+        // Some workers may send top-level string fields.
+        message ??= ReadOptionalString(payload, "errorText") ?? ReadOptionalString(payload, "message");
+        code ??= ReadJsonScalarAsTrimmedString(payload, "code");
+
+        return (message, code);
+    }
 
     private static string BuildSyncedComponentsJson(JsonElement payload)
     {

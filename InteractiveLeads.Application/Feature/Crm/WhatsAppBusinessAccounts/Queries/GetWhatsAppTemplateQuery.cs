@@ -50,6 +50,14 @@ public sealed class GetWhatsAppTemplateQueryHandler(
         var dto = new WhatsAppTemplateDetailDto
         {
             Id = entity.Id,
+            IsDisabled = entity.IsDisabled,
+            DisabledAt = entity.DisabledAt,
+            DisabledReason = entity.DisabledReason,
+            DeletePending = entity.DeletePending,
+            DeleteRequestedAt = entity.DeleteRequestedAt,
+            DeleteLastError = entity.DeleteLastError,
+            DeleteLastErrorCode = entity.DeleteLastErrorCode,
+            DeleteLastErrorAt = entity.DeleteLastErrorAt,
             MetaTemplateId = entity.MetaTemplateId,
             LastSyncedAt = entity.LastSyncedAt,
             Name = entity.Name,
@@ -61,6 +69,7 @@ public sealed class GetWhatsAppTemplateQueryHandler(
             SubmissionLastErrorCode = entity.SubmissionLastErrorCode,
             SubmissionLastErrorAt = entity.SubmissionLastErrorAt,
             IsAvailableForMessaging = WhatsAppTemplateMessagingRules.IsAvailableForMessaging(
+                entity.IsDisabled,
                 entity.MetaTemplateId,
                 entity.SubmissionLastErrorAt,
                 entity.Status)

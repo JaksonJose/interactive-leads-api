@@ -150,6 +150,7 @@ public sealed class MessageService(
             }
 
             if (!WhatsAppTemplateMessagingRules.IsAvailableForMessaging(
+                    templateRow.IsDisabled,
                     templateRow.MetaTemplateId,
                     templateRow.SubmissionLastErrorAt,
                     templateRow.Status))

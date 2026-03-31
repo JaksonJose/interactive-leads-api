@@ -7,10 +7,14 @@ namespace InteractiveLeads.Application.Feature.Crm.WhatsAppBusinessAccounts;
 public static class WhatsAppTemplateMessagingRules
 {
     public static bool IsAvailableForMessaging(
+        bool isDisabled,
         string? metaTemplateId,
         DateTimeOffset? submissionLastErrorAt,
         string? status)
     {
+        if (isDisabled)
+            return false;
+
         if (string.IsNullOrWhiteSpace(metaTemplateId) || submissionLastErrorAt is not null)
             return false;
 

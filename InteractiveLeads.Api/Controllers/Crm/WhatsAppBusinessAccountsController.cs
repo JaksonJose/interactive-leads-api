@@ -145,4 +145,32 @@ public sealed class WhatsAppBusinessAccountsController : BaseApiController
         });
         return Ok(response);
     }
+
+    /// <summary>Disable a template (CRM only). Disabled templates remain visible but cannot be used for messaging.</summary>
+    [HttpPost("{wabaId:guid}/templates/{templateId:guid}/disable")]
+    [OpenApiOperation("Disable WhatsApp message template (CRM only)")]
+    public async Task<IActionResult> DisableTemplateAsync(Guid wabaId, Guid templateId)
+    {
+        var response = await Sender.Send(new SetWhatsAppTemplateDisabledCommand
+        {
+            WhatsAppBusinessAccountId = wabaId,
+            TemplateId = templateId,
+            IsDisabled = true
+        });
+        return Ok(response);
+    }
+
+    /// <summary>Enable a template (CRM only). Only allowed when template is not pending delete.</summary>
+    [HttpPost("{wabaId:guid}/templates/{templateId:guid}/enable")]
+    [OpenApiOperation("Enable WhatsApp message template (CRM only)")]
+    public async Task<IActionResult> EnableTemplateAsync(Guid wabaId, Guid templateId)
+    {
+        var response = await Sender.Send(new SetWhatsAppTemplateDisabledCommand
+        {
+            WhatsAppBusinessAccountId = wabaId,
+            TemplateId = templateId,
+            IsDisabled = false
+        });
+        return Ok(response);
+    }
 }

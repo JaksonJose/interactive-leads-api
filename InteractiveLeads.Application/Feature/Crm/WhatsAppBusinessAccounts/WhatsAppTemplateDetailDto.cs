@@ -5,6 +5,22 @@ public sealed class WhatsAppTemplateDetailDto
 {
     public Guid Id { get; set; }
 
+    public bool IsDisabled { get; set; }
+
+    public DateTimeOffset? DisabledAt { get; set; }
+
+    public string? DisabledReason { get; set; }
+
+    public bool DeletePending { get; set; }
+
+    public DateTimeOffset? DeleteRequestedAt { get; set; }
+
+    public string? DeleteLastError { get; set; }
+
+    public string? DeleteLastErrorCode { get; set; }
+
+    public DateTimeOffset? DeleteLastErrorAt { get; set; }
+
     public string MetaTemplateId { get; set; } = string.Empty;
 
     public DateTimeOffset LastSyncedAt { get; set; }

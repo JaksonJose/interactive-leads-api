@@ -102,6 +102,14 @@ public sealed class ListWhatsAppTemplatesQueryHandler(
             .Select(t => new
             {
                 t.Id,
+                t.IsDisabled,
+                t.DisabledAt,
+                t.DisabledReason,
+                t.DeletePending,
+                t.DeleteRequestedAt,
+                t.DeleteLastError,
+                t.DeleteLastErrorCode,
+                t.DeleteLastErrorAt,
                 t.MetaTemplateId,
                 t.Name,
                 t.Language,
@@ -123,6 +131,14 @@ public sealed class ListWhatsAppTemplatesQueryHandler(
             items.Add(new WhatsAppTemplateListItemDto
             {
                 Id = r.Id,
+                IsDisabled = r.IsDisabled,
+                DisabledAt = r.DisabledAt,
+                DisabledReason = r.DisabledReason,
+                DeletePending = r.DeletePending,
+                DeleteRequestedAt = r.DeleteRequestedAt,
+                DeleteLastError = r.DeleteLastError,
+                DeleteLastErrorCode = r.DeleteLastErrorCode,
+                DeleteLastErrorAt = r.DeleteLastErrorAt,
                 MetaTemplateId = r.MetaTemplateId,
                 Name = r.Name,
                 Language = r.Language,
@@ -136,6 +152,7 @@ public sealed class ListWhatsAppTemplatesQueryHandler(
                 SubmissionLastErrorCode = r.SubmissionLastErrorCode,
                 SubmissionLastErrorAt = r.SubmissionLastErrorAt,
                 IsAvailableForMessaging = WhatsAppTemplateMessagingRules.IsAvailableForMessaging(
+                    r.IsDisabled,
                     r.MetaTemplateId,
                     r.SubmissionLastErrorAt,
                     r.Status)
