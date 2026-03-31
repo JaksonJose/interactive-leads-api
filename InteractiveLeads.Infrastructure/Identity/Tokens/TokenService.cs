@@ -371,7 +371,6 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
             }
 
             var response = new ResultResponse();
-            response.AddSuccessMessage("Logout successful", "auth.logout_successful");
             return response;
         }
 
@@ -399,7 +398,6 @@ namespace InteractiveLeads.Infrastructure.Identity.Tokens
             tokenToRevoke.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            response.AddSuccessMessage("Device logout successful", "auth.device_logout_successful");
             return response;
         }
 

@@ -13,6 +13,11 @@ public class RealtimeService : IRealtimeService
         _hubContext = hubContext;
     }
 
+    public Task SendToTenantAsync(string tenantId, object @event)
+    {
+        return _hubContext.Clients.Group($"tenant:{tenantId}").SendAsync("event", @event);
+    }
+
     public Task SendToInboxAsync(string inboxId, object @event)
     {
         var inboxGuid = Guid.Parse(inboxId);
