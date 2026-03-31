@@ -92,6 +92,25 @@ public sealed class WhatsAppBusinessAccountsController : BaseApiController
     }
 
     /// <summary>
+    /// Update template content on Meta (<c>update_template</c> on outbound queue when RabbitMQ is enabled). Requires an existing Meta template id.
+    /// </summary>
+    [HttpPut("{wabaId:guid}/templates/{templateId:guid}")]
+    [OpenApiOperation("Update WhatsApp message template for WABA")]
+    public async Task<IActionResult> UpdateTemplateAsync(
+        Guid wabaId,
+        Guid templateId,
+        [FromBody] CreateWhatsAppTemplateRequest request)
+    {
+        var response = await Sender.Send(new UpdateWhatsAppTemplateCommand
+        {
+            WhatsAppBusinessAccountId = wabaId,
+            TemplateId = templateId,
+            Template = request
+        });
+        return Ok(response);
+    }
+
+    /// <summary>
     /// Merge CRM semantic bindings for Meta <c>{{1}}..{{n}}</c> placeholders (synced or legacy templates). Does not re-submit the template to Meta.
     /// </summary>
     [HttpPatch("{wabaId:guid}/templates/{templateId:guid}/variable-bindings")]

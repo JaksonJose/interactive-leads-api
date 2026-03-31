@@ -101,7 +101,8 @@ public sealed class UpdateWhatsAppTemplateVariableBindingsCommandHandler(
         dto.SubmissionLastErrorAt = entity.SubmissionLastErrorAt;
         dto.IsAvailableForMessaging = WhatsAppTemplateMessagingRules.IsAvailableForMessaging(
             entity.MetaTemplateId,
-            entity.SubmissionLastErrorAt);
+            entity.SubmissionLastErrorAt,
+            entity.Status);
 
         return new SingleResponse<WhatsAppTemplateDetailDto>(dto);
     }

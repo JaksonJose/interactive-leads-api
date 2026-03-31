@@ -137,7 +137,8 @@ public sealed class ListWhatsAppTemplatesQueryHandler(
                 SubmissionLastErrorAt = r.SubmissionLastErrorAt,
                 IsAvailableForMessaging = WhatsAppTemplateMessagingRules.IsAvailableForMessaging(
                     r.MetaTemplateId,
-                    r.SubmissionLastErrorAt)
+                    r.SubmissionLastErrorAt,
+                    r.Status)
             });
         }
 

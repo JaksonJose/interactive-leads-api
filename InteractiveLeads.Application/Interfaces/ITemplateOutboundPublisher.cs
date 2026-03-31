@@ -11,6 +11,9 @@ public interface ITemplateOutboundPublisher
     /// <summary>Queued template creation (<see cref="TemplateCreateOutboundMessage"/>).</summary>
     Task PublishCreateTemplateAsync(TemplateCreateOutboundMessage message, CancellationToken cancellationToken);
 
+    /// <summary>Queued template update on Meta (<see cref="TemplateUpdateOutboundMessage"/>, <c>update_template</c>).</summary>
+    Task PublishUpdateTemplateAsync(TemplateUpdateOutboundMessage message, CancellationToken cancellationToken);
+
     /// <summary>Queued template delete by name/language (<see cref="TemplateDeleteOutboundMessage"/>).</summary>
     Task PublishDeleteTemplateAsync(TemplateDeleteOutboundMessage message, CancellationToken cancellationToken);
 

@@ -252,14 +252,14 @@ public sealed class TemplateInboundMessageHandler(
                 template.Language = l.Trim();
         }
 
-        if (!string.IsNullOrWhiteSpace(template.MetaTemplateId))
+        if (errorApplied)
+            template.Status = "FAILED";
+        else if (!string.IsNullOrWhiteSpace(template.MetaTemplateId))
         {
             template.SubmissionLastError = null;
             template.SubmissionLastErrorCode = null;
             template.SubmissionLastErrorAt = null;
         }
-        else if (errorApplied)
-            template.Status = "FAILED";
     }
 
     private static bool TryApplySubmissionErrorFromPayload(WhatsAppTemplate template, JsonElement payload)

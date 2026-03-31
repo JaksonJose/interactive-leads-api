@@ -151,7 +151,8 @@ public sealed class MessageService(
 
             if (!WhatsAppTemplateMessagingRules.IsAvailableForMessaging(
                     templateRow.MetaTemplateId,
-                    templateRow.SubmissionLastErrorAt))
+                    templateRow.SubmissionLastErrorAt,
+                    templateRow.Status))
             {
                 var response = new ResultResponse();
                 response.AddErrorMessage(
