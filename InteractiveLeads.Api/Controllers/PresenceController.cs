@@ -1,6 +1,7 @@
 using InteractiveLeads.Api.Controllers.Base;
 using InteractiveLeads.Application.Realtime.Services.Presence;
 using InteractiveLeads.Application.Responses;
+using InteractiveLeads.Infrastructure.Tenancy.Strategies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NSwag.Annotations;
@@ -21,7 +22,9 @@ public sealed class PresenceController(IPresenceService presence) : BaseApiContr
         if (string.IsNullOrWhiteSpace(tenantId))
         {
             // Some clients rely on tenant claim (e.g. SignalR) instead of header.
-            tenantId = User?.FindFirst("tenant")?.Value ?? User?.FindFirst("tenantId")?.Value;
+            tenantId = User?.FindFirst("tenant")?.Value
+                ?? User?.FindFirst("tenantId")?.Value
+                ?? User?.FindFirst(JwtTenantFallbackStrategy.TenantIdClaimType)?.Value;
         }
 
         if (string.IsNullOrWhiteSpace(tenantId))

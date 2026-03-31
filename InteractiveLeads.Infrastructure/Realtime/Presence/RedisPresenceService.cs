@@ -32,7 +32,8 @@ public sealed class RedisPresenceService(IConnectionMultiplexer mux) : IPresence
         var tran = _db.CreateTransaction();
         _ = tran.HashSetAsync(ConnKey(connectionId), connMap);
         _ = tran.HashSetAsync(userKey, new[] { new HashEntry(UserConnField(connectionId), "1") });
-        _ = tran.HashSetAsync(userKey, new[] { new HashEntry("lastSeenAtUtc", RedisValue.Null) });
+        // StackExchange.Redis rejects RedisValue.Null in HSET; dropping the field matches "online, no last-seen stamp".
+        _ = tran.HashDeleteAsync(userKey, "lastSeenAtUtc");
 
         var exec = await tran.ExecuteAsync();
         if (!exec)

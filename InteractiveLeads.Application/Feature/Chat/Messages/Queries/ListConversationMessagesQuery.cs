@@ -40,7 +40,13 @@ public sealed class ListConversationMessagesQueryHandler(
             throw new NotFoundException(errorResponse);
         }
 
-        await ChatContext.EnsureInboxAccessAsync(db, currentUserService, conversation.InboxId, companyId, cancellationToken);
+        await ChatContext.EnsureConversationCollaborationAccessAsync(
+            db,
+            currentUserService,
+            conversation.Id,
+            conversation.InboxId,
+            companyId,
+            cancellationToken);
 
         var messagesQuery = db.Messages
             .AsNoTracking()

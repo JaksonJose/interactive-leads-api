@@ -2,6 +2,7 @@ using InteractiveLeads.Api.Controllers.Base;
 using InteractiveLeads.Application.Feature.Chat.Conversations;
 using InteractiveLeads.Application.Feature.Chat.Conversations.Commands;
 using InteractiveLeads.Application.Feature.Chat.Conversations.Queries;
+using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Feature.Chat.Messages.Commands;
 using InteractiveLeads.Application.Feature.Chat.Messages;
 using InteractiveLeads.Application.Feature.Chat.Messages.Queries;
@@ -160,6 +161,89 @@ public sealed class ConversationsController(IConversationMediaUploadService conv
             cancellationToken);
 
         return Ok(new SingleResponse<ConversationMediaUploadResultDto>(dto));
+    }
+
+    /// <summary>Directory of users for assigning responsibility (inbox Agents) or inviting participants (tenant).</summary>
+    [HttpGet("/api/v1/conversations/chat-directory")]
+    [OpenApiOperation("Chat user directory (presence merged)")]
+    public async Task<IActionResult> GetChatDirectoryAsync(
+        [FromQuery] string mode = "participant",
+        [FromQuery] Guid? inboxId = null)
+    {
+        var m = string.Equals(mode, "responsible", StringComparison.OrdinalIgnoreCase)
+            ? ChatDirectoryMode.Responsible
+            : ChatDirectoryMode.Participant;
+
+        var response = await Sender.Send(new GetChatDirectoryQuery { Mode = m, InboxId = inboxId });
+        return Ok(response);
+    }
+
+    /// <summary>List internal participants for a conversation.</summary>
+    [HttpGet("{conversationId:guid}/participants")]
+    [OpenApiOperation("List conversation participants")]
+    public async Task<IActionResult> ListParticipantsAsync(Guid conversationId)
+    {
+        var response = await Sender.Send(new ListConversationParticipantsQuery { ConversationId = conversationId });
+        return Ok(response);
+    }
+
+    /// <summary>Assign responsible agent (Owner/Manager). Target must be Agent and active inbox member.</summary>
+    [HttpPut("{conversationId:guid}/assign-responsible")]
+    [Authorize(Roles = "Owner,Manager")]
+    [OpenApiOperation("Assign conversation responsible")]
+    public async Task<IActionResult> AssignResponsibleAsync(Guid conversationId, [FromBody] AssignResponsibleRequest request)
+    {
+        if (request is null) return BadRequest();
+
+        var response = await Sender.Send(new AssignConversationResponsibleCommand
+        {
+            ConversationId = conversationId,
+            ResponsibleUserId = request.ResponsibleUserId
+        });
+        return Ok(response);
+    }
+
+    /// <summary>Transfer responsibility (Owner/Manager any conversation; Agent only if current responsible).</summary>
+    [HttpPut("{conversationId:guid}/transfer-responsible")]
+    [OpenApiOperation("Transfer conversation responsible")]
+    public async Task<IActionResult> TransferResponsibleAsync(Guid conversationId, [FromBody] TransferResponsibleRequest request)
+    {
+        if (request is null) return BadRequest();
+
+        var response = await Sender.Send(new TransferConversationResponsibleCommand
+        {
+            ConversationId = conversationId,
+            NewResponsibleUserId = request.NewResponsibleUserId
+        });
+        return Ok(response);
+    }
+
+    /// <summary>Add internal collaborator (participant) without inbox membership.</summary>
+    [HttpPost("{conversationId:guid}/participants")]
+    [OpenApiOperation("Add conversation participant")]
+    public async Task<IActionResult> AddParticipantAsync(Guid conversationId, [FromBody] AddParticipantRequestBody request)
+    {
+        if (request is null) return BadRequest();
+
+        var response = await Sender.Send(new AddConversationParticipantCommand
+        {
+            ConversationId = conversationId,
+            UserId = request.UserId
+        });
+        return Ok(response);
+    }
+
+    /// <summary>Remove internal participant (cannot remove current responsible).</summary>
+    [HttpDelete("{conversationId:guid}/participants/{userId:guid}")]
+    [OpenApiOperation("Remove conversation participant")]
+    public async Task<IActionResult> RemoveParticipantAsync(Guid conversationId, Guid userId)
+    {
+        var response = await Sender.Send(new RemoveConversationParticipantCommand
+        {
+            ConversationId = conversationId,
+            UserId = userId
+        });
+        return Ok(response);
     }
 }
 

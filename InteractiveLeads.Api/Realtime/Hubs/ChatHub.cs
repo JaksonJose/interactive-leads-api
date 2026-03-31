@@ -1,5 +1,6 @@
 using InteractiveLeads.Application.Realtime.Services;
 using InteractiveLeads.Application.Realtime.Services.Presence;
+using InteractiveLeads.Infrastructure.Tenancy.Strategies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
@@ -76,7 +77,10 @@ public class ChatHub : Hub
         var tenant = http?.Request.Headers["tenant"].ToString();
         if (string.IsNullOrWhiteSpace(tenant))
         {
-            tenant = Context.User?.FindFirst("tenant")?.Value;
+            // HTTP uses header; WebSocket reconnect may not resend custom headers — use same claims as TokenService / PresenceController.
+            tenant = Context.User?.FindFirst("tenant")?.Value
+                ?? Context.User?.FindFirst("tenantId")?.Value
+                ?? Context.User?.FindFirst(JwtTenantFallbackStrategy.TenantIdClaimType)?.Value;
         }
         var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? Context.User?.FindFirst("sub")?.Value;
         return (tenant, userId);

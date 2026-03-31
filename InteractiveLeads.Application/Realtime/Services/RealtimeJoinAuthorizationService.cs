@@ -54,30 +54,13 @@ public class RealtimeJoinAuthorizationService : IRealtimeJoinAuthorizationServic
             throw new NotFoundException(response);
         }
 
-        // Owner/Manager: full access within the tenant (ignore Agent bindings).
-        if (_currentUserService.IsInRole("Owner") || _currentUserService.IsInRole("Manager"))
-            return;
-
-        // Agent: requires InboxMember binding.
-        if (!_currentUserService.IsInRole("Agent"))
-        {
-            var response = new ResultResponse();
-            response.AddErrorMessage("You are not authorized to access this inbox.", "general.access_denied");
-            throw new ForbiddenException(response);
-        }
-
-        var userId = _currentUserService.GetUserId();
-
-        var isMember = await _db.InboxMembers
-            .AsNoTracking()
-            .AnyAsync(m => m.InboxId == conversationInboxId && m.UserId == userId && m.IsActive, cancellationToken);
-
-        if (!isMember)
-        {
-            var response = new ResultResponse();
-            response.AddErrorMessage("You are not authorized to access this inbox.", "general.access_denied");
-            throw new ForbiddenException(response);
-        }
+        await ChatContext.EnsureConversationCollaborationAccessAsync(
+            _db,
+            _currentUserService,
+            conversationGuid,
+            conversationInboxId,
+            companyId,
+            cancellationToken);
     }
 }
 

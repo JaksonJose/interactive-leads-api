@@ -17,6 +17,7 @@ public interface IApplicationDbContext
     DbSet<WhatsAppTemplate> WhatsAppTemplates { get; }
     DbSet<Contact> Contacts { get; }
     DbSet<Conversation> Conversations { get; }
+    DbSet<ConversationParticipant> ConversationParticipants { get; }
     DbSet<ConversationAssignment> ConversationAssignments { get; }
     DbSet<ConversationInboxMovement> ConversationInboxMovements { get; }
     DbSet<Message> Messages { get; }
