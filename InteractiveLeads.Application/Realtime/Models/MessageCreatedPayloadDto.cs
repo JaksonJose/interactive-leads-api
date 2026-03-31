@@ -27,5 +27,7 @@ public class MessageCreatedPayloadDto
     /// <summary>Lowercase: pending, sent, delivered, read, failed.</summary>
     public string Status { get; set; } = "pending";
     public string? MediaProcessingStatus { get; set; }
+
+    public MessageTemplateSnapshotDto? TemplateSnapshot { get; set; }
 }
 

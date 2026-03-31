@@ -1,5 +1,28 @@
 namespace InteractiveLeads.Application.Feature.Chat.Messages;
 
+/// <summary>Rich template layout for chat UI (root <c>templateSnapshot</c> on <see cref="Domain.Entities.Message.Metadata"/>; preserved when metadata is patched).</summary>
+public sealed class MessageTemplateButtonSnapshotDto
+{
+    public string Type { get; set; } = string.Empty;
+
+    public string Text { get; set; } = string.Empty;
+
+    public string? Url { get; set; }
+
+    public string? PhoneNumber { get; set; }
+}
+
+public sealed class MessageTemplateSnapshotDto
+{
+    public string? HeaderText { get; set; }
+
+    public string BodyText { get; set; } = string.Empty;
+
+    public string? FooterText { get; set; }
+
+    public IReadOnlyList<MessageTemplateButtonSnapshotDto>? Buttons { get; set; }
+}
+
 public sealed class MessageListItemDto
 {
     public Guid Id { get; set; }
@@ -20,6 +43,9 @@ public sealed class MessageListItemDto
     /// <summary>Lowercase: pending, sent, delivered, read, failed.</summary>
     public string Status { get; set; } = "pending";
     public string? MediaProcessingStatus { get; set; }
+
+    /// <summary>Set when <see cref="Type"/> is <c>template</c> and metadata contains a snapshot.</summary>
+    public MessageTemplateSnapshotDto? TemplateSnapshot { get; set; }
 }
 
 public sealed class MessageMediaListItemDto

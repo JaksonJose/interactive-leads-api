@@ -15,38 +15,87 @@ internal static class WhatsAppTemplateDetailContentMapper
     public static void HydrateFromComponentsJson(WhatsAppTemplateDetailDto dto, string componentsJson)
     {
         if (string.IsNullOrWhiteSpace(componentsJson) || componentsJson.Trim() == "{}")
+        {
+            WhatsAppTemplateVariableBindingStatus.Recalculate(dto);
             return;
+        }
 
         try
         {
             using var doc = JsonDocument.Parse(componentsJson);
             var root = doc.RootElement;
 
-            if (LooksLikeCrmSerializedForm(root))
-            {
-                TryApplyCrmForm(dto, componentsJson);
-                return;
-            }
-
             if (root.TryGetProperty("source", out var srcEl)
                 && string.Equals(srcEl.GetString(), "meta_template_sync", StringComparison.OrdinalIgnoreCase))
             {
                 ApplyMetaTemplateSync(dto, root);
+                TryApplyVariableBindingsFromRoot(dto, root);
+                WhatsAppTemplateVariableBindingStatus.Recalculate(dto);
                 return;
             }
 
-            TryApplyCrmForm(dto, componentsJson);
+            if (LooksLikePersistedSchema(root))
+            {
+                if (TryApplyPersistedComponents(dto, componentsJson))
+                {
+                    WhatsAppTemplateVariableBindingStatus.Recalculate(dto);
+                    return;
+                }
+            }
+
+            if (LooksLikeLegacyCrmRequest(root))
+            {
+                TryApplyLegacyCreateRequest(dto, componentsJson);
+                TryApplyVariableBindingsFromRoot(dto, root);
+                WhatsAppTemplateVariableBindingStatus.Recalculate(dto);
+                return;
+            }
+
+            TryApplyLegacyCreateRequest(dto, componentsJson);
+            TryApplyVariableBindingsFromRoot(dto, root);
         }
         catch (JsonException)
         {
-            TryApplyCrmForm(dto, componentsJson);
+            TryApplyLegacyCreateRequest(dto, componentsJson);
+        }
+
+        WhatsAppTemplateVariableBindingStatus.Recalculate(dto);
+    }
+
+    private static bool LooksLikePersistedSchema(JsonElement root) =>
+        (root.TryGetProperty("schemaVersion", out var sv) && sv.ValueKind == JsonValueKind.Number)
+        || (root.TryGetProperty("variableBindings", out _) && root.TryGetProperty("body", out var b) && b.ValueKind == JsonValueKind.String);
+
+    private static bool LooksLikeLegacyCrmRequest(JsonElement root) =>
+        root.TryGetProperty("body", out var b) && b.ValueKind == JsonValueKind.String;
+
+    private static bool TryApplyPersistedComponents(WhatsAppTemplateDetailDto dto, string componentsJson)
+    {
+        try
+        {
+            var persisted = JsonSerializer.Deserialize<WhatsAppTemplatePersistedComponents>(componentsJson, JsonOpts);
+            if (persisted == null)
+                return false;
+
+            dto.AuthoringHeaderText = persisted.AuthoringHeaderText;
+            dto.AuthoringBody = persisted.AuthoringBody;
+            dto.HeaderText = persisted.HeaderText;
+            dto.HeaderExample = persisted.HeaderExample;
+            dto.Body = persisted.Body ?? string.Empty;
+            dto.BodyExamples = persisted.BodyExamples;
+            dto.Footer = persisted.Footer;
+            dto.Buttons = persisted.Buttons;
+            dto.VariableBindings = persisted.VariableBindings;
+            dto.IsMetaSynced = persisted.IsMetaSynced;
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 
-    private static bool LooksLikeCrmSerializedForm(JsonElement root) =>
-        root.TryGetProperty("body", out var b) && b.ValueKind == JsonValueKind.String;
-
-    private static void TryApplyCrmForm(WhatsAppTemplateDetailDto dto, string componentsJson)
+    private static void TryApplyLegacyCreateRequest(WhatsAppTemplateDetailDto dto, string componentsJson)
     {
         try
         {
@@ -54,17 +103,55 @@ internal static class WhatsAppTemplateDetailContentMapper
             if (req == null)
                 return;
 
+            dto.AuthoringHeaderText = req.AuthoringHeaderText;
+            dto.AuthoringBody = req.AuthoringBody;
             dto.HeaderText = req.HeaderText;
             dto.HeaderExample = req.HeaderExample;
             dto.Body = req.Body ?? string.Empty;
             dto.BodyExamples = req.BodyExamples;
             dto.Footer = req.Footer;
             dto.Buttons = req.Buttons;
+            dto.IsMetaSynced = false;
         }
         catch (JsonException)
         {
-            // leave display fields empty
+            // leave display fields as-is
         }
+    }
+
+    private static void TryApplyVariableBindingsFromRoot(WhatsAppTemplateDetailDto dto, JsonElement root)
+    {
+        if (!root.TryGetProperty("variableBindings", out var vb) || vb.ValueKind != JsonValueKind.Array)
+            return;
+
+        dto.VariableBindings = ParseVariableBindingsArray(vb);
+    }
+
+    private static WhatsAppTemplateVariableBindingDto[]? ParseVariableBindingsArray(JsonElement vb)
+    {
+        var list = new List<WhatsAppTemplateVariableBindingDto>();
+        foreach (var el in vb.EnumerateArray())
+        {
+            if (el.ValueKind != JsonValueKind.Object)
+                continue;
+            var slot = 0;
+            if (el.TryGetProperty("slot", out var s) && s.ValueKind == JsonValueKind.Number)
+                slot = s.GetInt32();
+            var source = GetString(el, "source") ?? string.Empty;
+            var example = GetString(el, "example");
+            var section = GetString(el, "section") ?? "body";
+            if (slot < 1 || string.IsNullOrWhiteSpace(source))
+                continue;
+            list.Add(new WhatsAppTemplateVariableBindingDto
+            {
+                Slot = slot,
+                Source = source.Trim(),
+                Example = example,
+                Section = section.Trim().ToLowerInvariant()
+            });
+        }
+
+        return list.Count > 0 ? list.ToArray() : null;
     }
 
     private static void ApplyMetaTemplateSync(WhatsAppTemplateDetailDto dto, JsonElement root)
@@ -98,6 +185,8 @@ internal static class WhatsAppTemplateDetailContentMapper
 
         if (bodyExampleLines.Count > 0)
             dto.BodyExamples = bodyExampleLines.ToArray();
+
+        dto.IsMetaSynced = true;
     }
 
     private static void CollectBodyExamples(JsonElement bodyText, List<string> lines)

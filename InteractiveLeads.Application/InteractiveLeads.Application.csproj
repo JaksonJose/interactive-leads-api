@@ -19,4 +19,8 @@
     <ProjectReference Include="..\InteractiveLeads.Domain\InteractiveLeads.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="InteractiveLeads.Tests" />
+  </ItemGroup>
+
 </Project>

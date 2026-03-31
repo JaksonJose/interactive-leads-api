@@ -3,6 +3,7 @@ using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Chat;
 using InteractiveLeads.Application.Common.PhoneNumbers;
 using InteractiveLeads.Application.Feature.Chat.Messages.Outbound;
+using InteractiveLeads.Application.Feature.Crm.WhatsAppBusinessAccounts;
 using InteractiveLeads.Application.Integrations.Settings;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Realtime.Models;
@@ -21,6 +22,7 @@ public sealed class MessageService(
     IRealtimeService realtimeService,
     IIntegrationSettingsResolver integrationSettingsResolver,
     IOutboundMessageDispatcher outboundDispatcher,
+    IUserSummaryLookupService userSummaryLookup,
     ILogger<MessageService> logger) : IMessageService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -52,6 +54,8 @@ public sealed class MessageService(
 
         await ChatContext.EnsureInboxAccessAsync(db, currentUserService, conversation.InboxId, companyId, cancellationToken);
 
+        var senderUserId = Guid.TryParse(currentUserService.GetUserId(), out var parsedSender) ? parsedSender : (Guid?)null;
+
         var messageType = ParseMessageType(request.Type);
         var idempotencyMessageId = string.IsNullOrWhiteSpace(request.ExternalMessageId)
             ? $"msg_{Guid.NewGuid():N}"
@@ -81,7 +85,8 @@ public sealed class MessageService(
                 m.CreatedAt,
                 m.UpdatedAt,
                 m.Direction,
-                m.Status
+                m.Status,
+                m.Metadata
             })
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -102,7 +107,10 @@ public sealed class MessageService(
                 MessageDate = existingMessage.MessageDate,
                 CreatedAt = existingMessage.CreatedAt,
                 UpdatedAt = existingMessage.UpdatedAt,
-                Status = MessageListItemDtoMapper.ToStatusString(existingMessage.Status)
+                Status = MessageListItemDtoMapper.ToStatusString(existingMessage.Status),
+                TemplateSnapshot = MessageMetadataSerializer.TryReadTemplateSnapshot(
+                    existingMessage.Metadata,
+                    existingMessage.Type)
             };
         }
 
@@ -112,6 +120,7 @@ public sealed class MessageService(
         await EnforceWhatsApp24hTemplatePolicyAsync(conversation.Id, conversation.Integration.Type, messageType, cancellationToken);
 
         OutboundTemplateMessageContentContract? outboundTemplateContent = null;
+        MessageTemplateSnapshotDto? templateSnapshotForMeta = null;
         WhatsAppTemplate? templateRow = null;
         if (messageType == MessageType.Template)
         {
@@ -145,7 +154,28 @@ public sealed class MessageService(
                 throw new BadRequestException(response);
             }
 
-            outboundTemplateContent = BuildOutboundTemplateContent(templateRow, request);
+            if (!WhatsAppTemplateMessagingRules.IsAvailableForMessaging(
+                    templateRow.IsDisabled,
+                    templateRow.MetaTemplateId,
+                    templateRow.SubmissionLastErrorAt,
+                    templateRow.Status))
+            {
+                var response = new ResultResponse();
+                response.AddErrorMessage(
+                    "This template is not available on WhatsApp yet (still pending or submission failed). Open Integrations to review status.",
+                    "chat.message.template_not_on_whatsapp");
+                throw new BadRequestException(response);
+            }
+
+            var templateBuilt = await BuildOutboundTemplateContentAsync(
+                templateRow,
+                request,
+                conversation,
+                companyId,
+                senderUserId,
+                cancellationToken);
+            outboundTemplateContent = templateBuilt.Contract;
+            templateSnapshotForMeta = templateBuilt.Snapshot;
         }
 
         var normalizedPhone = PhoneNumberNormalizer.ToNormalizedDigits(conversation.Contact.Phone ?? string.Empty, "BR");
@@ -160,8 +190,7 @@ public sealed class MessageService(
         var messageDate = request.ClientTimestamp is { } ts && ts > 0
             ? DateTimeOffset.FromUnixTimeSeconds(ts)
             : persistNow;
-        var senderUserId = Guid.TryParse(currentUserService.GetUserId(), out var userGuid) ? userGuid : (Guid?)null;
-        var metadataJson = BuildMessageMetadataJson(conversation, request, idempotencyMessageId);
+        var metadataJson = BuildMessageMetadataJson(conversation, request, idempotencyMessageId, templateSnapshotForMeta);
         var messageContent = ResolvePersistedMessageContent(request, messageType);
         if (messageType == MessageType.Template && templateRow is not null)
         {
@@ -271,7 +300,8 @@ public sealed class MessageService(
             CreatedAt = message.CreatedAt,
             UpdatedAt = message.UpdatedAt,
             Status = MessageListItemDtoMapper.ToStatusString(message.Status),
-            MediaProcessingStatus = "completed"
+            MediaProcessingStatus = "completed",
+            TemplateSnapshot = templateSnapshotForMeta
         };
     }
 
@@ -396,7 +426,10 @@ public sealed class MessageService(
                 MessageDate = message.MessageDate,
                 CreatedAt = message.MessageDate,
                 Status = MessageListItemDtoMapper.ToStatusString(message.Status),
-                MediaProcessingStatus = "completed"
+                MediaProcessingStatus = "completed",
+                TemplateSnapshot = MessageMetadataSerializer.TryReadTemplateSnapshot(
+                    message.Metadata,
+                    message.Type.ToString().ToLowerInvariant())
             }
         };
 
@@ -482,36 +515,45 @@ public sealed class MessageService(
         };
     }
 
-    private static string BuildMessageMetadataJson(Conversation conversation, SendConversationMessageRequest request, string messageId)
+    private static string BuildMessageMetadataJson(
+        Conversation conversation,
+        SendConversationMessageRequest request,
+        string messageId,
+        MessageTemplateSnapshotDto? templateSnapshot = null)
     {
-        var metadata = new
+        var outbound = new Dictionary<string, object?>
         {
-            integrationType = conversation.Integration.Type.ToString(),
-            outbound = new
-            {
-                messageId,
-                messageType = request.Type?.Trim().ToLowerInvariant(),
-                mediaUrl = request.MediaUrl?.Trim(),
-                mediaOptimizedUrl = string.IsNullOrWhiteSpace(request.MediaOptimizedUrl)
-                    ? null
-                    : request.MediaOptimizedUrl.Trim(),
-                mediaThumbnailUrl = string.IsNullOrWhiteSpace(request.MediaThumbnailUrl)
-                    ? null
-                    : request.MediaThumbnailUrl.Trim(),
-                caption = request.Caption?.Trim(),
-                fileName = request.FileName?.Trim(),
-                mimeType = request.MimeType?.Trim(),
-                voice = request.Voice,
-                reactionEmoji = request.ReactionEmoji?.Trim(),
-                reactionMessageId = request.ReactionMessageId,
-                replyToMessageId = request.ReplyToMessageId,
-                templateId = request.TemplateId,
-                templateBodyParameters = request.TemplateBodyParameters,
-                templateHeaderParameter = request.TemplateHeaderParameter
-            }
+            ["messageId"] = messageId,
+            ["messageType"] = request.Type?.Trim().ToLowerInvariant(),
+            ["mediaUrl"] = request.MediaUrl?.Trim(),
+            ["mediaOptimizedUrl"] = string.IsNullOrWhiteSpace(request.MediaOptimizedUrl)
+                ? null
+                : request.MediaOptimizedUrl.Trim(),
+            ["mediaThumbnailUrl"] = string.IsNullOrWhiteSpace(request.MediaThumbnailUrl)
+                ? null
+                : request.MediaThumbnailUrl.Trim(),
+            ["caption"] = request.Caption?.Trim(),
+            ["fileName"] = request.FileName?.Trim(),
+            ["mimeType"] = request.MimeType?.Trim(),
+            ["voice"] = request.Voice,
+            ["reactionEmoji"] = request.ReactionEmoji?.Trim(),
+            ["reactionMessageId"] = request.ReactionMessageId,
+            ["replyToMessageId"] = request.ReplyToMessageId,
+            ["templateId"] = request.TemplateId,
+            ["templateBodyParameters"] = request.TemplateBodyParameters,
+            ["templateHeaderParameter"] = request.TemplateHeaderParameter
         };
 
-        return JsonSerializer.Serialize(metadata, JsonOptions);
+        var root = new Dictionary<string, object?>
+        {
+            ["integrationType"] = conversation.Integration.Type.ToString(),
+            ["outbound"] = outbound
+        };
+
+        if (templateSnapshot is not null)
+            root["templateSnapshot"] = templateSnapshot;
+
+        return JsonSerializer.Serialize(root, JsonOptions);
     }
 
     private WhatsAppSettings? TryGetWhatsAppSettings(Conversation conversation)
@@ -589,30 +631,154 @@ public sealed class MessageService(
         };
     }
 
-    private static OutboundTemplateMessageContentContract BuildOutboundTemplateContent(
+    private async Task<(OutboundTemplateMessageContentContract Contract, MessageTemplateSnapshotDto Snapshot)> BuildOutboundTemplateContentAsync(
         WhatsAppTemplate templateRow,
-        SendConversationMessageRequest request)
+        SendConversationMessageRequest request,
+        Conversation conversation,
+        Guid companyId,
+        Guid? senderUserId,
+        CancellationToken cancellationToken)
+    {
+        var detail = new WhatsAppTemplateDetailDto();
+        WhatsAppTemplateDetailContentMapper.HydrateFromComponentsJson(detail, templateRow.ComponentsJson ?? "{}");
+
+        var headerSlots = WhatsAppTemplatePlaceholderCompiler.ParseMetaSlots(detail.HeaderText).Count;
+        var bodySlots = WhatsAppTemplatePlaceholderCompiler.ParseMetaSlots(detail.Body).Count;
+
+        string? headerParam = null;
+        var bodyParams = Array.Empty<string>();
+        var hasManualHeader = !string.IsNullOrWhiteSpace(request.TemplateHeaderParameter);
+        var hasManualBody = request.TemplateBodyParameters is { Length: > 0 };
+
+        if (headerSlots == 0 && bodySlots == 0)
+        {
+            var earlyContract = CreateOutboundTemplateContract(templateRow, null, []);
+            var earlySnapshot = TemplateMessageSnapshotBuilder.BuildSnapshot(detail, null, []);
+            return (earlyContract, earlySnapshot);
+        }
+
+        if (!detail.VariableBindingsComplete)
+        {
+            if (headerSlots > 0 && !hasManualHeader)
+            {
+                var response = new ResultResponse();
+                response.AddErrorMessage(
+                    "Configure template variable mappings or provide templateHeaderParameter.",
+                    "chat.message.template_bindings_incomplete");
+                throw new BadRequestException(response);
+            }
+
+            if (bodySlots > 0 && (!hasManualBody || request.TemplateBodyParameters!.Length != bodySlots))
+            {
+                var response = new ResultResponse();
+                response.AddErrorMessage(
+                    "Configure template variable mappings or provide templateBodyParameters for each {{n}} in the body.",
+                    "chat.message.template_bindings_incomplete");
+                throw new BadRequestException(response);
+            }
+
+            headerParam = request.TemplateHeaderParameter?.Trim();
+            bodyParams = request.TemplateBodyParameters ?? [];
+        }
+        else
+        {
+            var company = await db.Companies
+                .AsNoTracking()
+                .FirstAsync(c => c.Id == companyId, cancellationToken);
+
+            var userIds = new List<string>();
+            if (senderUserId.HasValue)
+                userIds.Add(senderUserId.Value.ToString("D"));
+            if (conversation.AssignedAgentId.HasValue &&
+                (!senderUserId.HasValue || conversation.AssignedAgentId.Value != senderUserId.Value))
+                userIds.Add(conversation.AssignedAgentId.Value.ToString("D"));
+
+            var summaries = await userSummaryLookup.GetSummariesByIdsAsync(userIds, cancellationToken);
+
+            (string? DisplayName, string? Email) senderTuple = (null, null);
+            if (senderUserId.HasValue &&
+                summaries.TryGetValue(senderUserId.Value.ToString("D"), out var senderSummary))
+                senderTuple = senderSummary;
+
+            (string? DisplayName, string? Email)? agentTuple = null;
+            if (conversation.AssignedAgentId.HasValue &&
+                summaries.TryGetValue(conversation.AssignedAgentId.Value.ToString("D"), out var agentSummary))
+                agentTuple = agentSummary;
+
+            WhatsAppTemplateParameterResolver.Resolve(
+                detail,
+                conversation.Contact,
+                company,
+                senderTuple,
+                agentTuple,
+                out var resolvedHeader,
+                out var resolvedBody);
+
+            headerParam = resolvedHeader;
+            bodyParams = resolvedBody;
+
+            if (hasManualHeader)
+                headerParam = request.TemplateHeaderParameter!.Trim();
+            if (hasManualBody)
+            {
+                if (request.TemplateBodyParameters!.Length != bodySlots)
+                {
+                    var response = new ResultResponse();
+                    response.AddErrorMessage(
+                        "templateBodyParameters must match the number of body variables.",
+                        "chat.message.template_body_params_length");
+                    throw new BadRequestException(response);
+                }
+
+                bodyParams = request.TemplateBodyParameters;
+            }
+        }
+
+        if (headerSlots > 0 && string.IsNullOrWhiteSpace(headerParam))
+        {
+            var response = new ResultResponse();
+            response.AddErrorMessage("Template header parameter is required.", "chat.message.template_header_required");
+            throw new BadRequestException(response);
+        }
+
+        if (bodySlots > 0 && bodyParams.Length != bodySlots)
+        {
+            var response = new ResultResponse();
+            response.AddErrorMessage(
+                "Template body parameters count does not match template placeholders.",
+                "chat.message.template_body_params_length");
+            throw new BadRequestException(response);
+        }
+
+        var trimmedBody = bodyParams.Select(x => (x ?? string.Empty).Trim()).ToList();
+        var contract = CreateOutboundTemplateContract(templateRow, headerParam, trimmedBody);
+        var snapshot = TemplateMessageSnapshotBuilder.BuildSnapshot(detail, headerParam, trimmedBody);
+        return (contract, snapshot);
+    }
+
+    private static OutboundTemplateMessageContentContract CreateOutboundTemplateContract(
+        WhatsAppTemplate templateRow,
+        string? headerParameter,
+        IReadOnlyList<string> bodyParameters)
     {
         var components = new List<OutboundTemplateComponentContract>();
 
-        var headerParam = (request.TemplateHeaderParameter ?? string.Empty).Trim();
-        if (!string.IsNullOrWhiteSpace(headerParam))
+        if (!string.IsNullOrWhiteSpace(headerParameter))
         {
             components.Add(new OutboundTemplateComponentContract(
                 Type: "header",
                 Parameters: new[]
                 {
-                    new OutboundTemplateParameterContract(Type: "text", Text: headerParam)
+                    new OutboundTemplateParameterContract(Type: "text", Text: headerParameter.Trim())
                 }));
         }
 
-        var bodyParams = request.TemplateBodyParameters ?? Array.Empty<string>();
-        if (bodyParams.Length > 0)
+        if (bodyParameters.Count > 0)
         {
             components.Add(new OutboundTemplateComponentContract(
                 Type: "body",
-                Parameters: bodyParams
-                    .Select(x => new OutboundTemplateParameterContract(Type: "text", Text: (x ?? string.Empty).Trim()))
+                Parameters: bodyParameters
+                    .Select(x => new OutboundTemplateParameterContract(Type: "text", Text: x))
                     .ToList()));
         }
 

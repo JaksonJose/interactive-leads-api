@@ -7,27 +7,28 @@ using InteractiveLeads.Application.Feature.Crm.WhatsAppBusinessAccounts.Template
 using InteractiveLeads.Application.Integrations.Settings;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using InteractiveLeads.Domain.Entities;
 using InteractiveLeads.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Crm.WhatsAppBusinessAccounts.Commands;
 
-public sealed class CreateWhatsAppTemplateCommand : IApplicationRequest<IResponse>
+public sealed class UpdateWhatsAppTemplateCommand : IApplicationRequest<IResponse>
 {
     public Guid WhatsAppBusinessAccountId { get; set; }
+
+    public Guid TemplateId { get; set; }
 
     public CreateWhatsAppTemplateRequest Template { get; set; } = new();
 }
 
-public sealed class CreateWhatsAppTemplateCommandHandler(
+public sealed class UpdateWhatsAppTemplateCommandHandler(
     IApplicationDbContext db,
     ICurrentUserService currentUserService,
     IIntegrationSettingsResolver settingsResolver,
     ITemplateOutboundPublisher templatePublisher)
-    : IApplicationRequestHandler<CreateWhatsAppTemplateCommand, IResponse>
+    : IApplicationRequestHandler<UpdateWhatsAppTemplateCommand, IResponse>
 {
-    public async Task<IResponse> Handle(CreateWhatsAppTemplateCommand request, CancellationToken cancellationToken)
+    public async Task<IResponse> Handle(UpdateWhatsAppTemplateCommand request, CancellationToken cancellationToken)
     {
         var companyId = await CrmCompanyResolver.GetCompanyIdAsync(db, currentUserService, cancellationToken);
 
@@ -41,11 +42,53 @@ public sealed class CreateWhatsAppTemplateCommandHandler(
             throw new NotFoundException(notFound);
         }
 
+        var entity = await db.WhatsAppTemplates
+            .FirstOrDefaultAsync(
+                t => t.Id == request.TemplateId && t.WhatsAppBusinessAccountId == request.WhatsAppBusinessAccountId,
+                cancellationToken);
+
+        if (entity == null)
+        {
+            var notFound = new ResultResponse();
+            notFound.AddErrorMessage("Template not found.", "general.not_found");
+            throw new NotFoundException(notFound);
+        }
+
+        var metaId = (entity.MetaTemplateId ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(metaId))
+        {
+            var bad = new ResultResponse();
+            bad.AddErrorMessage(
+                "Template has no Meta id yet; wait for creation or sync before updating on WhatsApp.",
+                "integrations.templates.update_requires_meta_id");
+            throw new BadRequestException(bad);
+        }
+
+        var metaStatus = (entity.Status ?? string.Empty).Trim();
+        if (!string.Equals(metaStatus, "APPROVED", StringComparison.OrdinalIgnoreCase))
+        {
+            var bad = new ResultResponse();
+            bad.AddErrorMessage(
+                "Template can only be edited when Meta status is APPROVED.",
+                "integrations.templates.update_requires_approved_status");
+            throw new BadRequestException(bad);
+        }
+
         var t = request.Template;
         var name = (t.Name ?? string.Empty).Trim();
         var language = (t.Language ?? string.Empty).Trim();
         var category = (t.Category ?? string.Empty).Trim().ToUpperInvariant();
         var body = (t.Body ?? string.Empty).Trim();
+
+        if (!string.Equals(name, entity.Name.Trim(), StringComparison.Ordinal) ||
+            !string.Equals(language, entity.Language.Trim(), StringComparison.Ordinal))
+        {
+            var mismatch = new ResultResponse();
+            mismatch.AddErrorMessage(
+                "Template name and language cannot be changed when updating; edit content, category, or buttons only.",
+                "integrations.templates.update_name_language_locked");
+            throw new BadRequestException(mismatch);
+        }
 
         var badRequest = new ResultResponse();
         if (name.Length is < 1 or > 512)
@@ -93,20 +136,6 @@ public sealed class CreateWhatsAppTemplateCommandHandler(
         if (badRequest.Messages is { Count: > 0 })
             throw new BadRequestException(badRequest);
 
-        var duplicate = await db.WhatsAppTemplates
-            .AnyAsync(
-                x => x.WhatsAppBusinessAccountId == request.WhatsAppBusinessAccountId
-                     && x.Name == name
-                     && x.Language == language,
-                cancellationToken);
-
-        if (duplicate)
-        {
-            var conflict = new ResultResponse();
-            conflict.AddErrorMessage("A template with the same name and language already exists.", "integrations.templates.duplicate");
-            throw new BadRequestException(conflict);
-        }
-
         var persisted = new WhatsAppTemplatePersistedComponents
         {
             SchemaVersion = 1,
@@ -144,20 +173,14 @@ public sealed class CreateWhatsAppTemplateCommandHandler(
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         });
 
-        var entity = new WhatsAppTemplate
-        {
-            Id = Guid.NewGuid(),
-            MetaTemplateId = string.Empty,
-            Name = name,
-            Language = language,
-            Category = category,
-            Status = "PENDING",
-            WhatsAppBusinessAccountId = request.WhatsAppBusinessAccountId,
-            ComponentsJson = componentsJson,
-            LastSyncedAt = DateTimeOffset.UtcNow
-        };
+        entity.Category = category;
+        entity.ComponentsJson = componentsJson;
+        entity.Status = "PENDING";
+        entity.SubmissionLastError = null;
+        entity.SubmissionLastErrorCode = null;
+        entity.SubmissionLastErrorAt = null;
+        entity.LastSyncedAt = DateTimeOffset.UtcNow;
 
-        db.WhatsAppTemplates.Add(entity);
         await db.SaveChangesAsync(cancellationToken);
 
         var wabaRow = await db.WhatsAppBusinessAccounts
@@ -201,7 +224,7 @@ public sealed class CreateWhatsAppTemplateCommandHandler(
             ? wabaRow.WabaId
             : ws.BusinessAccountId.Trim();
 
-        var outbound = new TemplateCreateOutboundMessage
+        var outbound = new TemplateUpdateOutboundMessage
         {
             TenantId = tenantId.ToString("N"),
             WabaId = wabaRow.WabaId.Trim(),
@@ -211,8 +234,9 @@ public sealed class CreateWhatsAppTemplateCommandHandler(
                 PhoneNumberId = ws.PhoneNumberId.Trim(),
                 BusinessAccountId = businessAccountId
             },
-            Payload = new TemplateCreateOutboundPayload
+            Payload = new TemplateUpdateOutboundPayload
             {
+                MetaTemplateId = metaId,
                 Name = name,
                 Language = language,
                 Category = category,
@@ -229,10 +253,10 @@ public sealed class CreateWhatsAppTemplateCommandHandler(
         string message;
         try
         {
-            await templatePublisher.PublishCreateTemplateAsync(outbound, cancellationToken);
+            await templatePublisher.PublishUpdateTemplateAsync(outbound, cancellationToken);
             message = templatePublisher.PublishesToBroker
-                ? "Template saved and queued for WhatsApp (Meta) template creation."
-                : "Template saved locally. Enable RabbitMQ to publish to the template queue.";
+                ? "Template update queued for WhatsApp (Meta)."
+                : "Template saved locally. Enable RabbitMQ to publish update_template jobs.";
         }
         catch (Exception ex)
         {
@@ -241,7 +265,7 @@ public sealed class CreateWhatsAppTemplateCommandHandler(
             entity.SubmissionLastErrorAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(cancellationToken);
 
-            message = "Template saved, but queuing for WhatsApp (Meta) failed. Fix the template and try again.";
+            message = "Template saved, but queuing the update for WhatsApp (Meta) failed. You can edit and try again.";
         }
 
         var data = new CreateWhatsAppTemplateAcceptedDto

@@ -1,5 +1,6 @@
-﻿using InteractiveLeads.Application.Exceptions;
+using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Chat;
+using InteractiveLeads.Application.Feature.Chat.Messages;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Domain.Enums;
@@ -100,7 +101,8 @@ public sealed class ListConversationMessagesQueryHandler(
                     CreatedAt = m.CreatedAt,
                     UpdatedAt = m.UpdatedAt,
                     Status = m.Status,
-                    MediaProcessingStatus = processingStatus
+                    MediaProcessingStatus = processingStatus,
+                    TemplateSnapshot = MessageMetadataSerializer.TryReadTemplateSnapshot(m.Metadata, m.Type)
                 };
             })
             .ToList();

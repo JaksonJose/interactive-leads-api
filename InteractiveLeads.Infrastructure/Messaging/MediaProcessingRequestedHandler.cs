@@ -90,11 +90,9 @@ public sealed class MediaProcessingRequestedHandler(
                         media.FileName = msg.OriginalFileName.Trim();
                 }
 
-                message.Metadata = JsonSerializer.Serialize(new
-                {
-                    mediaProcessingStatus = "completed",
-                    mediaProcessing = mediaResult
-                });
+                message.Metadata = MessageMetadataMerge.WithMediaProcessingComplete(
+                    message.Metadata,
+                    mediaResult);
 
                 message.UpdatedAt = DateTimeOffset.UtcNow;
 
@@ -138,11 +136,7 @@ public sealed class MediaProcessingRequestedHandler(
                     "Media worker failed for message {MessageId} after {ElapsedMs} ms",
                     msg.MessageId,
                     sw.ElapsedMilliseconds);
-                message.Metadata = JsonSerializer.Serialize(new
-                {
-                    mediaProcessingStatus = "failed",
-                    error = ex.Message
-                });
+                message.Metadata = MessageMetadataMerge.WithMediaProcessingFailed(message.Metadata, ex.Message);
                 message.UpdatedAt = DateTimeOffset.UtcNow;
                 await db.SaveChangesAsync(CancellationToken.None);
 

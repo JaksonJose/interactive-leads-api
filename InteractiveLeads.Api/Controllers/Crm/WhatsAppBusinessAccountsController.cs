@@ -91,6 +91,44 @@ public sealed class WhatsAppBusinessAccountsController : BaseApiController
         return Ok(response);
     }
 
+    /// <summary>
+    /// Update template content on Meta (<c>update_template</c> on outbound queue when RabbitMQ is enabled). Requires an existing Meta template id.
+    /// </summary>
+    [HttpPut("{wabaId:guid}/templates/{templateId:guid}")]
+    [OpenApiOperation("Update WhatsApp message template for WABA")]
+    public async Task<IActionResult> UpdateTemplateAsync(
+        Guid wabaId,
+        Guid templateId,
+        [FromBody] CreateWhatsAppTemplateRequest request)
+    {
+        var response = await Sender.Send(new UpdateWhatsAppTemplateCommand
+        {
+            WhatsAppBusinessAccountId = wabaId,
+            TemplateId = templateId,
+            Template = request
+        });
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Merge CRM semantic bindings for Meta <c>{{1}}..{{n}}</c> placeholders (synced or legacy templates). Does not re-submit the template to Meta.
+    /// </summary>
+    [HttpPatch("{wabaId:guid}/templates/{templateId:guid}/variable-bindings")]
+    [OpenApiOperation("Update WhatsApp template variable bindings (CRM only)")]
+    public async Task<IActionResult> UpdateTemplateVariableBindingsAsync(
+        Guid wabaId,
+        Guid templateId,
+        [FromBody] UpdateWhatsAppTemplateVariableBindingsRequest request)
+    {
+        var response = await Sender.Send(new UpdateWhatsAppTemplateVariableBindingsCommand
+        {
+            WhatsAppBusinessAccountId = wabaId,
+            TemplateId = templateId,
+            Request = request ?? new UpdateWhatsAppTemplateVariableBindingsRequest()
+        });
+        return Ok(response);
+    }
+
     /// <summary>Delete a template (body must include the template name for Meta); queued as <c>delete_template</c> when RabbitMQ is enabled.</summary>
     [HttpDelete("{wabaId:guid}/templates/{templateId:guid}")]
     [OpenApiOperation("Delete WhatsApp message template for WABA")]
@@ -104,6 +142,34 @@ public sealed class WhatsAppBusinessAccountsController : BaseApiController
             WhatsAppBusinessAccountId = wabaId,
             TemplateId = templateId,
             Request = request
+        });
+        return Ok(response);
+    }
+
+    /// <summary>Disable a template (CRM only). Disabled templates remain visible but cannot be used for messaging.</summary>
+    [HttpPost("{wabaId:guid}/templates/{templateId:guid}/disable")]
+    [OpenApiOperation("Disable WhatsApp message template (CRM only)")]
+    public async Task<IActionResult> DisableTemplateAsync(Guid wabaId, Guid templateId)
+    {
+        var response = await Sender.Send(new SetWhatsAppTemplateDisabledCommand
+        {
+            WhatsAppBusinessAccountId = wabaId,
+            TemplateId = templateId,
+            IsDisabled = true
+        });
+        return Ok(response);
+    }
+
+    /// <summary>Enable a template (CRM only). Only allowed when template is not pending delete.</summary>
+    [HttpPost("{wabaId:guid}/templates/{templateId:guid}/enable")]
+    [OpenApiOperation("Enable WhatsApp message template (CRM only)")]
+    public async Task<IActionResult> EnableTemplateAsync(Guid wabaId, Guid templateId)
+    {
+        var response = await Sender.Send(new SetWhatsAppTemplateDisabledCommand
+        {
+            WhatsAppBusinessAccountId = wabaId,
+            TemplateId = templateId,
+            IsDisabled = false
         });
         return Ok(response);
     }
