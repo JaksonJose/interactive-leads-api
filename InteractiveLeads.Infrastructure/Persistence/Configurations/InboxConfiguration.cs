@@ -24,6 +24,9 @@ public class InboxConfiguration : IEntityTypeConfiguration<Inbox>
             .HasDefaultValueSql("now() at time zone 'utc'")
             .IsRequired();
 
+        builder.Property(i => i.DefaultCalendarId);
+        builder.Property(i => i.DefaultSlaPolicyId);
+
         builder.HasIndex(i => i.CompanyId)
             .HasDatabaseName("IX_Inbox_CompanyId");
 

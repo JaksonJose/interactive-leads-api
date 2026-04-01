@@ -294,6 +294,16 @@ public sealed class ProcessInboundEventCommandHandler(
                     db.Conversations.Add(conversation);
                     await db.SaveChangesAsync(cancellationToken);
 
+                    try
+                    {
+                        var autoAssign = sp.GetRequiredService<IConversationAutoAssignService>();
+                        await autoAssign.TryAssignNewConversationAsync(companyId, lookup.TenantId, conversation, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        tenantLogger.LogWarning(ex, "Auto-assign failed for new conversation {ConversationId}", conversation.Id);
+                    }
+
                     var conversationCreatedEvent = new RealtimeEvent<ConversationCreatedPayloadDto>
                     {
                         Type = "conversation.created",

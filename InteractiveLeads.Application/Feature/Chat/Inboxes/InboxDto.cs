@@ -7,5 +7,9 @@ public sealed class InboxDto
     public string CompanyName { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+
+    public Guid? DefaultCalendarId { get; set; }
+
+    public Guid? DefaultSlaPolicyId { get; set; }
 }
 

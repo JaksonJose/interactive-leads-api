@@ -48,6 +48,9 @@ public class ConversationConfiguration : IEntityTypeConfiguration<Conversation>
         builder.HasIndex(c => c.InboxId)
             .HasDatabaseName("IX_Conversation_InboxId");
 
+        builder.HasIndex(c => new { c.InboxId, c.Status, c.AssignedAgentId })
+            .HasDatabaseName("IX_Conversation_InboxId_Status_AssignedAgentId");
+
         builder.HasIndex(c => c.AssignedAgentId)
             .HasDatabaseName("IX_Conversation_AssignedAgentId");
 
@@ -79,6 +82,14 @@ public class ConversationConfiguration : IEntityTypeConfiguration<Conversation>
             .WithMany(i => i.Conversations)
             .HasForeignKey(c => c.InboxId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(c => c.HandlingTeam)
+            .WithMany(t => t.HandledConversations)
+            .HasForeignKey(c => c.HandlingTeamId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(c => c.HandlingTeamId)
+            .HasDatabaseName("IX_Conversation_HandlingTeamId");
 
         builder.HasMany(c => c.Assignments)
             .WithOne(a => a.Conversation)

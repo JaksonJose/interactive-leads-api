@@ -22,6 +22,13 @@ public class InboxTeamConfiguration : IEntityTypeConfiguration<InboxTeam>
             .IsUnique()
             .HasDatabaseName("UX_InboxTeam_InboxId_TeamId");
 
+        builder.Property(x => x.Priority)
+            .IsRequired();
+
+        builder.HasIndex(x => new { x.InboxId, x.Priority })
+            .IsUnique()
+            .HasDatabaseName("UX_InboxTeam_InboxId_Priority");
+
         builder.HasOne(x => x.Inbox)
             .WithMany(i => i.TeamLinks)
             .HasForeignKey(x => x.InboxId)

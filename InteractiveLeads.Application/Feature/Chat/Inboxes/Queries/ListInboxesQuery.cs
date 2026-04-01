@@ -79,7 +79,9 @@ public sealed class ListInboxesQueryHandler(
                 Name = i.Name,
                 CompanyName = companyName,
                 IsActive = i.IsActive,
-                CreatedAt = i.CreatedAt
+                CreatedAt = i.CreatedAt,
+                DefaultCalendarId = i.DefaultCalendarId,
+                DefaultSlaPolicyId = i.DefaultSlaPolicyId
             })
             .ToListAsync(cancellationToken);
 

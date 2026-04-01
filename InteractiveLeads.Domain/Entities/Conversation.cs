@@ -9,6 +9,10 @@ public class Conversation
     public Guid ContactId { get; set; }
     public Guid IntegrationId { get; set; }
     public Guid InboxId { get; set; }
+
+    /// <summary>Team whose SLA / routing rules apply after routing assigns this conversation.</summary>
+    public Guid? HandlingTeamId { get; set; }
+
     public ConversationStatus Status { get; set; }
     public Guid? AssignedAgentId { get; set; }
     public DateTimeOffset? AssignedAt { get; set; }
@@ -21,6 +25,7 @@ public class Conversation
     public Contact Contact { get; set; } = default!;
     public Integration Integration { get; set; } = default!;
     public Inbox Inbox { get; set; } = default!;
+    public Team? HandlingTeam { get; set; }
     public ICollection<Message> Messages { get; set; } = new List<Message>();
     public ICollection<ConversationParticipant> Participants { get; set; } = new List<ConversationParticipant>();
     public ICollection<ConversationAssignment> Assignments { get; set; } = new List<ConversationAssignment>();

@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace InteractiveLeads.Application.Feature.Chat.Inboxes;
 
 /// <summary>
-/// Replaces all team links for an inbox (same validation rules as bulk link).
+/// Replaces all team links for an inbox. <see cref="TeamIds"/> order defines routing priority (1 = first).
 /// </summary>
 public static class InboxTeamLinkSync
 {
@@ -20,8 +20,21 @@ public static class InboxTeamLinkSync
     {
         var ids = (teamIds ?? [])
             .Where(id => id != Guid.Empty)
-            .Distinct()
             .ToList();
+
+        if (ids.Count == 0)
+        {
+            var empty = new ResultResponse();
+            empty.AddErrorMessage("At least one team is required for this inbox.", "chat.inbox.teams_required");
+            throw new BadRequestException(empty);
+        }
+
+        if (ids.Count != ids.Distinct().Count())
+        {
+            var dup = new ResultResponse();
+            dup.AddErrorMessage("Duplicate team ids are not allowed.", "chat.inbox.teams_duplicate");
+            throw new BadRequestException(dup);
+        }
 
         var existingRows = await db.InboxTeams
             .Where(x => x.InboxId == inboxId)
@@ -29,31 +42,28 @@ public static class InboxTeamLinkSync
 
         db.InboxTeams.RemoveRange(existingRows);
 
-        if (ids.Count == 0)
-            return;
-
-        var validTeams = await db.Teams
-            .AsNoTracking()
-            .Where(t => ids.Contains(t.Id) && t.CompanyId == companyId && t.IsActive)
-            .Select(t => t.Id)
-            .ToListAsync(cancellationToken);
-
-        if (validTeams.Count != ids.Count)
+        for (var i = 0; i < ids.Count; i++)
         {
-            var bad = new ResultResponse();
-            bad.AddErrorMessage(
-                "One or more teams are invalid, inactive, or not in this company.",
-                "teams.bulk_link_invalid");
-            throw new BadRequestException(bad);
-        }
+            var teamId = ids[i];
+            var valid = await db.Teams
+                .AsNoTracking()
+                .AnyAsync(t => t.Id == teamId && t.CompanyId == companyId && t.IsActive, cancellationToken);
 
-        foreach (var teamId in validTeams)
-        {
+            if (!valid)
+            {
+                var bad = new ResultResponse();
+                bad.AddErrorMessage(
+                    "One or more teams are invalid, inactive, or not in this company.",
+                    "teams.bulk_link_invalid");
+                throw new BadRequestException(bad);
+            }
+
             db.InboxTeams.Add(new InboxTeam
             {
                 Id = Guid.NewGuid(),
                 InboxId = inboxId,
-                TeamId = teamId
+                TeamId = teamId,
+                Priority = i + 1
             });
         }
     }

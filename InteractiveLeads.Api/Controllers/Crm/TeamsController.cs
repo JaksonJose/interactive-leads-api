@@ -36,6 +36,14 @@ public sealed class TeamsController : BaseApiController
         return Ok(response);
     }
 
+    [HttpGet("{teamId:guid}")]
+    [OpenApiOperation("Get team by id")]
+    public async Task<IActionResult> GetByIdAsync(Guid teamId)
+    {
+        var response = await Sender.Send(new GetTeamByIdQuery { TeamId = teamId });
+        return Ok(response);
+    }
+
     [HttpGet("{teamId:guid}/inboxes")]
     [OpenApiOperation("List inboxes linked to a team")]
     public async Task<IActionResult> ListInboxesForTeamAsync(Guid teamId)

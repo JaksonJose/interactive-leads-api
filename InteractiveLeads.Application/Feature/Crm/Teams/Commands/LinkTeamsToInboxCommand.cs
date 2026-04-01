@@ -31,17 +31,18 @@ public sealed class LinkTeamsToInboxCommandHandler(
         if (ids.Count == 0)
             return new ResultResponse();
 
-        var validTeams = await db.Teams
-            .AsNoTracking()
-            .Where(t => ids.Contains(t.Id) && t.CompanyId == companyId && t.IsActive)
-            .Select(t => t.Id)
-            .ToListAsync(cancellationToken);
-
-        if (validTeams.Count != ids.Count)
+        foreach (var teamId in ids)
         {
-            var bad = new ResultResponse();
-            bad.AddErrorMessage("One or more teams are invalid, inactive, or not in this company.", "teams.bulk_link_invalid");
-            throw new BadRequestException(bad);
+            var valid = await db.Teams
+                .AsNoTracking()
+                .AnyAsync(t => t.Id == teamId && t.CompanyId == companyId && t.IsActive, cancellationToken);
+
+            if (!valid)
+            {
+                var bad = new ResultResponse();
+                bad.AddErrorMessage("One or more teams are invalid, inactive, or not in this company.", "teams.bulk_link_invalid");
+                throw new BadRequestException(bad);
+            }
         }
 
         var existing = await db.InboxTeams
@@ -50,15 +51,21 @@ public sealed class LinkTeamsToInboxCommandHandler(
             .ToListAsync(cancellationToken);
 
         var existingSet = existing.ToHashSet();
-        foreach (var teamId in validTeams)
+        var nextPriority = await db.InboxTeams
+            .Where(x => x.InboxId == request.InboxId)
+            .MaxAsync(x => (int?)x.Priority, cancellationToken) ?? 0;
+
+        foreach (var teamId in ids)
         {
             if (existingSet.Contains(teamId))
                 continue;
+            nextPriority++;
             db.InboxTeams.Add(new InboxTeam
             {
                 Id = Guid.NewGuid(),
                 InboxId = request.InboxId,
-                TeamId = teamId
+                TeamId = teamId,
+                Priority = nextPriority
             });
         }
 

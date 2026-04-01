@@ -61,7 +61,12 @@ public sealed class CreateTeamCommandHandler(
             CreatedAt = team.CreatedAt,
             CalendarId = team.CalendarId,
             SlaPolicyId = team.SlaPolicyId,
-            MemberCount = 0
+            MemberCount = 0,
+            AutoAssignEnabled = team.AutoAssignEnabled,
+            AutoAssignStrategy = team.AutoAssignStrategy,
+            AutoAssignIgnoreOfflineUsers = team.AutoAssignIgnoreOfflineUsers,
+            AutoAssignMaxConversationsPerUser = team.AutoAssignMaxConversationsPerUser,
+            AutoAssignReassignTimeoutMinutes = team.AutoAssignReassignTimeoutMinutes
         });
     }
 }

@@ -15,6 +15,19 @@ public sealed class TeamDto
     public Guid? SlaPolicyId { get; set; }
     /// <summary>Active user count on the team (UserTeam rows).</summary>
     public int MemberCount { get; set; }
+
+    /// <summary>When listing teams for an inbox: routing order (1 = highest priority).</summary>
+    public int? RoutingPriority { get; set; }
+
+    public bool AutoAssignEnabled { get; set; }
+
+    public AutoAssignStrategy AutoAssignStrategy { get; set; }
+
+    public bool AutoAssignIgnoreOfflineUsers { get; set; }
+
+    public int? AutoAssignMaxConversationsPerUser { get; set; }
+
+    public int? AutoAssignReassignTimeoutMinutes { get; set; }
 }
 
 public sealed class TeamMemberDto

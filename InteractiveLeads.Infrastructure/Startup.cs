@@ -51,6 +51,7 @@ using System.Text.Json;
 using StackExchange.Redis;
 using InteractiveLeads.Application.Realtime.Services.Presence;
 using InteractiveLeads.Infrastructure.Realtime.Presence;
+using InteractiveLeads.Infrastructure.Chat;
 
 namespace InteractiveLeads.Infrastructure
 {
@@ -194,6 +195,8 @@ namespace InteractiveLeads.Infrastructure
                 return ConnectionMultiplexer.Connect(opts);
             });
             services.AddSingleton<IPresenceService, RedisPresenceService>();
+            services.AddSingleton<IAutoAssignRoundRobinStore, RedisAutoAssignRoundRobinStore>();
+            services.AddScoped<IConversationAutoAssignService, ConversationAutoAssignService>();
 
             return services;
         }

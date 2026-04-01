@@ -46,6 +46,20 @@ public sealed class UpdateTeamCommandHandler(
                 team.SetDescription(request.UpdateTeam.Description);
             if (request.UpdateTeam.IsActive.HasValue)
                 team.IsActive = request.UpdateTeam.IsActive.Value;
+            if (request.UpdateTeam.CalendarId.HasValue)
+                team.CalendarId = request.UpdateTeam.CalendarId;
+            if (request.UpdateTeam.SlaPolicyId.HasValue)
+                team.SlaPolicyId = request.UpdateTeam.SlaPolicyId;
+            if (request.UpdateTeam.AutoAssignEnabled.HasValue)
+                team.AutoAssignEnabled = request.UpdateTeam.AutoAssignEnabled.Value;
+            if (request.UpdateTeam.AutoAssignStrategy.HasValue)
+                team.AutoAssignStrategy = request.UpdateTeam.AutoAssignStrategy.Value;
+            if (request.UpdateTeam.AutoAssignIgnoreOfflineUsers.HasValue)
+                team.AutoAssignIgnoreOfflineUsers = request.UpdateTeam.AutoAssignIgnoreOfflineUsers.Value;
+            if (request.UpdateTeam.AutoAssignMaxConversationsPerUser.HasValue)
+                team.AutoAssignMaxConversationsPerUser = request.UpdateTeam.AutoAssignMaxConversationsPerUser;
+            if (request.UpdateTeam.AutoAssignReassignTimeoutMinutes.HasValue)
+                team.AutoAssignReassignTimeoutMinutes = request.UpdateTeam.AutoAssignReassignTimeoutMinutes;
         }
         catch (ArgumentException ex)
         {
@@ -71,7 +85,12 @@ public sealed class UpdateTeamCommandHandler(
             CreatedAt = team.CreatedAt,
             CalendarId = team.CalendarId,
             SlaPolicyId = team.SlaPolicyId,
-            MemberCount = memberCount
+            MemberCount = memberCount,
+            AutoAssignEnabled = team.AutoAssignEnabled,
+            AutoAssignStrategy = team.AutoAssignStrategy,
+            AutoAssignIgnoreOfflineUsers = team.AutoAssignIgnoreOfflineUsers,
+            AutoAssignMaxConversationsPerUser = team.AutoAssignMaxConversationsPerUser,
+            AutoAssignReassignTimeoutMinutes = team.AutoAssignReassignTimeoutMinutes
         });
     }
 }

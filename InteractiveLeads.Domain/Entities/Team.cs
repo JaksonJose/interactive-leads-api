@@ -1,3 +1,5 @@
+using InteractiveLeads.Domain.Enums;
+
 namespace InteractiveLeads.Domain.Entities;
 
 /// <summary>
@@ -22,10 +24,23 @@ public class Team
     /// <summary>Optional FK placeholder for future team-based SLA policy.</summary>
     public Guid? SlaPolicyId { get; set; }
 
+    public bool AutoAssignEnabled { get; set; }
+
+    public AutoAssignStrategy AutoAssignStrategy { get; set; } = AutoAssignStrategy.RoundRobin;
+
+    public bool AutoAssignIgnoreOfflineUsers { get; set; }
+
+    public int? AutoAssignMaxConversationsPerUser { get; set; }
+
+    /// <summary>Reserved for future reassign-if-no-reply automation.</summary>
+    public int? AutoAssignReassignTimeoutMinutes { get; set; }
+
     public Tenant Tenant { get; set; } = default!;
     public Company Company { get; set; } = default!;
     public ICollection<UserTeam> Members { get; set; } = new List<UserTeam>();
     public ICollection<InboxTeam> InboxLinks { get; set; } = new List<InboxTeam>();
+
+    public ICollection<Conversation> HandledConversations { get; set; } = new List<Conversation>();
 
     public void Rename(string name)
     {

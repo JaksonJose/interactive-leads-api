@@ -3,6 +3,7 @@ using System;
 using InteractiveLeads.Infrastructure.Context.Application;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace InteractiveLeads.Infrastructure.Migrations.Application
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260401161000_TeamRoutingAndAutoAssign")]
+    partial class TeamRoutingAndAutoAssign
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -204,6 +207,9 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     b.HasIndex("InboxId")
                         .HasDatabaseName("IX_Conversation_InboxId");
 
+                    b.HasIndex("InboxId", "Status", "AssignedAgentId")
+                        .HasDatabaseName("IX_Conversation_InboxId_Status_AssignedAgentId");
+
                     b.HasIndex("IntegrationId")
                         .HasDatabaseName("IX_Conversation_IntegrationId");
 
@@ -215,9 +221,6 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
 
                     b.HasIndex("Status")
                         .HasDatabaseName("IX_Conversation_Status");
-
-                    b.HasIndex("InboxId", "Status", "AssignedAgentId")
-                        .HasDatabaseName("IX_Conversation_InboxId_Status_AssignedAgentId");
 
                     b.ToTable("Conversation", "Crm");
                 });

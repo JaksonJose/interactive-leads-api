@@ -44,7 +44,27 @@ public sealed class UnlinkTeamFromInboxCommandHandler(
             throw new NotFoundException(nf);
         }
 
+        var totalLinks = await db.InboxTeams
+            .CountAsync(x => x.InboxId == request.InboxId, cancellationToken);
+
+        if (totalLinks <= 1)
+        {
+            var bad = new ResultResponse();
+            bad.AddErrorMessage("Cannot remove the last team from an inbox.", "chat.inbox.last_team");
+            throw new BadRequestException(bad);
+        }
+
         db.InboxTeams.Remove(link);
+        await db.SaveChangesAsync(cancellationToken);
+
+        var remaining = await db.InboxTeams
+            .Where(x => x.InboxId == request.InboxId)
+            .OrderBy(x => x.Priority)
+            .ToListAsync(cancellationToken);
+
+        for (var i = 0; i < remaining.Count; i++)
+            remaining[i].Priority = i + 1;
+
         await db.SaveChangesAsync(cancellationToken);
 
         return new ResultResponse();

@@ -13,10 +13,18 @@ public sealed class ConversationCollaborationRealtimePublisher(
     IUserSummaryLookupService userSummaryLookup,
     ICurrentUserService currentUserService) : IConversationCollaborationRealtimePublisher
 {
-    public async Task PublishCollaborationUpdatedAsync(Conversation conversation, CancellationToken cancellationToken)
+    public Task PublishCollaborationUpdatedAsync(Conversation conversation, CancellationToken cancellationToken)
     {
         var tenantId = currentUserService.GetUserTenant();
         if (string.IsNullOrWhiteSpace(tenantId))
+            return Task.CompletedTask;
+
+        return PublishCollaborationUpdatedAsync(conversation, tenantId, cancellationToken);
+    }
+
+    public async Task PublishCollaborationUpdatedAsync(Conversation conversation, string tenantIdentifier, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(tenantIdentifier))
             return;
 
         string? assignedName = null;
@@ -49,13 +57,13 @@ public sealed class ConversationCollaborationRealtimePublisher(
         var evt = new RealtimeEvent<ConversationCollaborationUpdatedPayloadDto>
         {
             Type = "conversation.collaboration_updated",
-            TenantId = tenantId,
+            TenantId = tenantIdentifier,
             Timestamp = DateTime.UtcNow,
             Payload = payload
         };
 
         // Broadcast to the whole tenant (same group as presence) so every agent receives updates
         // even if JoinInbox/JoinConversation failed silently or the user was just granted access.
-        await realtimeService.SendToTenantAsync(tenantId, evt);
+        await realtimeService.SendToTenantAsync(tenantIdentifier, evt);
     }
 }

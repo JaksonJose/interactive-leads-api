@@ -84,6 +84,11 @@ public sealed class UpdateInboxCommandHandler(
 
         inbox.Name = name;
         inbox.IsActive = request.UpdateInbox?.IsActive ?? inbox.IsActive;
+        if (request.UpdateInbox is not null)
+        {
+            inbox.DefaultCalendarId = request.UpdateInbox.DefaultCalendarId;
+            inbox.DefaultSlaPolicyId = request.UpdateInbox.DefaultSlaPolicyId;
+        }
 
         await InboxTeamLinkSync.ReplaceLinksAsync(
             db,
@@ -99,7 +104,9 @@ public sealed class UpdateInboxCommandHandler(
             Name = inbox.Name,
             CompanyName = companyName,
             IsActive = inbox.IsActive,
-            CreatedAt = inbox.CreatedAt
+            CreatedAt = inbox.CreatedAt,
+            DefaultCalendarId = inbox.DefaultCalendarId,
+            DefaultSlaPolicyId = inbox.DefaultSlaPolicyId
         });
     }
 }

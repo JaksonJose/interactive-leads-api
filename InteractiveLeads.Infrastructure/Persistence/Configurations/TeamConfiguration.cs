@@ -1,4 +1,5 @@
 using InteractiveLeads.Domain.Entities;
+using InteractiveLeads.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -11,6 +12,23 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
         builder.ToTable("Team", "Crm");
 
         builder.HasKey(t => t.Id);
+
+        builder.Property(t => t.AutoAssignEnabled)
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(t => t.AutoAssignStrategy)
+            .HasConversion<int>()
+            .HasDefaultValue(AutoAssignStrategy.RoundRobin)
+            .IsRequired();
+
+        builder.Property(t => t.AutoAssignIgnoreOfflineUsers)
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(t => t.AutoAssignMaxConversationsPerUser);
+
+        builder.Property(t => t.AutoAssignReassignTimeoutMinutes);
 
         builder.Property(t => t.Name)
             .IsRequired()

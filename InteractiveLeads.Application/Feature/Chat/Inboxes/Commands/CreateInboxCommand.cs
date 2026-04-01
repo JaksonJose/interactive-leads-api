@@ -77,7 +77,9 @@ public sealed class CreateInboxCommandHandler(
             CompanyId = companyId,
             Name = name,
             IsActive = request.CreateInbox?.IsActive ?? true,
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow,
+            DefaultCalendarId = request.CreateInbox?.DefaultCalendarId,
+            DefaultSlaPolicyId = request.CreateInbox?.DefaultSlaPolicyId
         };
 
         db.Inboxes.Add(inbox);
@@ -95,7 +97,9 @@ public sealed class CreateInboxCommandHandler(
             Name = inbox.Name,
             CompanyName = companyName,
             IsActive = inbox.IsActive,
-            CreatedAt = inbox.CreatedAt
+            CreatedAt = inbox.CreatedAt,
+            DefaultCalendarId = inbox.DefaultCalendarId,
+            DefaultSlaPolicyId = inbox.DefaultSlaPolicyId
         });
     }
 }

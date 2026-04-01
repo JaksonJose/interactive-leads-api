@@ -55,11 +55,16 @@ public sealed class LinkTeamToInboxCommandHandler(
             return new ResultResponse();
         }
 
+        var maxPriority = await db.InboxTeams
+            .Where(x => x.InboxId == request.InboxId)
+            .MaxAsync(x => (int?)x.Priority, cancellationToken) ?? 0;
+
         db.InboxTeams.Add(new InboxTeam
         {
             Id = Guid.NewGuid(),
             InboxId = request.InboxId,
-            TeamId = request.TeamId
+            TeamId = request.TeamId,
+            Priority = maxPriority + 1
         });
 
         await db.SaveChangesAsync(cancellationToken);

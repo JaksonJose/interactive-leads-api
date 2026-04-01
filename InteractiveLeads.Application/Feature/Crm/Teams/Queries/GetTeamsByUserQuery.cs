@@ -53,7 +53,12 @@ public sealed class GetTeamsByUserQueryHandler(
                 CreatedAt = t.CreatedAt,
                 CalendarId = t.CalendarId,
                 SlaPolicyId = t.SlaPolicyId,
-                MemberCount = db.UserTeams.Count(ut => ut.TeamId == t.Id)
+                MemberCount = db.UserTeams.Count(ut => ut.TeamId == t.Id),
+                AutoAssignEnabled = t.AutoAssignEnabled,
+                AutoAssignStrategy = t.AutoAssignStrategy,
+                AutoAssignIgnoreOfflineUsers = t.AutoAssignIgnoreOfflineUsers,
+                AutoAssignMaxConversationsPerUser = t.AutoAssignMaxConversationsPerUser,
+                AutoAssignReassignTimeoutMinutes = t.AutoAssignReassignTimeoutMinutes
             })
             .ToListAsync(cancellationToken);
 
