@@ -13,6 +13,22 @@ public class RealtimeService : IRealtimeService
         _hubContext = hubContext;
     }
 
+    public Task SendPresenceUpdatedToTenantAsync(string tenantId, string userId, bool isOnline, DateTimeOffset? lastSeenAtUtc)
+    {
+        return _hubContext.Clients.Group($"tenant:{tenantId}").SendAsync("event", new
+        {
+            type = "presence.updated",
+            tenantId,
+            timestamp = DateTimeOffset.UtcNow.ToString("O"),
+            payload = new { userId, isOnline, lastSeenAtUtc }
+        });
+    }
+
+    public Task SendToTenantAsync(string tenantId, object @event)
+    {
+        return _hubContext.Clients.Group($"tenant:{tenantId}").SendAsync("event", @event);
+    }
+
     public Task SendToInboxAsync(string inboxId, object @event)
     {
         var inboxGuid = Guid.Parse(inboxId);

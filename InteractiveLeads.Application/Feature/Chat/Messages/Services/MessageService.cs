@@ -52,7 +52,13 @@ public sealed class MessageService(
             throw new NotFoundException(response);
         }
 
-        await ChatContext.EnsureInboxAccessAsync(db, currentUserService, conversation.InboxId, companyId, cancellationToken);
+        await ChatContext.EnsureConversationCollaborationAccessAsync(
+            db,
+            currentUserService,
+            conversation.Id,
+            conversation.InboxId,
+            companyId,
+            cancellationToken);
 
         var senderUserId = Guid.TryParse(currentUserService.GetUserId(), out var parsedSender) ? parsedSender : (Guid?)null;
 

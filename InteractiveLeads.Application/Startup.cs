@@ -1,5 +1,6 @@
 using FluentValidation;
 using InteractiveLeads.Application.Feature.Chat.Media;
+using InteractiveLeads.Application.Feature.Chat.Conversations.Services;
 using InteractiveLeads.Application.Feature.Chat.Messages.Services;
 using InteractiveLeads.Application.Feature.Crm.WhatsAppBusinessAccounts.TemplateQueue;
 using InteractiveLeads.Application.Dispatching;
@@ -58,6 +59,7 @@ namespace InteractiveLeads.Application
             services.AddScoped<IWhatsAppBusinessAccountLinker, WhatsAppBusinessAccountLinker>();
             services.AddScoped<IMessageService, MessageService>();
             services.AddScoped<IConversationMediaUploadService, ConversationMediaUploadService>();
+            services.AddScoped<IConversationCollaborationRealtimePublisher, ConversationCollaborationRealtimePublisher>();
 
             return services;
         }

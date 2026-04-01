@@ -9,6 +9,7 @@ using InteractiveLeads.Application.Interfaces.HttpRequests;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Infrastructure.Configuration;
+using Microsoft.Extensions.Options;
 using InteractiveLeads.Infrastructure.Context.Application;
 using InteractiveLeads.Infrastructure.Context.Tenancy;
 using InteractiveLeads.Infrastructure.Context.Tenancy.Interfaces;
@@ -47,6 +48,9 @@ using System.Net;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using StackExchange.Redis;
+using InteractiveLeads.Application.Realtime.Services.Presence;
+using InteractiveLeads.Infrastructure.Realtime.Presence;
 
 namespace InteractiveLeads.Infrastructure
 {
@@ -101,6 +105,7 @@ namespace InteractiveLeads.Infrastructure
 
             services.Configure<SysAdminSeedSettings>(config.GetSection(SysAdminSeedSettings.SectionName));
             services.Configure<ActivationSettings>(config.GetSection(ActivationSettings.SectionName));
+            services.Configure<PresenceOptions>(config.GetSection(PresenceOptions.SectionName));
 
             services.AddTransient<ITenantDbSeeder, TenantDbSeeder>();
             services.AddTransient<ApplicationDbSeeder>();
@@ -113,6 +118,8 @@ namespace InteractiveLeads.Infrastructure
             services.AddScoped<IRoleService, RoleService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IUserSummaryLookupService, UserSummaryLookupService>();
+            services.AddScoped<IChatConversationUserValidator, ChatConversationUserValidator>();
+            services.AddScoped<IChatUserDirectoryService, ChatUserDirectoryService>();
             services.AddScoped<IUserLookupService, UserLookupService>();
             services.AddScoped<IImpersonationService, ImpersonationService>();
             services.AddScoped<IActivationTokenRepository, ActivationTokenRepository>();
@@ -166,6 +173,26 @@ namespace InteractiveLeads.Infrastructure
             services.AddExternalApiHttpClients(config);
 
             services.AddOpenApiDocumentation(config);
+
+            // Realtime presence (Redis) — multi-instance safe.
+            services.AddSingleton<IConnectionMultiplexer>(_ =>
+            {
+                var redisConfig =
+                    config.GetConnectionString("Redis")
+                    ?? config["Redis:Configuration"]
+                    ?? "localhost:6379";
+
+                var db = 0;
+                var dbRaw = config["Redis:Database"];
+                if (!string.IsNullOrWhiteSpace(dbRaw) && int.TryParse(dbRaw, out var parsed))
+                    db = parsed;
+
+                var opts = ConfigurationOptions.Parse(redisConfig, ignoreUnknown: true);
+                opts.DefaultDatabase = db;
+                opts.AbortOnConnectFail = false;
+                return ConnectionMultiplexer.Connect(opts);
+            });
+            services.AddSingleton<IPresenceService, RedisPresenceService>();
 
             return services;
         }
