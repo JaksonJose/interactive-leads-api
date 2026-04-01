@@ -1,4 +1,4 @@
-﻿using InteractiveLeads.Application.Feature.Chat;
+using InteractiveLeads.Application.Feature.Chat;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Application.Dispatching;
@@ -36,9 +36,17 @@ public sealed class ListInboxConversationsQueryHandler(
         var companyId = await ChatContext.GetCompanyIdAsync(db, currentUserService, cancellationToken);
         await ChatContext.EnsureInboxAccessAsync(db, currentUserService, request.InboxId, companyId, cancellationToken);
 
-        var items = await db.Conversations
+        var baseQuery = db.Conversations
             .AsNoTracking()
-            .Where(c => c.CompanyId == companyId && c.InboxId == request.InboxId)
+            .Where(c => c.InboxId == request.InboxId);
+
+        var filtered = ChatContext.ApplyConversationAccessFilter(
+            db,
+            currentUserService,
+            companyId,
+            baseQuery);
+
+        var items = await filtered
             .OrderByDescending(c => c.LastMessageAt)
             .Select(c => new ConversationDto
             {

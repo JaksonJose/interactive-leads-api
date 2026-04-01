@@ -7,7 +7,6 @@ using InteractiveLeads.Application.Feature.Chat.Messages.Commands;
 using InteractiveLeads.Application.Feature.Chat.Messages;
 using InteractiveLeads.Application.Feature.Chat.Messages.Queries;
 using InteractiveLeads.Application.Feature.Chat.Media;
-using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -45,6 +44,17 @@ public sealed class ConversationsController(IConversationMediaUploadService conv
             PageSize = pageSize
         });
 
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Single list row for realtime merge when the user gains visibility (assign / transfer / invite).
+    /// </summary>
+    [HttpGet("{conversationId:guid}/chat-list-item")]
+    [OpenApiOperation("Get one inbox list row for chat (access-filtered)")]
+    public async Task<IActionResult> GetChatListItemAsync(Guid conversationId)
+    {
+        var response = await Sender.Send(new GetInboxConversationListItemQuery { ConversationId = conversationId });
         return Ok(response);
     }
 

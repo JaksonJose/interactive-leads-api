@@ -16,7 +16,8 @@ public sealed class RemoveConversationParticipantCommand : IApplicationRequest<I
 
 public sealed class RemoveConversationParticipantCommandHandler(
     IApplicationDbContext db,
-    ICurrentUserService currentUserService) : IApplicationRequestHandler<RemoveConversationParticipantCommand, IResponse>
+    ICurrentUserService currentUserService,
+    IConversationCollaborationRealtimePublisher collaborationRealtime) : IApplicationRequestHandler<RemoveConversationParticipantCommand, IResponse>
 {
     public async Task<IResponse> Handle(RemoveConversationParticipantCommand request, CancellationToken cancellationToken)
     {
@@ -71,6 +72,7 @@ public sealed class RemoveConversationParticipantCommandHandler(
         row.LeftAt = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
+        await collaborationRealtime.PublishCollaborationUpdatedAsync(conversation, cancellationToken);
         return new ResultResponse();
     }
 }

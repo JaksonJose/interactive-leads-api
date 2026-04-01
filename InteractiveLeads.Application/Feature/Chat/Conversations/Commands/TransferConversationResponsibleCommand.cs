@@ -18,7 +18,8 @@ public sealed class TransferConversationResponsibleCommand : IApplicationRequest
 public sealed class TransferConversationResponsibleCommandHandler(
     IApplicationDbContext db,
     ICurrentUserService currentUserService,
-    IChatConversationUserValidator userValidator) : IApplicationRequestHandler<TransferConversationResponsibleCommand, IResponse>
+    IChatConversationUserValidator userValidator,
+    IConversationCollaborationRealtimePublisher collaborationRealtime) : IApplicationRequestHandler<TransferConversationResponsibleCommand, IResponse>
 {
     public async Task<IResponse> Handle(TransferConversationResponsibleCommand request, CancellationToken cancellationToken)
     {
@@ -75,6 +76,7 @@ public sealed class TransferConversationResponsibleCommandHandler(
         await EnsureInternalParticipantRowAsync(db, conversation.Id, request.NewResponsibleUserId, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
+        await collaborationRealtime.PublishCollaborationUpdatedAsync(conversation, cancellationToken);
         return new ResultResponse();
     }
 

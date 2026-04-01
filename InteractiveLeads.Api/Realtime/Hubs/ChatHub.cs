@@ -105,5 +105,32 @@ public class ChatHub : Hub
 
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"conversation:{conversationGuid}");
     }
+
+    /// <summary>Client heartbeat: renews Redis session TTL and prunes stale connection fields for this user.</summary>
+    public async Task PingPresence()
+    {
+        var (tenantId, userId) = GetTenantAndUser();
+        if (string.IsNullOrWhiteSpace(tenantId) || string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+        try
+        {
+            var state = await _presence.HeartbeatAsync(Context.ConnectionId, tenantId!, userId!, Context.ConnectionAborted);
+            if (state is not null)
+            {
+                await _realtime.SendPresenceUpdatedToTenantAsync(
+                    state.TenantId,
+                    state.UserId,
+                    state.IsOnline,
+                    state.LastSeenAtUtc);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Refresh/rapid reconnect can cancel the hub method.
+        }
+    }
 }
 

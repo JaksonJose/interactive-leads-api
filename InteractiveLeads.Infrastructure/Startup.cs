@@ -9,6 +9,7 @@ using InteractiveLeads.Application.Interfaces.HttpRequests;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Infrastructure.Configuration;
+using Microsoft.Extensions.Options;
 using InteractiveLeads.Infrastructure.Context.Application;
 using InteractiveLeads.Infrastructure.Context.Tenancy;
 using InteractiveLeads.Infrastructure.Context.Tenancy.Interfaces;
@@ -104,6 +105,7 @@ namespace InteractiveLeads.Infrastructure
 
             services.Configure<SysAdminSeedSettings>(config.GetSection(SysAdminSeedSettings.SectionName));
             services.Configure<ActivationSettings>(config.GetSection(ActivationSettings.SectionName));
+            services.Configure<PresenceOptions>(config.GetSection(PresenceOptions.SectionName));
 
             services.AddTransient<ITenantDbSeeder, TenantDbSeeder>();
             services.AddTransient<ApplicationDbSeeder>();

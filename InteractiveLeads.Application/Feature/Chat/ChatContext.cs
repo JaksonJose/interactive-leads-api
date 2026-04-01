@@ -93,7 +93,7 @@ internal static class ChatContext
     }
 
     /// <summary>
-    /// Allows read/write collaboration on a conversation: Owner/Manager, or Agent if inbox member or active internal participant (Agent role).
+    /// Allows read/write on a conversation: Owner/Manager; or Agent if responsible, unassigned (and inbox member), or active internal participant.
     /// </summary>
     public static async Task EnsureConversationCollaborationAccessAsync(
         IApplicationDbContext db,
@@ -126,13 +126,6 @@ internal static class ChatContext
 
         var userId = currentUserService.GetUserId();
 
-        var inboxMember = await db.InboxMembers
-            .AsNoTracking()
-            .AnyAsync(m => m.InboxId == inboxId && m.UserId == userId && m.IsActive, cancellationToken);
-
-        if (inboxMember)
-            return;
-
         var asParticipant = await db.ConversationParticipants
             .AsNoTracking()
             .AnyAsync(p =>
@@ -144,6 +137,39 @@ internal static class ChatContext
 
         if (asParticipant)
             return;
+
+        if (!Guid.TryParse(userId, out var userGuid))
+        {
+            var forbiddenInvalid = new ResultResponse();
+            forbiddenInvalid.AddErrorMessage("You are not authorized to access this conversation.", "general.access_denied");
+            throw new ForbiddenException(forbiddenInvalid);
+        }
+
+        var convRow = await db.Conversations
+            .AsNoTracking()
+            .Where(c => c.Id == conversationId && c.CompanyId == companyId && c.InboxId == inboxId)
+            .Select(c => new { c.AssignedAgentId })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (convRow is null)
+        {
+            var notFoundConv = new ResultResponse();
+            notFoundConv.AddErrorMessage("Conversation not found.", "general.not_found");
+            throw new NotFoundException(notFoundConv);
+        }
+
+        if (convRow.AssignedAgentId == userGuid)
+            return;
+
+        if (!convRow.AssignedAgentId.HasValue)
+        {
+            var inboxMember = await db.InboxMembers
+                .AsNoTracking()
+                .AnyAsync(m => m.InboxId == inboxId && m.UserId == userId && m.IsActive, cancellationToken);
+
+            if (inboxMember)
+                return;
+        }
 
         var forbidden = new ResultResponse();
         forbidden.AddErrorMessage("You are not authorized to access this conversation.", "general.access_denied");
@@ -162,21 +188,25 @@ internal static class ChatContext
         if (currentUserService.IsInRole("Owner") || currentUserService.IsInRole("Manager"))
             return query;
 
-        // Agent: inbox member OR internal collaborator on the conversation.
+        // Agent: unassigned (and inbox member) OR assigned to self OR active internal participant.
         if (currentUserService.IsInRole("Agent"))
         {
             var userId = currentUserService.GetUserId();
+            if (!Guid.TryParse(userId, out var userGuid))
+                return query.Where(_ => false);
 
             return query.Where(c =>
-                db.InboxMembers.Any(m =>
-                    m.InboxId == c.InboxId &&
-                    m.UserId == userId &&
-                    m.IsActive) ||
-                db.ConversationParticipants.Any(p =>
+                c.AssignedAgentId == userGuid
+                || db.ConversationParticipants.Any(p =>
                     p.ConversationId == c.Id &&
                     p.UserId == userId &&
                     p.IsActive &&
-                    p.Role == ConversationParticipantRole.Agent));
+                    p.Role == ConversationParticipantRole.Agent)
+                || (c.AssignedAgentId == null &&
+                    db.InboxMembers.Any(m =>
+                        m.InboxId == c.InboxId &&
+                        m.UserId == userId &&
+                        m.IsActive)));
         }
 
         // No relevant role: deny everything.
