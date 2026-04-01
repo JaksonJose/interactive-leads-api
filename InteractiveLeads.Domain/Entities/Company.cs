@@ -13,5 +13,6 @@ public class Company
     public ICollection<Integration> Integrations { get; set; } = new List<Integration>();
     public ICollection<Contact> Contacts { get; set; } = new List<Contact>();
     public ICollection<Conversation> Conversations { get; set; } = new List<Conversation>();
+    public ICollection<Team> Teams { get; set; } = new List<Team>();
 }
 

@@ -11,7 +11,9 @@ public interface IApplicationDbContext
     DbSet<Tenant> Tenants { get; }
     DbSet<Company> Companies { get; }
     DbSet<Inbox> Inboxes { get; }
-    DbSet<InboxMember> InboxMembers { get; }
+    DbSet<Team> Teams { get; }
+    DbSet<UserTeam> UserTeams { get; }
+    DbSet<InboxTeam> InboxTeams { get; }
     DbSet<Integration> Integrations { get; }
     DbSet<WhatsAppBusinessAccount> WhatsAppBusinessAccounts { get; }
     DbSet<WhatsAppTemplate> WhatsAppTemplates { get; }

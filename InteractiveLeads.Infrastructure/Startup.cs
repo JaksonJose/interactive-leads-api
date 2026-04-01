@@ -119,6 +119,7 @@ namespace InteractiveLeads.Infrastructure
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IUserSummaryLookupService, UserSummaryLookupService>();
             services.AddScoped<IChatConversationUserValidator, ChatConversationUserValidator>();
+            services.AddScoped<ITeamUserTenantValidator, TeamUserTenantValidator>();
             services.AddScoped<IChatUserDirectoryService, ChatUserDirectoryService>();
             services.AddScoped<IUserLookupService, UserLookupService>();
             services.AddScoped<IImpersonationService, ImpersonationService>();

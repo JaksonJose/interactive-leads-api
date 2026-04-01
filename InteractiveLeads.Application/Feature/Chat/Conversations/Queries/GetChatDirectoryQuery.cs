@@ -11,6 +11,9 @@ public sealed class GetChatDirectoryQuery : IApplicationRequest<IResponse>
 {
     public ChatDirectoryMode Mode { get; set; }
     public Guid? InboxId { get; set; }
+
+    /// <summary>Optional: restrict directory to members of this team (must belong to current CRM tenant).</summary>
+    public Guid? TeamId { get; set; }
 }
 
 public sealed class GetChatDirectoryQueryHandler(
@@ -24,7 +27,7 @@ public sealed class GetChatDirectoryQueryHandler(
         if (string.IsNullOrWhiteSpace(tenantId))
             return new ListResponse<ChatDirectoryUserDto>([], 0);
 
-        var rows = await directoryService.ListAsync(request.Mode, request.InboxId, cancellationToken);
+        var rows = await directoryService.ListAsync(request.Mode, request.InboxId, request.TeamId, cancellationToken);
         var presence = await presenceService.ListTenantPresenceAsync(tenantId, cancellationToken);
         var presenceByUser = presence.ToDictionary(
             p => NormalizeUserIdKey(p.UserId),

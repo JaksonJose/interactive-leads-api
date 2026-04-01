@@ -1,4 +1,5 @@
-﻿using InteractiveLeads.Application.Exceptions;
+using InteractiveLeads.Application.Exceptions;
+using InteractiveLeads.Application.Feature.Chat;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Application.Dispatching;
@@ -77,9 +78,7 @@ public sealed class GetInboxQueryHandler(
         if (currentUserService.IsInRole("Agent"))
         {
             var userId = currentUserService.GetUserId();
-            var hasMembership = await db.InboxMembers
-                .AsNoTracking()
-                .AnyAsync(m => m.InboxId == inbox.Id && m.UserId == userId && m.IsActive, cancellationToken);
+            var hasMembership = await ChatContext.AgentHasInboxAccessViaTeamsAsync(db, userId, inbox.Id, companyId, cancellationToken);
 
             if (!hasMembership)
             {

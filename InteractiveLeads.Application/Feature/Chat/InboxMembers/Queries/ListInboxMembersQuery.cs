@@ -1,4 +1,6 @@
-﻿using InteractiveLeads.Application.Feature.Chat;
+using System.Security.Cryptography;
+using System.Text;
+using InteractiveLeads.Application.Feature.Chat;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Application.Dispatching;
@@ -21,22 +23,28 @@ public sealed class ListInboxMembersQueryHandler(
         var companyId = await ChatContext.GetCompanyIdAsync(db, currentUserService, cancellationToken);
         await ChatContext.EnsureInboxAccessAsync(db, currentUserService, request.InboxId, companyId, cancellationToken);
 
-        var items = await db.InboxMembers
-            .AsNoTracking()
-            .Where(m => m.InboxId == request.InboxId)
-            .OrderByDescending(m => m.IsActive)
-            .ThenBy(m => m.UserId)
-            .Select(m => new InboxMemberDto
-            {
-                Id = m.Id,
-                InboxId = m.InboxId,
-                UserId = m.UserId,
-                Role = m.Role,
-                IsActive = m.IsActive,
-                CanBeAssigned = m.CanBeAssigned,
-                JoinedAt = m.JoinedAt
-            })
+        var rows = await (
+                from link in db.InboxTeams.AsNoTracking()
+                join team in db.Teams.AsNoTracking() on link.TeamId equals team.Id
+                where link.InboxId == request.InboxId && team.CompanyId == companyId && team.IsActive
+                join ut in db.UserTeams.AsNoTracking() on team.Id equals ut.TeamId
+                select new { ut.UserId, ut.JoinedAt })
             .ToListAsync(cancellationToken);
+
+        var items = rows
+            .GroupBy(x => x.UserId)
+            .Select(g => new InboxMemberDto
+            {
+                Id = StableSyntheticMemberId(g.Key),
+                InboxId = request.InboxId,
+                UserId = g.Key,
+                Role = null,
+                IsActive = true,
+                CanBeAssigned = true,
+                JoinedAt = g.Min(x => x.JoinedAt)
+            })
+            .OrderBy(d => d.UserId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         if (items.Count > 0)
         {
@@ -53,10 +61,19 @@ public sealed class ListInboxMembersQueryHandler(
                 item.UserDisplayName = summary.DisplayName;
                 item.UserEmail = summary.Email;
             }
+
+            items.Sort((a, b) =>
+                string.Compare(a.UserDisplayName ?? a.UserId, b.UserDisplayName ?? b.UserId, StringComparison.OrdinalIgnoreCase));
         }
 
         return new ListResponse<InboxMemberDto>(items, items.Count);
     }
+
+    private static Guid StableSyntheticMemberId(string userId)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes("inbox-team-members:" + userId));
+        Span<byte> slice = stackalloc byte[16];
+        hash.AsSpan(0, 16).CopyTo(slice);
+        return new Guid(slice);
+    }
 }
-
-

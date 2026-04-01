@@ -24,9 +24,9 @@ public sealed class ConversationsController(IConversationMediaUploadService conv
     /// <summary>List conversations in an inbox (Agent can only access inboxes where is an active member).</summary>
     [HttpGet("/api/v1/inboxes/{inboxId:guid}/conversations")]
     [OpenApiOperation("List inbox conversations")]
-    public async Task<IActionResult> ListByInboxAsync(Guid inboxId)
+    public async Task<IActionResult> ListByInboxAsync(Guid inboxId, [FromQuery] Guid? teamId = null)
     {
-        var response = await Sender.Send(new ListInboxConversationsQuery { InboxId = inboxId });
+        var response = await Sender.Send(new ListInboxConversationsQuery { InboxId = inboxId, TeamId = teamId });
         return Ok(response);
     }
 
@@ -35,12 +35,17 @@ public sealed class ConversationsController(IConversationMediaUploadService conv
     /// </summary>
     [HttpGet("/api/conversations")]
     [OpenApiOperation("List conversations with cursor pagination")]
-    public async Task<IActionResult> ListPagedAsync([FromQuery] Guid? inboxId, [FromQuery] DateTimeOffset? cursor, [FromQuery] int pageSize = 30)
+    public async Task<IActionResult> ListPagedAsync(
+        [FromQuery] Guid? inboxId,
+        [FromQuery] DateTimeOffset? cursor,
+        [FromQuery] Guid? teamId = null,
+        [FromQuery] int pageSize = 30)
     {
         var response = await Sender.Send(new PagedInboxConversationsQuery
         {
             InboxId = inboxId,
             Cursor = cursor,
+            TeamId = teamId,
             PageSize = pageSize
         });
 
@@ -178,13 +183,14 @@ public sealed class ConversationsController(IConversationMediaUploadService conv
     [OpenApiOperation("Chat user directory (presence merged)")]
     public async Task<IActionResult> GetChatDirectoryAsync(
         [FromQuery] string mode = "participant",
-        [FromQuery] Guid? inboxId = null)
+        [FromQuery] Guid? inboxId = null,
+        [FromQuery] Guid? teamId = null)
     {
         var m = string.Equals(mode, "responsible", StringComparison.OrdinalIgnoreCase)
             ? ChatDirectoryMode.Responsible
             : ChatDirectoryMode.Participant;
 
-        var response = await Sender.Send(new GetChatDirectoryQuery { Mode = m, InboxId = inboxId });
+        var response = await Sender.Send(new GetChatDirectoryQuery { Mode = m, InboxId = inboxId, TeamId = teamId });
         return Ok(response);
     }
 

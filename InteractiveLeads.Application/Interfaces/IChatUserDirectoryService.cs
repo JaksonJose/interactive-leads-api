@@ -17,5 +17,5 @@ public sealed record ChatDirectoryUserRow(
 /// <summary>Loads tenant users for chat directory UI, optionally scoped to an inbox (responsible mode).</summary>
 public interface IChatUserDirectoryService
 {
-    Task<IReadOnlyList<ChatDirectoryUserRow>> ListAsync(ChatDirectoryMode mode, Guid? inboxId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<ChatDirectoryUserRow>> ListAsync(ChatDirectoryMode mode, Guid? inboxId, Guid? teamId, CancellationToken cancellationToken);
 }

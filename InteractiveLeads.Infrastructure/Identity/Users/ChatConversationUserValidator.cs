@@ -1,4 +1,5 @@
 using InteractiveLeads.Application.Exceptions;
+using InteractiveLeads.Application.Feature.Chat;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Infrastructure.Context.Application;
@@ -45,14 +46,32 @@ public sealed class ChatConversationUserValidator(
             throw new BadRequestException(r);
         }
 
-        var inInbox = await db.InboxMembers
+        var inboxCompanyId = await db.Inboxes
             .AsNoTracking()
-            .AnyAsync(m => m.InboxId == inboxId && m.UserId == user.Id.ToString() && m.IsActive, cancellationToken);
+            .Where(i => i.Id == inboxId)
+            .Select(i => i.CompanyId)
+            .SingleOrDefaultAsync(cancellationToken);
 
-        if (!inInbox)
+        if (inboxCompanyId == Guid.Empty)
         {
             var r = new ResultResponse();
-            r.AddErrorMessage("Responsible must be an active member of this inbox.", "chat.responsible_must_be_inbox_member");
+            r.AddErrorMessage("Inbox not found.", "general.not_found");
+            throw new NotFoundException(r);
+        }
+
+        var hasTeamAccess = await ChatContext.AgentHasInboxAccessViaTeamsAsync(
+            db,
+            user.Id.ToString(),
+            inboxId,
+            inboxCompanyId,
+            cancellationToken);
+
+        if (!hasTeamAccess)
+        {
+            var r = new ResultResponse();
+            r.AddErrorMessage(
+                "Responsible must belong to an active team linked to this inbox.",
+                "chat.responsible_must_have_team_inbox_access");
             throw new BadRequestException(r);
         }
     }

@@ -1,4 +1,4 @@
-﻿using InteractiveLeads.Application.Interfaces;
+using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
@@ -62,10 +62,13 @@ public sealed class ListInboxesQueryHandler(
 
         if (isAgent)
         {
-            query = query.Where(i => db.InboxMembers.Any(m =>
-                m.InboxId == i.Id &&
-                m.UserId == userId &&
-                m.IsActive));
+            query = query.Where(i => db.InboxTeams.Any(link =>
+                link.InboxId == i.Id &&
+                db.Teams.Any(t =>
+                    t.Id == link.TeamId &&
+                    t.CompanyId == companyId &&
+                    t.IsActive) &&
+                db.UserTeams.Any(ut => ut.TeamId == link.TeamId && ut.UserId == userId)));
         }
 
         var items = await query

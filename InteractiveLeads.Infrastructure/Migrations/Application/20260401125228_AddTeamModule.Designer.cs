@@ -3,6 +3,7 @@ using System;
 using InteractiveLeads.Infrastructure.Context.Application;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace InteractiveLeads.Infrastructure.Migrations.Application
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260401125228_AddTeamModule")]
+    partial class AddTeamModule
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -387,6 +390,55 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                         .HasDatabaseName("IX_Inbox_IsActive");
 
                     b.ToTable("Inbox", "Crm");
+                });
+
+            modelBuilder.Entity("InteractiveLeads.Domain.Entities.InboxMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("CanBeAssigned")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid>("InboxId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("JoinedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<int?>("Role")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InboxId")
+                        .HasDatabaseName("IX_InboxMember_InboxId");
+
+                    b.HasIndex("IsActive")
+                        .HasDatabaseName("IX_InboxMember_IsActive");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_InboxMember_UserId");
+
+                    b.HasIndex("InboxId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_InboxMember_InboxId_UserId_Active")
+                        .HasFilter("\"IsActive\" = true");
+
+                    b.ToTable("InboxMember", "Crm");
                 });
 
             modelBuilder.Entity("InteractiveLeads.Domain.Entities.InboxTeam", b =>
@@ -1333,6 +1385,17 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     b.Navigation("Company");
                 });
 
+            modelBuilder.Entity("InteractiveLeads.Domain.Entities.InboxMember", b =>
+                {
+                    b.HasOne("InteractiveLeads.Domain.Entities.Inbox", "Inbox")
+                        .WithMany("Members")
+                        .HasForeignKey("InboxId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Inbox");
+                });
+
             modelBuilder.Entity("InteractiveLeads.Domain.Entities.InboxTeam", b =>
                 {
                     b.HasOne("InteractiveLeads.Domain.Entities.Inbox", "Inbox")
@@ -1558,6 +1621,8 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
             modelBuilder.Entity("InteractiveLeads.Domain.Entities.Inbox", b =>
                 {
                     b.Navigation("Conversations");
+
+                    b.Navigation("Members");
 
                     b.Navigation("TeamLinks");
                 });

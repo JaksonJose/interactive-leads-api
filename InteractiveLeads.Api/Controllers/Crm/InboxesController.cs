@@ -2,6 +2,9 @@ using InteractiveLeads.Api.Controllers.Base;
 using InteractiveLeads.Application.Feature.Chat.Inboxes;
 using InteractiveLeads.Application.Feature.Chat.Inboxes.Commands;
 using InteractiveLeads.Application.Feature.Chat.Inboxes.Queries;
+using InteractiveLeads.Application.Feature.Crm.Teams;
+using InteractiveLeads.Application.Feature.Crm.Teams.Commands;
+using InteractiveLeads.Application.Feature.Crm.Teams.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NSwag.Annotations;
@@ -80,6 +83,39 @@ public sealed class InboxesController : BaseApiController
     public async Task<IActionResult> DeactivateAsync(Guid inboxId)
     {
         var response = await Sender.Send(new SetInboxActiveCommand { InboxId = inboxId, IsActive = false });
+        return Ok(response);
+    }
+
+    /// <summary>Teams linked to this inbox (same as GET Teams/by-inbox).</summary>
+    [HttpGet("{inboxId:guid}/teams")]
+    [OpenApiOperation("List teams linked to an inbox")]
+    public async Task<IActionResult> ListTeamsAsync(Guid inboxId)
+    {
+        var response = await Sender.Send(new GetTeamsByInboxQuery { InboxId = inboxId });
+        return Ok(response);
+    }
+
+    /// <summary>Link multiple teams to this inbox (Owner/Manager only).</summary>
+    [HttpPost("{inboxId:guid}/teams")]
+    [Authorize(Roles = "Owner,Manager")]
+    [OpenApiOperation("Bulk link teams to inbox (Owner/Manager only)")]
+    public async Task<IActionResult> LinkTeamsAsync(Guid inboxId, [FromBody] LinkTeamsToInboxRequest request)
+    {
+        var response = await Sender.Send(new LinkTeamsToInboxCommand
+        {
+            InboxId = inboxId,
+            Body = request ?? new LinkTeamsToInboxRequest()
+        });
+        return Ok(response);
+    }
+
+    /// <summary>Unlink a team from this inbox (Owner/Manager only).</summary>
+    [HttpDelete("{inboxId:guid}/teams/{teamId:guid}")]
+    [Authorize(Roles = "Owner,Manager")]
+    [OpenApiOperation("Unlink team from inbox (Owner/Manager only)")]
+    public async Task<IActionResult> UnlinkTeamAsync(Guid inboxId, Guid teamId)
+    {
+        var response = await Sender.Send(new UnlinkTeamFromInboxCommand { InboxId = inboxId, TeamId = teamId });
         return Ok(response);
     }
 }

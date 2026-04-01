@@ -1,4 +1,5 @@
-﻿using InteractiveLeads.Application.Exceptions;
+using InteractiveLeads.Application.Exceptions;
+using InteractiveLeads.Application.Feature.Chat.Inboxes;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Domain.Entities;
@@ -80,6 +81,12 @@ public sealed class CreateInboxCommandHandler(
         };
 
         db.Inboxes.Add(inbox);
+        await InboxTeamLinkSync.ReplaceLinksAsync(
+            db,
+            companyId,
+            inbox.Id,
+            request.CreateInbox?.TeamIds,
+            cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
         return new SingleResponse<InboxDto>(new InboxDto

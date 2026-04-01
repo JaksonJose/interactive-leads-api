@@ -19,7 +19,9 @@ namespace InteractiveLeads.Infrastructure.Context.Application
         public DbSet<Tenant> Tenants { get; set; }
         public DbSet<Company> Companies { get; set; }
         public DbSet<Inbox> Inboxes { get; set; }
-        public DbSet<InboxMember> InboxMembers { get; set; }
+        public DbSet<Team> Teams { get; set; }
+        public DbSet<UserTeam> UserTeams { get; set; }
+        public DbSet<InboxTeam> InboxTeams { get; set; }
         public DbSet<Integration> Integrations { get; set; }
         public DbSet<WhatsAppBusinessAccount> WhatsAppBusinessAccounts { get; set; }
         public DbSet<WhatsAppTemplate> WhatsAppTemplates { get; set; }

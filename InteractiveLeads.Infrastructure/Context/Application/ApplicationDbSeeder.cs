@@ -206,6 +206,35 @@ namespace InteractiveLeads.Infrastructure.Context.Application
                 });
                 await _applicationDbContext.SaveChangesAsync(cancellationToken);
             }
+
+            // 4) Example teams for new companies (idempotent per company).
+            var hasTeams = await _applicationDbContext.Teams
+                .AnyAsync(t => t.CompanyId == company.Id, cancellationToken);
+
+            if (!hasTeams)
+            {
+                var now = DateTimeOffset.UtcNow;
+                _applicationDbContext.Teams.AddRange(
+                    new Team
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = crmTenant.Id,
+                        CompanyId = company.Id,
+                        Name = "Sales",
+                        IsActive = true,
+                        CreatedAt = now
+                    },
+                    new Team
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = crmTenant.Id,
+                        CompanyId = company.Id,
+                        Name = "Support",
+                        IsActive = true,
+                        CreatedAt = now
+                    });
+                await _applicationDbContext.SaveChangesAsync(cancellationToken);
+            }
         }
     }
 }

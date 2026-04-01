@@ -10,5 +10,5 @@ public class Inbox
 
     public Company Company { get; set; } = default!;
     public ICollection<Conversation> Conversations { get; set; } = new List<Conversation>();
-    public ICollection<InboxMember> Members { get; set; } = new List<InboxMember>();
+    public ICollection<InboxTeam> TeamLinks { get; set; } = new List<InboxTeam>();
 }

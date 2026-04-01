@@ -9,11 +9,17 @@ namespace InteractiveLeads.Application.Feature.Chat.Conversations.Queries;
 public sealed class ListInboxConversationsQuery : IApplicationRequest<IResponse>
 {
     public Guid InboxId { get; set; }
+
+    /// <summary>Optional: only conversations whose responsible agent is in this team.</summary>
+    public Guid? TeamId { get; set; }
 }
 
 public sealed class PagedInboxConversationsQuery : IApplicationRequest<IResponse>
 {
     public Guid? InboxId { get; set; }
+
+    /// <summary>Optional: only conversations whose responsible agent is in this team.</summary>
+    public Guid? TeamId { get; set; }
 
     /// <summary>
     /// Optional cursor based on LastMessageAt. When provided, only conversations
@@ -45,6 +51,17 @@ public sealed class ListInboxConversationsQueryHandler(
             currentUserService,
             companyId,
             baseQuery);
+
+        var teamAgents = await ChatContext.TryResolveTeamAssignedAgentGuidsAsync(db, companyId, request.TeamId, cancellationToken);
+        if (teamAgents is not null)
+        {
+            if (teamAgents.Count == 0)
+            {
+                return new ListResponse<ConversationDto>([], 0);
+            }
+
+            filtered = filtered.Where(c => c.AssignedAgentId != null && teamAgents.Contains(c.AssignedAgentId.Value));
+        }
 
         var items = await filtered
             .OrderByDescending(c => c.LastMessageAt)
@@ -85,6 +102,17 @@ public sealed class PagedInboxConversationsQueryHandler(
         {
             await ChatContext.EnsureInboxAccessAsync(db, currentUserService, request.InboxId.Value, companyId, cancellationToken);
             query = query.Where(c => c.InboxId == request.InboxId.Value);
+        }
+
+        var teamAgents = await ChatContext.TryResolveTeamAssignedAgentGuidsAsync(db, companyId, request.TeamId, cancellationToken);
+        if (teamAgents is not null)
+        {
+            if (teamAgents.Count == 0)
+            {
+                return new CursorListResponse<InboxConversationListItemDto>([], false, null);
+            }
+
+            query = query.Where(c => c.AssignedAgentId != null && teamAgents.Contains(c.AssignedAgentId.Value));
         }
 
         if (request.Cursor.HasValue)

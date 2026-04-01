@@ -39,10 +39,5 @@ public class InboxConfiguration : IEntityTypeConfiguration<Inbox>
             .WithOne(c => c.Inbox)
             .HasForeignKey(c => c.InboxId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasMany(i => i.Members)
-            .WithOne(m => m.Inbox)
-            .HasForeignKey(m => m.InboxId)
-            .OnDelete(DeleteBehavior.Cascade);
     }
 }

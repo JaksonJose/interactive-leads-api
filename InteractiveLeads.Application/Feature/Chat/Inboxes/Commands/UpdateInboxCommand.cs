@@ -1,4 +1,5 @@
-﻿using InteractiveLeads.Application.Exceptions;
+using InteractiveLeads.Application.Exceptions;
+using InteractiveLeads.Application.Feature.Chat.Inboxes;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
 using InteractiveLeads.Application.Dispatching;
@@ -84,6 +85,12 @@ public sealed class UpdateInboxCommandHandler(
         inbox.Name = name;
         inbox.IsActive = request.UpdateInbox?.IsActive ?? inbox.IsActive;
 
+        await InboxTeamLinkSync.ReplaceLinksAsync(
+            db,
+            companyId,
+            inbox.Id,
+            request.UpdateInbox?.TeamIds,
+            cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
         return new SingleResponse<InboxDto>(new InboxDto

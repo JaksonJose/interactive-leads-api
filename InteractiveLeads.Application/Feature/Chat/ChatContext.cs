@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Chat;
 
-internal static class ChatContext
+public static class ChatContext
 {
     public static async Task<Guid> GetCompanyIdAsync(
         IApplicationDbContext db,
@@ -71,7 +71,7 @@ internal static class ChatContext
         if (currentUserService.IsInRole("Owner") || currentUserService.IsInRole("Manager"))
             return;
 
-        // Agent: requires InboxMember binding.
+        // Agent: must belong to an active team linked to this inbox (InboxTeam).
         if (!currentUserService.IsInRole("Agent"))
         {
             var response = new ResultResponse();
@@ -80,9 +80,7 @@ internal static class ChatContext
         }
 
         var userId = currentUserService.GetUserId();
-        var isMember = await db.InboxMembers
-            .AsNoTracking()
-            .AnyAsync(m => m.InboxId == inboxId && m.UserId == userId && m.IsActive, cancellationToken);
+        var isMember = await AgentHasInboxAccessViaTeamsAsync(db, userId, inboxId, companyId, cancellationToken);
 
         if (!isMember)
         {
@@ -93,7 +91,7 @@ internal static class ChatContext
     }
 
     /// <summary>
-    /// Allows read/write on a conversation: Owner/Manager; or Agent if responsible, unassigned (and inbox member), or active internal participant.
+    /// Allows read/write on a conversation: Owner/Manager; or Agent if responsible, unassigned (and team-linked to inbox), or active internal participant.
     /// </summary>
     public static async Task EnsureConversationCollaborationAccessAsync(
         IApplicationDbContext db,
@@ -163,11 +161,7 @@ internal static class ChatContext
 
         if (!convRow.AssignedAgentId.HasValue)
         {
-            var inboxMember = await db.InboxMembers
-                .AsNoTracking()
-                .AnyAsync(m => m.InboxId == inboxId && m.UserId == userId && m.IsActive, cancellationToken);
-
-            if (inboxMember)
+            if (await AgentHasInboxAccessViaTeamsAsync(db, userId, inboxId, companyId, cancellationToken))
                 return;
         }
 
@@ -188,7 +182,7 @@ internal static class ChatContext
         if (currentUserService.IsInRole("Owner") || currentUserService.IsInRole("Manager"))
             return query;
 
-        // Agent: unassigned (and inbox member) OR assigned to self OR active internal participant.
+        // Agent: unassigned (and team-linked to inbox) OR assigned to self OR active internal participant.
         if (currentUserService.IsInRole("Agent"))
         {
             var userId = currentUserService.GetUserId();
@@ -203,14 +197,73 @@ internal static class ChatContext
                     p.IsActive &&
                     p.Role == ConversationParticipantRole.Agent)
                 || (c.AssignedAgentId == null &&
-                    db.InboxMembers.Any(m =>
-                        m.InboxId == c.InboxId &&
-                        m.UserId == userId &&
-                        m.IsActive)));
+                    db.InboxTeams.Any(link =>
+                        link.InboxId == c.InboxId &&
+                        db.Teams.Any(t =>
+                            t.Id == link.TeamId &&
+                            t.CompanyId == companyId &&
+                            t.IsActive) &&
+                        db.UserTeams.Any(ut => ut.TeamId == link.TeamId && ut.UserId == userId))));
         }
 
         // No relevant role: deny everything.
         return query.Where(_ => false);
     }
+
+    /// <summary>
+    /// When <paramref name="teamId"/> is set, returns assigned agent user ids for that team.
+    /// If the team is missing or inactive for the company, returns an empty set (caller should yield no rows).
+    /// When <paramref name="teamId"/> is null, returns null (no team filter).
+    /// </summary>
+    public static async Task<List<Guid>?> TryResolveTeamAssignedAgentGuidsAsync(
+        IApplicationDbContext db,
+        Guid companyId,
+        Guid? teamId,
+        CancellationToken cancellationToken)
+    {
+        if (!teamId.HasValue || teamId.Value == Guid.Empty)
+            return null;
+
+        var teamOk = await db.Teams
+            .AsNoTracking()
+            .AnyAsync(t => t.Id == teamId.Value && t.CompanyId == companyId && t.IsActive, cancellationToken);
+
+        if (!teamOk)
+            return [];
+
+        var userIds = await db.UserTeams
+            .AsNoTracking()
+            .Where(m => m.TeamId == teamId.Value)
+            .Select(m => m.UserId)
+            .ToListAsync(cancellationToken);
+
+        var guids = new List<Guid>(userIds.Count);
+        foreach (var s in userIds)
+        {
+            if (Guid.TryParse(s, out var g))
+                guids.Add(g);
+        }
+
+        return guids;
+    }
+
+    /// <summary>
+    /// Whether the agent is on at least one active team in <paramref name="companyId"/> linked to the inbox.
+    /// </summary>
+    public static Task<bool> AgentHasInboxAccessViaTeamsAsync(
+        IApplicationDbContext db,
+        string userId,
+        Guid inboxId,
+        Guid companyId,
+        CancellationToken cancellationToken) =>
+        db.InboxTeams.AsNoTracking()
+            .AnyAsync(
+                link => link.InboxId == inboxId &&
+                    db.Teams.Any(t =>
+                        t.Id == link.TeamId &&
+                        t.CompanyId == companyId &&
+                        t.IsActive) &&
+                    db.UserTeams.Any(ut => ut.TeamId == link.TeamId && ut.UserId == userId),
+                cancellationToken);
 }
 

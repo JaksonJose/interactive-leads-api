@@ -14,6 +14,7 @@ public sealed class ChatUserDirectoryService(
     public async Task<IReadOnlyList<ChatDirectoryUserRow>> ListAsync(
         ChatDirectoryMode mode,
         Guid? inboxId,
+        Guid? teamId,
         CancellationToken cancellationToken)
     {
         var tenantId = currentUserService.GetUserTenant();
@@ -25,15 +26,52 @@ public sealed class ChatUserDirectoryService(
             .IgnoreQueryFilters()
             .Where(u => u.TenantId == tenantId && u.IsActive);
 
+        if (teamId.HasValue && teamId.Value != Guid.Empty)
+        {
+            var crmTenantId = await db.Tenants
+                .AsNoTracking()
+                .Where(t => t.Identifier == tenantId)
+                .Select(t => t.Id)
+                .SingleOrDefaultAsync(cancellationToken);
+
+            if (crmTenantId == Guid.Empty)
+                return [];
+
+            var team = await db.Teams
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t =>
+                        t.Id == teamId.Value && t.TenantId == crmTenantId && t.IsActive,
+                    cancellationToken);
+
+            if (team is null)
+                return [];
+
+            var teamUserIds = await db.UserTeams
+                .AsNoTracking()
+                .Where(m => m.TeamId == teamId.Value)
+                .Select(m => m.UserId)
+                .ToListAsync(cancellationToken);
+
+            if (teamUserIds.Count == 0)
+                return [];
+
+            usersQuery = usersQuery.Where(u => teamUserIds.Contains(u.Id.ToString()));
+        }
+
         if (mode == ChatDirectoryMode.Responsible)
         {
             if (!inboxId.HasValue || inboxId.Value == Guid.Empty)
                 return [];
 
-            var memberIds = await db.InboxMembers
-                .AsNoTracking()
-                .Where(m => m.InboxId == inboxId.Value && m.IsActive)
-                .Select(m => m.UserId)
+            var memberIds = await (
+                    from inbox in db.Inboxes.AsNoTracking()
+                    where inbox.Id == inboxId.Value
+                    join link in db.InboxTeams.AsNoTracking() on inbox.Id equals link.InboxId
+                    join team in db.Teams.AsNoTracking() on link.TeamId equals team.Id
+                    where team.CompanyId == inbox.CompanyId && team.IsActive
+                    join ut in db.UserTeams.AsNoTracking() on team.Id equals ut.TeamId
+                    select ut.UserId)
+                .Distinct()
                 .ToListAsync(cancellationToken);
 
             if (memberIds.Count == 0)
