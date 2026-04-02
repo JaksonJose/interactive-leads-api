@@ -27,31 +27,65 @@ public sealed class ConversationCollaborationRealtimePublisher(
         if (string.IsNullOrWhiteSpace(tenantIdentifier))
             return;
 
+        // Reload so SLA fields and assignee match the database (handlers often call SaveChanges on a tracked graph, then
+        // IConversationSlaService loads the row again — the passed entity can be stale).
+        var conv = await db.Conversations
+            .AsNoTracking()
+            .Include(c => c.HandlingTeam)
+            .FirstOrDefaultAsync(c => c.Id == conversation.Id, cancellationToken);
+
+        if (conv is null)
+            return;
+
         string? assignedName = null;
-        if (conversation.AssignedAgentId.HasValue)
+        if (conv.AssignedAgentId.HasValue)
         {
-            var key = conversation.AssignedAgentId.Value.ToString("D");
+            var key = conv.AssignedAgentId.Value.ToString("D");
             var summaries = await userSummaryLookup.GetSummariesByIdsAsync(new[] { key }, cancellationToken);
             if (summaries.TryGetValue(key, out var s))
                 assignedName = s.DisplayName;
         }
 
-        var participantIds = await db.ConversationParticipants
-            .AsNoTracking()
-            .Where(p =>
-                p.ConversationId == conversation.Id &&
-                p.Role == ConversationParticipantRole.Agent &&
-                p.IsActive)
-            .Select(p => p.UserId)
-            .ToListAsync(cancellationToken);
+        var participantIds = (await db.ConversationParticipants
+                .AsNoTracking()
+                .Where(p =>
+                    p.ConversationId == conv.Id &&
+                    p.Role == ConversationParticipantRole.Agent &&
+                    p.IsActive)
+                .Select(p => p.UserId)
+                .ToListAsync(cancellationToken))
+            .Where(uid => !string.IsNullOrEmpty(uid))
+            .Select(uid => uid!)
+            .ToList();
+
+        int? inactivityTimeout = null;
+        if (conv.HandlingTeam is { AutoAssignEnabled: true, AutoAssignReassignTimeoutMinutes: > 0 })
+            inactivityTimeout = conv.HandlingTeam.AutoAssignReassignTimeoutMinutes;
+
+        var utcNow = DateTimeOffset.UtcNow;
+        var firstBreached = conv.FirstResponseDueAt.HasValue
+                            && !conv.FirstAgentResponseAt.HasValue
+                            && utcNow > conv.FirstResponseDueAt.Value;
+        var resolutionBreached = conv.ResolutionDueAt.HasValue
+                                 && conv.Status != ConversationStatus.Closed
+                                 && utcNow > conv.ResolutionDueAt.Value;
 
         var payload = new ConversationCollaborationUpdatedPayloadDto
         {
-            Id = conversation.Id,
-            InboxId = conversation.InboxId,
-            AssignedAgentId = conversation.AssignedAgentId,
+            Id = conv.Id,
+            InboxId = conv.InboxId,
+            AssignedAgentId = conv.AssignedAgentId,
             AssignedAgentName = assignedName,
-            ParticipantAgentUserIds = participantIds
+            ParticipantAgentUserIds = participantIds,
+            Status = conv.Status,
+            EffectiveSlaPolicyId = conv.EffectiveSlaPolicyId,
+            FirstResponseDueAt = conv.FirstResponseDueAt,
+            ResolutionDueAt = conv.ResolutionDueAt,
+            FirstAgentResponseAt = conv.FirstAgentResponseAt,
+            FirstResponseBreached = firstBreached,
+            ResolutionBreached = resolutionBreached,
+            LastMessageFromCustomer = conv.LastMessageFromCustomer,
+            CustomerInactivityReassignTimeoutMinutes = inactivityTimeout
         };
 
         var evt = new RealtimeEvent<ConversationCollaborationUpdatedPayloadDto>
@@ -62,8 +96,6 @@ public sealed class ConversationCollaborationRealtimePublisher(
             Payload = payload
         };
 
-        // Broadcast to the whole tenant (same group as presence) so every agent receives updates
-        // even if JoinInbox/JoinConversation failed silently or the user was just granted access.
         await realtimeService.SendToTenantAsync(tenantIdentifier, evt);
     }
 }

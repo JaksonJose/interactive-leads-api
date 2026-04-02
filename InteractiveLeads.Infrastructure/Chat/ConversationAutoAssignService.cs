@@ -112,6 +112,7 @@ public sealed class ConversationAutoAssignService(
             tenantIdentifier,
             conversationId,
             "SLA reassign",
+            alignFirstResponseSlaWithLastCustomerMessage: false,
             cancellationToken);
     }
 
@@ -162,6 +163,7 @@ public sealed class ConversationAutoAssignService(
             tenantIdentifier,
             conversationId,
             "Inactivity reassign",
+            alignFirstResponseSlaWithLastCustomerMessage: true,
             cancellationToken);
     }
 
@@ -171,6 +173,7 @@ public sealed class ConversationAutoAssignService(
         string tenantIdentifier,
         Guid conversationId,
         string logLabel,
+        bool alignFirstResponseSlaWithLastCustomerMessage,
         CancellationToken cancellationToken)
     {
         var utc = DateTimeOffset.UtcNow;
@@ -210,7 +213,21 @@ public sealed class ConversationAutoAssignService(
         await EnsureAgentParticipantAsync(conversation.Id, chosen.Value, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
-        await conversationSlaService.ApplySlaDeadlinesAsync(conversation.Id, cancellationToken, utc);
+        if (alignFirstResponseSlaWithLastCustomerMessage)
+        {
+            // Align first-response SLA with the same timeline as inactivity (customer's last message), not with
+            // worker/reassign time—otherwise the due date drifts ~one scan interval after the new assignee.
+            await conversationSlaService.ApplySlaDeadlinesAsync(
+                conversation.Id,
+                cancellationToken,
+                slaAnchorUtc: null,
+                firstResponseAnchorUtc: conversation.LastMessageAt,
+                resolutionAnchorUtc: conversation.CreatedAt);
+        }
+        else
+        {
+            await conversationSlaService.ApplySlaDeadlinesAsync(conversation.Id, cancellationToken, utc);
+        }
 
         try
         {

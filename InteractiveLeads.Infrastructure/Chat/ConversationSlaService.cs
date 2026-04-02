@@ -9,7 +9,9 @@ public sealed class ConversationSlaService(IApplicationDbContext db) : IConversa
     public async Task ApplySlaDeadlinesAsync(
         Guid conversationId,
         CancellationToken cancellationToken = default,
-        DateTimeOffset? slaAnchorUtc = null)
+        DateTimeOffset? slaAnchorUtc = null,
+        DateTimeOffset? firstResponseAnchorUtc = null,
+        DateTimeOffset? resolutionAnchorUtc = null)
     {
         var conv = await db.Conversations
             .Include(c => c.Inbox)
@@ -46,9 +48,11 @@ public sealed class ConversationSlaService(IApplicationDbContext db) : IConversa
         }
 
         conv.EffectiveSlaPolicyId = policy.Id;
-        var anchor = slaAnchorUtc ?? conv.CreatedAt;
-        conv.FirstResponseDueAt = anchor.AddMinutes(policy.FirstResponseTargetMinutes);
-        conv.ResolutionDueAt = anchor.AddMinutes(policy.ResolutionTargetMinutes);
+        var defaultAnchor = slaAnchorUtc ?? conv.CreatedAt;
+        var firstAnchor = firstResponseAnchorUtc ?? defaultAnchor;
+        var resolutionAnchor = resolutionAnchorUtc ?? defaultAnchor;
+        conv.FirstResponseDueAt = firstAnchor.AddMinutes(policy.FirstResponseTargetMinutes);
+        conv.ResolutionDueAt = resolutionAnchor.AddMinutes(policy.ResolutionTargetMinutes);
         await db.SaveChangesAsync(cancellationToken);
     }
 

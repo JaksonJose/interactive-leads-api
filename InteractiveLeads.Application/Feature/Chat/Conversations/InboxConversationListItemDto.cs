@@ -10,6 +10,15 @@ public sealed class InboxConversationListItemDto
     public string ContactName { get; set; } = string.Empty;
     public string LastMessage { get; set; } = string.Empty;
     public DateTimeOffset LastMessageAt { get; set; }
+
+    /// <summary>True when the last message in the thread is from the customer (used with inactivity reassign).</summary>
+    public bool LastMessageFromCustomer { get; set; }
+
+    /// <summary>
+    /// When set, minutes after <see cref="LastMessageAt"/> before inactivity auto-reassign (team routing).
+    /// </summary>
+    public int? CustomerInactivityReassignTimeoutMinutes { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public string InboxName { get; set; } = string.Empty;
     public ConversationStatus Status { get; set; }

@@ -21,7 +21,7 @@ public sealed class SlaFirstResponseReassignmentWorker(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var interval = TimeSpan.FromSeconds(Math.Max(15, options.Value.IntervalSeconds));
+        var interval = TimeSpan.FromSeconds(Math.Max(5, options.Value.FirstResponseScanIntervalSeconds));
 
         while (!stoppingToken.IsCancellationRequested)
         {

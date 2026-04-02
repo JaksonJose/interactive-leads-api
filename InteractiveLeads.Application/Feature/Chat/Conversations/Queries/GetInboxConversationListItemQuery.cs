@@ -41,6 +41,13 @@ public sealed class GetInboxConversationListItemQueryHandler(
                 ContactName = c.Contact.Name,
                 LastMessage = c.LastMessage,
                 LastMessageAt = c.LastMessageAt,
+                LastMessageFromCustomer = c.LastMessageFromCustomer,
+                CustomerInactivityReassignTimeoutMinutes = c.HandlingTeam != null
+                    && c.HandlingTeam.AutoAssignEnabled
+                    && c.HandlingTeam.AutoAssignReassignTimeoutMinutes != null
+                    && c.HandlingTeam.AutoAssignReassignTimeoutMinutes.Value > 0
+                    ? c.HandlingTeam.AutoAssignReassignTimeoutMinutes
+                    : null,
                 CreatedAt = c.CreatedAt,
                 InboxName = c.Inbox.Name,
                 Status = c.Status,
