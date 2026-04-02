@@ -21,7 +21,7 @@ public sealed class CustomerMessageInactivityReassignmentWorker(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var interval = TimeSpan.FromSeconds(Math.Max(15, options.Value.IntervalSeconds));
+        var interval = TimeSpan.FromSeconds(Math.Max(2, options.Value.IntervalSeconds));
 
         while (!stoppingToken.IsCancellationRequested)
         {

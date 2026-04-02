@@ -138,6 +138,9 @@ public sealed class PagedInboxConversationsQueryHandler(
                     && c.HandlingTeam.AutoAssignReassignTimeoutMinutes.Value > 0
                     ? c.HandlingTeam.AutoAssignReassignTimeoutMinutes
                     : null,
+                ReassignOnFirstResponseSlaExpired = c.HandlingTeam != null
+                    && c.HandlingTeam.AutoAssignEnabled
+                    && c.HandlingTeam.AutoReassignOnFirstResponseSlaExpired,
                 CreatedAt = c.CreatedAt,
                 InboxName = c.Inbox.Name,
                 Status = c.Status,

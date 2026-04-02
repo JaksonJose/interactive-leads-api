@@ -5,8 +5,8 @@ public sealed class SlaReassignmentWorkerSettings
 {
     public const string SectionName = "SlaReassignmentWorker";
 
-    /// <summary>Delay between cycles for inactivity reassignment worker. Minimum 15 seconds.</summary>
-    public int IntervalSeconds { get; set; } = 45;
+    /// <summary>Delay between cycles for inactivity reassignment worker. Minimum 2 seconds.</summary>
+    public int IntervalSeconds { get; set; } = 5;
 
     /// <summary>Delay between cycles for first-response SLA expiry reassignment. Minimum 5 seconds.</summary>
     public int FirstResponseScanIntervalSeconds { get; set; } = 5;

@@ -19,6 +19,11 @@ public sealed class InboxConversationListItemDto
     /// </summary>
     public int? CustomerInactivityReassignTimeoutMinutes { get; set; }
 
+    /// <summary>
+    /// When true, UI may show a distribution countdown to <see cref="FirstResponseDueAt"/> (requires auto-assign).
+    /// </summary>
+    public bool ReassignOnFirstResponseSlaExpired { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public string InboxName { get; set; } = string.Empty;
     public ConversationStatus Status { get; set; }

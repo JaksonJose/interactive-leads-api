@@ -59,8 +59,13 @@ public sealed class ConversationCollaborationRealtimePublisher(
             .ToList();
 
         int? inactivityTimeout = null;
-        if (conv.HandlingTeam is { AutoAssignEnabled: true, AutoAssignReassignTimeoutMinutes: > 0 })
-            inactivityTimeout = conv.HandlingTeam.AutoAssignReassignTimeoutMinutes;
+        var reassignOnFirstSla = false;
+        if (conv.HandlingTeam is { AutoAssignEnabled: true })
+        {
+            if (conv.HandlingTeam.AutoAssignReassignTimeoutMinutes is > 0)
+                inactivityTimeout = conv.HandlingTeam.AutoAssignReassignTimeoutMinutes;
+            reassignOnFirstSla = conv.HandlingTeam.AutoReassignOnFirstResponseSlaExpired;
+        }
 
         var utcNow = DateTimeOffset.UtcNow;
         var firstBreached = conv.FirstResponseDueAt.HasValue
@@ -85,7 +90,8 @@ public sealed class ConversationCollaborationRealtimePublisher(
             FirstResponseBreached = firstBreached,
             ResolutionBreached = resolutionBreached,
             LastMessageFromCustomer = conv.LastMessageFromCustomer,
-            CustomerInactivityReassignTimeoutMinutes = inactivityTimeout
+            CustomerInactivityReassignTimeoutMinutes = inactivityTimeout,
+            ReassignOnFirstResponseSlaExpired = reassignOnFirstSla
         };
 
         var evt = new RealtimeEvent<ConversationCollaborationUpdatedPayloadDto>

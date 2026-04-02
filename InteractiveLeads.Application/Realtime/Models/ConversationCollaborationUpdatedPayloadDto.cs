@@ -28,4 +28,6 @@ public sealed class ConversationCollaborationUpdatedPayloadDto
 
     public bool LastMessageFromCustomer { get; set; }
     public int? CustomerInactivityReassignTimeoutMinutes { get; set; }
+
+    public bool ReassignOnFirstResponseSlaExpired { get; set; }
 }
