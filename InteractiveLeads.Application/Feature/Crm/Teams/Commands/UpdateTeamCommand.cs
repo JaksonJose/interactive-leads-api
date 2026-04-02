@@ -48,8 +48,27 @@ public sealed class UpdateTeamCommandHandler(
                 team.IsActive = request.UpdateTeam.IsActive.Value;
             if (request.UpdateTeam.CalendarId.HasValue)
                 team.CalendarId = request.UpdateTeam.CalendarId;
-            if (request.UpdateTeam.SlaPolicyId.HasValue)
-                team.SlaPolicyId = request.UpdateTeam.SlaPolicyId;
+
+            if (request.UpdateTeam.ClearSlaPolicy)
+            {
+                team.SlaPolicyId = null;
+            }
+            else if (request.UpdateTeam.SlaPolicyId.HasValue)
+            {
+                var policyId = request.UpdateTeam.SlaPolicyId.Value;
+                var policyOk = await db.SlaPolicies.AsNoTracking()
+                    .AnyAsync(
+                        p => p.Id == policyId && p.CompanyId == companyId && p.IsActive,
+                        cancellationToken);
+                if (!policyOk)
+                {
+                    var bad = new ResultResponse();
+                    bad.AddErrorMessage("SLA policy not found or inactive for this company.", "teams.slaPolicyInvalid");
+                    throw new BadRequestException(bad);
+                }
+
+                team.SlaPolicyId = policyId;
+            }
             if (request.UpdateTeam.AutoAssignEnabled.HasValue)
                 team.AutoAssignEnabled = request.UpdateTeam.AutoAssignEnabled.Value;
             if (request.UpdateTeam.AutoAssignStrategy.HasValue)

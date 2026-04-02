@@ -304,6 +304,16 @@ public sealed class ProcessInboundEventCommandHandler(
                         tenantLogger.LogWarning(ex, "Auto-assign failed for new conversation {ConversationId}", conversation.Id);
                     }
 
+                    try
+                    {
+                        var slaService = sp.GetRequiredService<IConversationSlaService>();
+                        await slaService.ApplySlaDeadlinesAsync(conversation.Id, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        tenantLogger.LogWarning(ex, "SLA deadline application failed for new conversation {ConversationId}", conversation.Id);
+                    }
+
                     var conversationCreatedEvent = new RealtimeEvent<ConversationCreatedPayloadDto>
                     {
                         Type = "conversation.created",
@@ -420,6 +430,23 @@ public sealed class ProcessInboundEventCommandHandler(
                         tx2,
                         cancellationToken);
                     return;
+                }
+
+                // Backfill SLA for legacy rows or when the first ApplySla run failed; no-op when deadlines already set.
+                if (!conversation.FirstResponseDueAt.HasValue && !conversation.ResolutionDueAt.HasValue)
+                {
+                    try
+                    {
+                        var slaService = sp.GetRequiredService<IConversationSlaService>();
+                        await slaService.ApplySlaDeadlinesAsync(conversation.Id, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        tenantLogger.LogWarning(
+                            ex,
+                            "SLA deadline application failed after inbound message save for conversation {ConversationId}",
+                            conversation.Id);
+                    }
                 }
 
                 await tx.CommitAsync(cancellationToken);

@@ -60,5 +60,10 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
             .WithMany(c => c.Teams)
             .HasForeignKey(t => t.CompanyId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(t => t.SlaPolicy)
+            .WithMany()
+            .HasForeignKey(t => t.SlaPolicyId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

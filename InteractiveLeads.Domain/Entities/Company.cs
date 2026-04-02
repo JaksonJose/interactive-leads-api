@@ -14,5 +14,6 @@ public class Company
     public ICollection<Contact> Contacts { get; set; } = new List<Contact>();
     public ICollection<Conversation> Conversations { get; set; } = new List<Conversation>();
     public ICollection<Team> Teams { get; set; } = new List<Team>();
+    public ICollection<SlaPolicy> SlaPolicies { get; set; } = new List<SlaPolicy>();
 }
 

@@ -44,7 +44,11 @@ public sealed class GetInboxConversationListItemQueryHandler(
                 CreatedAt = c.CreatedAt,
                 InboxName = c.Inbox.Name,
                 Status = c.Status,
-                AssignedAgentId = c.AssignedAgentId
+                AssignedAgentId = c.AssignedAgentId,
+                EffectiveSlaPolicyId = c.EffectiveSlaPolicyId,
+                FirstResponseDueAt = c.FirstResponseDueAt,
+                ResolutionDueAt = c.ResolutionDueAt,
+                FirstAgentResponseAt = c.FirstAgentResponseAt
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -54,6 +58,8 @@ public sealed class GetInboxConversationListItemQueryHandler(
             notFound.AddErrorMessage("Conversation not found.", "general.not_found");
             throw new NotFoundException(notFound);
         }
+
+        dto.ApplySlaBreachFlags(DateTimeOffset.UtcNow);
 
         if (dto.AssignedAgentId.HasValue)
         {

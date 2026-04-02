@@ -3,6 +3,7 @@ using System;
 using InteractiveLeads.Infrastructure.Context.Application;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace InteractiveLeads.Infrastructure.Migrations.Application
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260402041421_AddSlaPolicy")]
+    partial class AddSlaPolicy
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -163,15 +166,6 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("now() at time zone 'utc'");
 
-                    b.Property<Guid?>("EffectiveSlaPolicyId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset?>("FirstAgentResponseAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("FirstResponseDueAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<Guid?>("HandlingTeamId")
                         .HasColumnType("uuid");
 
@@ -193,9 +187,6 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                         .HasColumnType("integer")
                         .HasDefaultValue(0);
 
-                    b.Property<DateTimeOffset?>("ResolutionDueAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -209,12 +200,6 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
 
                     b.HasIndex("ContactId")
                         .HasDatabaseName("IX_Conversation_ContactId");
-
-                    b.HasIndex("EffectiveSlaPolicyId")
-                        .HasDatabaseName("IX_Conversation_EffectiveSlaPolicyId");
-
-                    b.HasIndex("FirstResponseDueAt")
-                        .HasDatabaseName("IX_Conversation_FirstResponseDueAt");
 
                     b.HasIndex("HandlingTeamId")
                         .HasDatabaseName("IX_Conversation_HandlingTeamId");
@@ -1397,11 +1382,6 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("InteractiveLeads.Domain.Entities.SlaPolicy", "EffectiveSlaPolicy")
-                        .WithMany()
-                        .HasForeignKey("EffectiveSlaPolicyId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("InteractiveLeads.Domain.Entities.Team", "HandlingTeam")
                         .WithMany("HandledConversations")
                         .HasForeignKey("HandlingTeamId")
@@ -1422,8 +1402,6 @@ namespace InteractiveLeads.Infrastructure.Migrations.Application
                     b.Navigation("Company");
 
                     b.Navigation("Contact");
-
-                    b.Navigation("EffectiveSlaPolicy");
 
                     b.Navigation("HandlingTeam");
 

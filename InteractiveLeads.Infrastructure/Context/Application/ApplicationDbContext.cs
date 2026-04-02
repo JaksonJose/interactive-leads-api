@@ -20,6 +20,7 @@ namespace InteractiveLeads.Infrastructure.Context.Application
         public DbSet<Company> Companies { get; set; }
         public DbSet<Inbox> Inboxes { get; set; }
         public DbSet<Team> Teams { get; set; }
+        public DbSet<SlaPolicy> SlaPolicies { get; set; }
         public DbSet<UserTeam> UserTeams { get; set; }
         public DbSet<InboxTeam> InboxTeams { get; set; }
         public DbSet<Integration> Integrations { get; set; }

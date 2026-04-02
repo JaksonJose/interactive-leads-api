@@ -1,4 +1,4 @@
-﻿using InteractiveLeads.Application.Exceptions;
+using InteractiveLeads.Application.Exceptions;
 using InteractiveLeads.Application.Feature.Chat;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
@@ -17,7 +17,8 @@ public sealed class MoveConversationToInboxCommand : IApplicationRequest<IRespon
 
 public sealed class MoveConversationToInboxCommandHandler(
     IApplicationDbContext db,
-    ICurrentUserService currentUserService) : IApplicationRequestHandler<MoveConversationToInboxCommand, IResponse>
+    ICurrentUserService currentUserService,
+    IConversationSlaService conversationSlaService) : IApplicationRequestHandler<MoveConversationToInboxCommand, IResponse>
 {
     public async Task<IResponse> Handle(MoveConversationToInboxCommand request, CancellationToken cancellationToken)
     {
@@ -71,6 +72,8 @@ public sealed class MoveConversationToInboxCommandHandler(
         db.ConversationInboxMovements.Add(movement);
 
         await db.SaveChangesAsync(cancellationToken);
+
+        await conversationSlaService.ApplySlaDeadlinesAsync(conversation.Id, cancellationToken);
 
         return new ResultResponse();
     }

@@ -10,6 +10,9 @@ public sealed class UpdateTeamRequest
 
     public Guid? CalendarId { get; set; }
 
+    /// <summary>When true, removes the team's SLA policy. Takes precedence over <see cref="SlaPolicyId"/>.</summary>
+    public bool ClearSlaPolicy { get; set; }
+
     public Guid? SlaPolicyId { get; set; }
 
     public bool? AutoAssignEnabled { get; set; }

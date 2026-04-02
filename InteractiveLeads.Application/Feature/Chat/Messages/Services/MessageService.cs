@@ -23,6 +23,7 @@ public sealed class MessageService(
     IIntegrationSettingsResolver integrationSettingsResolver,
     IOutboundMessageDispatcher outboundDispatcher,
     IUserSummaryLookupService userSummaryLookup,
+    IConversationSlaService conversationSlaService,
     ILogger<MessageService> logger) : IMessageService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -230,6 +231,18 @@ public sealed class MessageService(
         if (conversation.LastMessageAt < messageDate)
             conversation.LastMessageAt = messageDate;
         await db.SaveChangesAsync(cancellationToken);
+
+        if (senderUserId.HasValue)
+        {
+            try
+            {
+                await conversationSlaService.TryRecordFirstAgentResponseAsync(conversation.Id, messageDate, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to record first agent SLA response for conversation {ConversationId}", conversation.Id);
+            }
+        }
 
         logger.LogInformation(
             "Outbound message persisted with pending status for conversation {ConversationId}, message {MessageId}, type {MessageType}",

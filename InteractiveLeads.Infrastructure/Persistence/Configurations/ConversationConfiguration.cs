@@ -88,8 +88,24 @@ public class ConversationConfiguration : IEntityTypeConfiguration<Conversation>
             .HasForeignKey(c => c.HandlingTeamId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        builder.Property(c => c.EffectiveSlaPolicyId);
+        builder.Property(c => c.FirstResponseDueAt).HasColumnType("timestamp with time zone");
+        builder.Property(c => c.ResolutionDueAt).HasColumnType("timestamp with time zone");
+        builder.Property(c => c.FirstAgentResponseAt).HasColumnType("timestamp with time zone");
+
+        builder.HasOne(c => c.EffectiveSlaPolicy)
+            .WithMany()
+            .HasForeignKey(c => c.EffectiveSlaPolicyId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(c => c.HandlingTeamId)
             .HasDatabaseName("IX_Conversation_HandlingTeamId");
+
+        builder.HasIndex(c => c.EffectiveSlaPolicyId)
+            .HasDatabaseName("IX_Conversation_EffectiveSlaPolicyId");
+
+        builder.HasIndex(c => c.FirstResponseDueAt)
+            .HasDatabaseName("IX_Conversation_FirstResponseDueAt");
 
         builder.HasMany(c => c.Assignments)
             .WithOne(a => a.Conversation)

@@ -15,5 +15,27 @@ public sealed class InboxConversationListItemDto
     public ConversationStatus Status { get; set; }
     public Guid? AssignedAgentId { get; set; }
     public string? AssignedAgentName { get; set; }
+
+    public Guid? EffectiveSlaPolicyId { get; set; }
+    public DateTimeOffset? FirstResponseDueAt { get; set; }
+    public DateTimeOffset? ResolutionDueAt { get; set; }
+    public DateTimeOffset? FirstAgentResponseAt { get; set; }
+
+    /// <summary>True when first-response deadline passed with no agent reply yet.</summary>
+    public bool FirstResponseBreached { get; set; }
+
+    /// <summary>True when resolution deadline passed while conversation is not closed.</summary>
+    public bool ResolutionBreached { get; set; }
+
+    public void ApplySlaBreachFlags(DateTimeOffset utcNow)
+    {
+        FirstResponseBreached = FirstResponseDueAt.HasValue
+            && !FirstAgentResponseAt.HasValue
+            && utcNow > FirstResponseDueAt.Value;
+
+        ResolutionBreached = ResolutionDueAt.HasValue
+            && Status != ConversationStatus.Closed
+            && utcNow > ResolutionDueAt.Value;
+    }
 }
 

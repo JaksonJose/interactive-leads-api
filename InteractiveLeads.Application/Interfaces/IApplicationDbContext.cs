@@ -12,6 +12,7 @@ public interface IApplicationDbContext
     DbSet<Company> Companies { get; }
     DbSet<Inbox> Inboxes { get; }
     DbSet<Team> Teams { get; }
+    DbSet<SlaPolicy> SlaPolicies { get; }
     DbSet<UserTeam> UserTeams { get; }
     DbSet<InboxTeam> InboxTeams { get; }
     DbSet<Integration> Integrations { get; }

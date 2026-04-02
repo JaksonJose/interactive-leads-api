@@ -21,8 +21,10 @@ public class Team
     /// <summary>Optional calendar for future business-hours integration.</summary>
     public Guid? CalendarId { get; set; }
 
-    /// <summary>Optional FK placeholder for future team-based SLA policy.</summary>
+    /// <summary>Optional SLA policy applied to conversations handled by this team.</summary>
     public Guid? SlaPolicyId { get; set; }
+
+    public SlaPolicy? SlaPolicy { get; set; }
 
     public bool AutoAssignEnabled { get; set; }
 

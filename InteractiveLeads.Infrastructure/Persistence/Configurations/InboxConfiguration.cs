@@ -42,5 +42,10 @@ public class InboxConfiguration : IEntityTypeConfiguration<Inbox>
             .WithOne(c => c.Inbox)
             .HasForeignKey(c => c.InboxId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(i => i.DefaultSlaPolicy)
+            .WithMany()
+            .HasForeignKey(i => i.DefaultSlaPolicyId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

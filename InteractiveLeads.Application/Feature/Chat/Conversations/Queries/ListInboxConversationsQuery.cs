@@ -1,7 +1,7 @@
+using InteractiveLeads.Application.Dispatching;
 using InteractiveLeads.Application.Feature.Chat;
 using InteractiveLeads.Application.Interfaces;
 using InteractiveLeads.Application.Responses;
-using InteractiveLeads.Application.Dispatching;
 using Microsoft.EntityFrameworkCore;
 
 namespace InteractiveLeads.Application.Feature.Chat.Conversations.Queries;
@@ -134,9 +134,17 @@ public sealed class PagedInboxConversationsQueryHandler(
                 CreatedAt = c.CreatedAt,
                 InboxName = c.Inbox.Name,
                 Status = c.Status,
-                AssignedAgentId = c.AssignedAgentId
+                AssignedAgentId = c.AssignedAgentId,
+                EffectiveSlaPolicyId = c.EffectiveSlaPolicyId,
+                FirstResponseDueAt = c.FirstResponseDueAt,
+                ResolutionDueAt = c.ResolutionDueAt,
+                FirstAgentResponseAt = c.FirstAgentResponseAt
             })
             .ToListAsync(cancellationToken);
+
+        var utcNow = DateTimeOffset.UtcNow;
+        foreach (var item in items)
+            item.ApplySlaBreachFlags(utcNow);
 
         if (items.Count > 0)
         {
