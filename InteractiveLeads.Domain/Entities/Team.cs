@@ -37,6 +37,12 @@ public class Team
     /// <summary>Reserved for future reassign-if-no-reply automation.</summary>
     public int? AutoAssignReassignTimeoutMinutes { get; set; }
 
+    /// <summary>
+    /// When true (with <see cref="AutoAssignEnabled"/>), reassigns to another agent if the first-response SLA
+    /// expires with no agent reply; SLA deadlines restart from each new assignment.
+    /// </summary>
+    public bool AutoReassignOnFirstResponseSlaExpired { get; set; }
+
     public Tenant Tenant { get; set; } = default!;
     public Company Company { get; set; } = default!;
     public ICollection<UserTeam> Members { get; set; } = new List<UserTeam>();

@@ -79,6 +79,8 @@ public sealed class UpdateTeamCommandHandler(
                 team.AutoAssignMaxConversationsPerUser = request.UpdateTeam.AutoAssignMaxConversationsPerUser;
             if (request.UpdateTeam.AutoAssignReassignTimeoutMinutes.HasValue)
                 team.AutoAssignReassignTimeoutMinutes = request.UpdateTeam.AutoAssignReassignTimeoutMinutes;
+            if (request.UpdateTeam.AutoReassignOnFirstResponseSlaExpired.HasValue)
+                team.AutoReassignOnFirstResponseSlaExpired = request.UpdateTeam.AutoReassignOnFirstResponseSlaExpired.Value;
         }
         catch (ArgumentException ex)
         {
@@ -109,7 +111,8 @@ public sealed class UpdateTeamCommandHandler(
             AutoAssignStrategy = team.AutoAssignStrategy,
             AutoAssignIgnoreOfflineUsers = team.AutoAssignIgnoreOfflineUsers,
             AutoAssignMaxConversationsPerUser = team.AutoAssignMaxConversationsPerUser,
-            AutoAssignReassignTimeoutMinutes = team.AutoAssignReassignTimeoutMinutes
+            AutoAssignReassignTimeoutMinutes = team.AutoAssignReassignTimeoutMinutes,
+            AutoReassignOnFirstResponseSlaExpired = team.AutoReassignOnFirstResponseSlaExpired
         });
     }
 }

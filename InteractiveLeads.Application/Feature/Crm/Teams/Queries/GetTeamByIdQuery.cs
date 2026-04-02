@@ -39,7 +39,8 @@ public sealed class GetTeamByIdQueryHandler(
                 AutoAssignStrategy = t.AutoAssignStrategy,
                 AutoAssignIgnoreOfflineUsers = t.AutoAssignIgnoreOfflineUsers,
                 AutoAssignMaxConversationsPerUser = t.AutoAssignMaxConversationsPerUser,
-                AutoAssignReassignTimeoutMinutes = t.AutoAssignReassignTimeoutMinutes
+                AutoAssignReassignTimeoutMinutes = t.AutoAssignReassignTimeoutMinutes,
+                AutoReassignOnFirstResponseSlaExpired = t.AutoReassignOnFirstResponseSlaExpired
             })
             .SingleOrDefaultAsync(cancellationToken);
 

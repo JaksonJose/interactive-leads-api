@@ -10,4 +10,15 @@ public interface IConversationAutoAssignService
         string tenantIdentifier,
         Conversation conversation,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reassigns when the first-response SLA has expired without an agent reply, if the handling team has
+    /// auto-assign and <c>AutoReassignOnFirstResponseSlaExpired</c>. Restarts SLA from UTC now.
+    /// </summary>
+    /// <returns>True if a new assignee was chosen.</returns>
+    Task<bool> TryReassignAfterFirstResponseSlaExpiredAsync(
+        Guid companyId,
+        string tenantIdentifier,
+        Guid conversationId,
+        CancellationToken cancellationToken = default);
 }

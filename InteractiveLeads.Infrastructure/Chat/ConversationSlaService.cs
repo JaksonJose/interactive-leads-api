@@ -6,7 +6,10 @@ namespace InteractiveLeads.Infrastructure.Chat;
 
 public sealed class ConversationSlaService(IApplicationDbContext db) : IConversationSlaService
 {
-    public async Task ApplySlaDeadlinesAsync(Guid conversationId, CancellationToken cancellationToken = default)
+    public async Task ApplySlaDeadlinesAsync(
+        Guid conversationId,
+        CancellationToken cancellationToken = default,
+        DateTimeOffset? slaAnchorUtc = null)
     {
         var conv = await db.Conversations
             .Include(c => c.Inbox)
@@ -43,7 +46,7 @@ public sealed class ConversationSlaService(IApplicationDbContext db) : IConversa
         }
 
         conv.EffectiveSlaPolicyId = policy.Id;
-        var anchor = conv.CreatedAt;
+        var anchor = slaAnchorUtc ?? conv.CreatedAt;
         conv.FirstResponseDueAt = anchor.AddMinutes(policy.FirstResponseTargetMinutes);
         conv.ResolutionDueAt = anchor.AddMinutes(policy.ResolutionTargetMinutes);
         await db.SaveChangesAsync(cancellationToken);

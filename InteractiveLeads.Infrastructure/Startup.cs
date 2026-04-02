@@ -107,6 +107,7 @@ namespace InteractiveLeads.Infrastructure
             services.Configure<SysAdminSeedSettings>(config.GetSection(SysAdminSeedSettings.SectionName));
             services.Configure<ActivationSettings>(config.GetSection(ActivationSettings.SectionName));
             services.Configure<PresenceOptions>(config.GetSection(PresenceOptions.SectionName));
+            services.Configure<SlaReassignmentWorkerSettings>(config.GetSection(SlaReassignmentWorkerSettings.SectionName));
 
             services.AddTransient<ITenantDbSeeder, TenantDbSeeder>();
             services.AddTransient<ApplicationDbSeeder>();
@@ -189,15 +190,22 @@ namespace InteractiveLeads.Infrastructure
                 if (!string.IsNullOrWhiteSpace(dbRaw) && int.TryParse(dbRaw, out var parsed))
                     db = parsed;
 
+                var redisOpts = config.GetSection(RedisConnectionOptions.SectionName).Get<RedisConnectionOptions>()
+                    ?? new RedisConnectionOptions();
+
                 var opts = ConfigurationOptions.Parse(redisConfig, ignoreUnknown: true);
                 opts.DefaultDatabase = db;
                 opts.AbortOnConnectFail = false;
+                opts.SyncTimeout = Math.Max(1000, redisOpts.SyncTimeoutMs);
+                opts.AsyncTimeout = Math.Max(1000, redisOpts.AsyncTimeoutMs ?? redisOpts.SyncTimeoutMs);
+                opts.ConnectTimeout = Math.Max(1000, redisOpts.ConnectTimeoutMs);
                 return ConnectionMultiplexer.Connect(opts);
             });
             services.AddSingleton<IPresenceService, RedisPresenceService>();
             services.AddSingleton<IAutoAssignRoundRobinStore, RedisAutoAssignRoundRobinStore>();
                 services.AddScoped<IConversationAutoAssignService, ConversationAutoAssignService>();
                 services.AddScoped<IConversationSlaService, ConversationSlaService>();
+            services.AddHostedService<SlaFirstResponseReassignmentWorker>();
 
             return services;
         }

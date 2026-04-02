@@ -46,7 +46,8 @@ public sealed class GetTeamsByInboxQueryHandler(
                 AutoAssignStrategy = x.Team.AutoAssignStrategy,
                 AutoAssignIgnoreOfflineUsers = x.Team.AutoAssignIgnoreOfflineUsers,
                 AutoAssignMaxConversationsPerUser = x.Team.AutoAssignMaxConversationsPerUser,
-                AutoAssignReassignTimeoutMinutes = x.Team.AutoAssignReassignTimeoutMinutes
+                AutoAssignReassignTimeoutMinutes = x.Team.AutoAssignReassignTimeoutMinutes,
+                AutoReassignOnFirstResponseSlaExpired = x.Team.AutoReassignOnFirstResponseSlaExpired
             })
             .ToListAsync(cancellationToken);
 

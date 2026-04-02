@@ -46,7 +46,8 @@ public sealed class GetTeamsByCompanyQueryHandler(
                 AutoAssignStrategy = t.AutoAssignStrategy,
                 AutoAssignIgnoreOfflineUsers = t.AutoAssignIgnoreOfflineUsers,
                 AutoAssignMaxConversationsPerUser = t.AutoAssignMaxConversationsPerUser,
-                AutoAssignReassignTimeoutMinutes = t.AutoAssignReassignTimeoutMinutes
+                AutoAssignReassignTimeoutMinutes = t.AutoAssignReassignTimeoutMinutes,
+                AutoReassignOnFirstResponseSlaExpired = t.AutoReassignOnFirstResponseSlaExpired
             })
             .ToListAsync(cancellationToken);
 

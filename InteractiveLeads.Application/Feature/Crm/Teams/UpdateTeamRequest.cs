@@ -24,4 +24,6 @@ public sealed class UpdateTeamRequest
     public int? AutoAssignMaxConversationsPerUser { get; set; }
 
     public int? AutoAssignReassignTimeoutMinutes { get; set; }
+
+    public bool? AutoReassignOnFirstResponseSlaExpired { get; set; }
 }

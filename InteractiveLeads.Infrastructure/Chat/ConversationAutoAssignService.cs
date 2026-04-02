@@ -6,6 +6,7 @@ using InteractiveLeads.Infrastructure.Identity.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 
 namespace InteractiveLeads.Infrastructure.Chat;
 
@@ -15,6 +16,7 @@ public sealed class ConversationAutoAssignService(
     IPresenceService presenceService,
     IAutoAssignRoundRobinStore roundRobinStore,
     IConversationCollaborationRealtimePublisher collaborationRealtime,
+    IConversationSlaService conversationSlaService,
     ILogger<ConversationAutoAssignService> logger) : IConversationAutoAssignService
 {
     public async Task TryAssignNewConversationAsync(
@@ -79,11 +81,94 @@ public sealed class ConversationAutoAssignService(
         }
     }
 
+    public async Task<bool> TryReassignAfterFirstResponseSlaExpiredAsync(
+        Guid companyId,
+        string tenantIdentifier,
+        Guid conversationId,
+        CancellationToken cancellationToken = default)
+    {
+        var conversation = await db.Conversations
+            .Include(c => c.HandlingTeam)
+            .Include(c => c.Inbox)
+            .FirstOrDefaultAsync(c => c.Id == conversationId && c.CompanyId == companyId, cancellationToken);
+
+        if (conversation is null)
+            return false;
+
+        if (conversation.Status != ConversationStatus.Open)
+            return false;
+
+        if (!conversation.AssignedAgentId.HasValue)
+            return false;
+
+        if (conversation.FirstAgentResponseAt.HasValue)
+            return false;
+
+        var utc = DateTimeOffset.UtcNow;
+        if (!conversation.FirstResponseDueAt.HasValue || conversation.FirstResponseDueAt.Value >= utc)
+            return false;
+
+        var team = conversation.HandlingTeam;
+        if (team is null || !team.IsActive)
+            return false;
+
+        if (!team.AutoAssignEnabled || !team.AutoReassignOnFirstResponseSlaExpired)
+            return false;
+
+        var currentId = conversation.AssignedAgentId.Value;
+        var candidates = await GetEligibleAgentsAsync(
+            team,
+            conversation.InboxId,
+            tenantIdentifier,
+            cancellationToken,
+            currentId);
+
+        if (candidates.Count == 0)
+        {
+            logger.LogInformation(
+                "SLA reassign skipped: no eligible agents besides current. ConversationId {ConversationId} TeamId {TeamId}",
+                conversationId,
+                team.Id);
+            return false;
+        }
+
+        Guid? chosen = team.AutoAssignStrategy switch
+        {
+            AutoAssignStrategy.RoundRobin => await PickRoundRobinAsync(team.Id, candidates, cancellationToken),
+            AutoAssignStrategy.LeastAssigned => await PickLeastAssignedAsync(conversation.InboxId, candidates, cancellationToken),
+            AutoAssignStrategy.Random => candidates[Random.Shared.Next(candidates.Count)],
+            _ => await PickRoundRobinAsync(team.Id, candidates, cancellationToken)
+        };
+
+        if (chosen is null || chosen.Value == currentId)
+            return false;
+
+        conversation.AssignedAgentId = chosen;
+        conversation.AssignedAt = utc;
+
+        await EnsureAgentParticipantAsync(conversation.Id, chosen.Value, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+
+        await conversationSlaService.ApplySlaDeadlinesAsync(conversation.Id, cancellationToken, utc);
+
+        try
+        {
+            await collaborationRealtime.PublishCollaborationUpdatedAsync(conversation, tenantIdentifier, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to publish collaboration update after SLA reassign.");
+        }
+
+        return true;
+    }
+
     private async Task<List<Guid>> GetEligibleAgentsAsync(
         Team team,
         Guid inboxId,
         string tenantIdentifier,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? excludeUserId = null)
     {
         var memberUserIds = await db.UserTeams
             .AsNoTracking()
@@ -109,15 +194,26 @@ public sealed class ConversationAutoAssignService(
 
         if (team.AutoAssignIgnoreOfflineUsers)
         {
-            var presence = await presenceService.ListTenantPresenceAsync(tenantIdentifier, cancellationToken);
-            var online = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var p in presence)
+            try
             {
-                if (p.IsOnline)
-                    online.Add(p.UserId);
-            }
+                var presence = await presenceService.ListTenantPresenceAsync(tenantIdentifier, cancellationToken);
+                var online = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var p in presence)
+                {
+                    if (p.IsOnline)
+                        online.Add(p.UserId);
+                }
 
-            result = result.Where(u => online.Contains(u.ToString("D"))).ToList();
+                result = result.Where(u => online.Contains(u.ToString("D"))).ToList();
+            }
+            catch (RedisException ex)
+            {
+                logger.LogWarning(
+                    ex,
+                    "Redis presence unavailable; assigning without online filter. TeamId {TeamId} InboxId {InboxId}",
+                    team.Id,
+                    inboxId);
+            }
         }
 
         if (team.AutoAssignMaxConversationsPerUser is { } cap && cap > 0)
@@ -135,6 +231,9 @@ public sealed class ConversationAutoAssignService(
             var load = loadRows.ToDictionary(x => x.AgentId, x => x.Count);
             result = result.Where(u => !load.TryGetValue(u, out var c) || c < cap).ToList();
         }
+
+        if (excludeUserId.HasValue)
+            result = result.Where(u => u != excludeUserId.Value).ToList();
 
         return result.OrderBy(u => u).ToList();
     }

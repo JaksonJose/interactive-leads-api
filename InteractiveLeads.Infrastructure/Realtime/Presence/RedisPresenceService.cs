@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Linq;
 using InteractiveLeads.Application.Realtime.Services.Presence;
 using InteractiveLeads.Infrastructure.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
@@ -9,7 +10,8 @@ namespace InteractiveLeads.Infrastructure.Realtime.Presence;
 
 public sealed class RedisPresenceService(
     IConnectionMultiplexer mux,
-    IOptions<PresenceOptions> presenceOptions) : IPresenceService
+    IOptions<PresenceOptions> presenceOptions,
+    ILogger<RedisPresenceService> logger) : IPresenceService
 {
     private readonly IDatabase _db = mux.GetDatabase();
     private readonly int _sessionTtlSeconds = Math.Max(30, presenceOptions.Value.SessionTtlSeconds);
@@ -28,31 +30,52 @@ public sealed class RedisPresenceService(
     {
         ct.ThrowIfCancellationRequested();
 
-        var connMap = new HashEntry[]
+        try
         {
-            new("tenantId", tenantId),
-            new("userId", userId),
-        };
+            var connMap = new HashEntry[]
+            {
+                new("tenantId", tenantId),
+                new("userId", userId),
+            };
 
-        var userKey = UserKey(tenantId, userId);
-        var tran = _db.CreateTransaction();
-        _ = tran.HashSetAsync(ConnKey(connectionId), connMap);
-        _ = tran.HashSetAsync(userKey, new[] { new HashEntry(UserConnField(connectionId), "1") });
-        _ = tran.HashDeleteAsync(userKey, "lastSeenAtUtc");
+            var userKey = UserKey(tenantId, userId);
+            var tran = _db.CreateTransaction();
+            _ = tran.HashSetAsync(ConnKey(connectionId), connMap);
+            _ = tran.HashSetAsync(userKey, new[] { new HashEntry(UserConnField(connectionId), "1") });
+            _ = tran.HashDeleteAsync(userKey, "lastSeenAtUtc");
 
-        var exec = await tran.ExecuteAsync();
-        if (!exec)
+            var exec = await tran.ExecuteAsync();
+            if (!exec)
+            {
+                return new PresenceStateDto(tenantId, userId, true, null);
+            }
+
+            await _db.KeyExpireAsync(ConnKey(connectionId), TimeSpan.FromSeconds(_sessionTtlSeconds));
+
+            var live = await PruneStaleAndCountLiveAsync(userKey, ct);
+            return new PresenceStateDto(tenantId, userId, live > 0, null);
+        }
+        catch (RedisException ex)
         {
+            logger.LogWarning(ex, "Redis error in ConnectionOpenedAsync for connection {ConnectionId}", connectionId);
             return new PresenceStateDto(tenantId, userId, true, null);
         }
-
-        await _db.KeyExpireAsync(ConnKey(connectionId), TimeSpan.FromSeconds(_sessionTtlSeconds));
-
-        var live = await PruneStaleAndCountLiveAsync(userKey, ct);
-        return new PresenceStateDto(tenantId, userId, live > 0, null);
     }
 
     public async Task<PresenceStateDto?> ConnectionClosedAsync(string connectionId, CancellationToken ct)
+    {
+        try
+        {
+            return await ConnectionClosedCoreAsync(connectionId, ct);
+        }
+        catch (RedisException ex)
+        {
+            logger.LogWarning(ex, "Redis error in ConnectionClosedAsync for connection {ConnectionId}", connectionId);
+            return null;
+        }
+    }
+
+    private async Task<PresenceStateDto?> ConnectionClosedCoreAsync(string connectionId, CancellationToken ct)
     {
         var connKey = ConnKey(connectionId);
         var map = await _db.HashGetAllAsync(connKey);
@@ -161,33 +184,41 @@ public sealed class RedisPresenceService(
     {
         ct.ThrowIfCancellationRequested();
 
-        var connKey = ConnKey(connectionId);
-        var map = await _db.HashGetAllAsync(connKey);
-        if (map is null || map.Length == 0)
+        try
         {
+            var connKey = ConnKey(connectionId);
+            var map = await _db.HashGetAllAsync(connKey);
+            if (map is null || map.Length == 0)
+            {
+                return null;
+            }
+
+            string? mapTenant = null;
+            string? mapUser = null;
+            foreach (var e in map)
+            {
+                if (e.Name == "tenantId") mapTenant = e.Value.ToString();
+                else if (e.Name == "userId") mapUser = e.Value.ToString();
+            }
+
+            if (string.IsNullOrWhiteSpace(mapTenant) || string.IsNullOrWhiteSpace(mapUser)
+                || !SameTenant(mapTenant, tenantId) || !SameUser(mapUser, userId))
+            {
+                return null;
+            }
+
+            await _db.KeyExpireAsync(connKey, TimeSpan.FromSeconds(_sessionTtlSeconds));
+
+            var userKey = UserKey(tenantId, userId);
+            await PruneStaleAndCountLiveAsync(userKey, ct);
+            // Caller remains online while this connection heartbeats; offline transitions use disconnect or TTL+list prune.
             return null;
         }
-
-        string? mapTenant = null;
-        string? mapUser = null;
-        foreach (var e in map)
+        catch (RedisException ex)
         {
-            if (e.Name == "tenantId") mapTenant = e.Value.ToString();
-            else if (e.Name == "userId") mapUser = e.Value.ToString();
-        }
-
-        if (string.IsNullOrWhiteSpace(mapTenant) || string.IsNullOrWhiteSpace(mapUser)
-            || !SameTenant(mapTenant, tenantId) || !SameUser(mapUser, userId))
-        {
+            logger.LogWarning(ex, "Redis error in HeartbeatAsync for connection {ConnectionId}", connectionId);
             return null;
         }
-
-        await _db.KeyExpireAsync(connKey, TimeSpan.FromSeconds(_sessionTtlSeconds));
-
-        var userKey = UserKey(tenantId, userId);
-        await PruneStaleAndCountLiveAsync(userKey, ct);
-        // Caller remains online while this connection heartbeats; offline transitions use disconnect or TTL+list prune.
-        return null;
     }
 
     public async Task<IReadOnlyList<PresenceStateDto>> ListTenantPresenceAsync(string tenantId, CancellationToken ct)

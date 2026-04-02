@@ -66,7 +66,8 @@ public sealed class CreateTeamCommandHandler(
             AutoAssignStrategy = team.AutoAssignStrategy,
             AutoAssignIgnoreOfflineUsers = team.AutoAssignIgnoreOfflineUsers,
             AutoAssignMaxConversationsPerUser = team.AutoAssignMaxConversationsPerUser,
-            AutoAssignReassignTimeoutMinutes = team.AutoAssignReassignTimeoutMinutes
+            AutoAssignReassignTimeoutMinutes = team.AutoAssignReassignTimeoutMinutes,
+            AutoReassignOnFirstResponseSlaExpired = team.AutoReassignOnFirstResponseSlaExpired
         });
     }
 }

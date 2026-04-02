@@ -30,6 +30,10 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
 
         builder.Property(t => t.AutoAssignReassignTimeoutMinutes);
 
+        builder.Property(t => t.AutoReassignOnFirstResponseSlaExpired)
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.Property(t => t.Name)
             .IsRequired()
             .HasMaxLength(Team.MaxNameLength);
