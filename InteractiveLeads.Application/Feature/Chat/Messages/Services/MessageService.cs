@@ -230,6 +230,7 @@ public sealed class MessageService(
         conversation.LastMessage = message.Content;
         if (conversation.LastMessageAt < messageDate)
             conversation.LastMessageAt = messageDate;
+        conversation.LastMessageFromCustomer = false;
         await db.SaveChangesAsync(cancellationToken);
 
         if (senderUserId.HasValue)

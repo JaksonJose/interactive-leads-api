@@ -67,16 +67,7 @@ public sealed class ConversationAutoAssignService(
 
             await EnsureAgentParticipantAsync(conversation.Id, chosen.Value, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
-
-            try
-            {
-                await collaborationRealtime.PublishCollaborationUpdatedAsync(conversation, tenantIdentifier, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to publish collaboration update after auto-assign.");
-            }
-
+            // Collaboration realtime for new inbound conversations is published after DB commit (ProcessInboundEventCommandHandler).
             return;
         }
     }
@@ -115,7 +106,76 @@ public sealed class ConversationAutoAssignService(
         if (!team.AutoAssignEnabled || !team.AutoReassignOnFirstResponseSlaExpired)
             return false;
 
-        var currentId = conversation.AssignedAgentId.Value;
+        return await ReassignToNextAgentExcludingCurrentAsync(
+            conversation,
+            team,
+            tenantIdentifier,
+            conversationId,
+            "SLA reassign",
+            cancellationToken);
+    }
+
+    public async Task<bool> TryReassignAfterCustomerMessageInactivityAsync(
+        Guid companyId,
+        string tenantIdentifier,
+        Guid conversationId,
+        CancellationToken cancellationToken = default)
+    {
+        var conversation = await db.Conversations
+            .Include(c => c.HandlingTeam)
+            .Include(c => c.Inbox)
+            .FirstOrDefaultAsync(c => c.Id == conversationId && c.CompanyId == companyId, cancellationToken);
+
+        if (conversation is null)
+            return false;
+
+        if (conversation.Status != ConversationStatus.Open)
+            return false;
+
+        if (!conversation.AssignedAgentId.HasValue)
+            return false;
+
+        if (!conversation.FirstAgentResponseAt.HasValue)
+            return false;
+
+        if (!conversation.LastMessageFromCustomer)
+            return false;
+
+        var team = conversation.HandlingTeam;
+        if (team is null || !team.IsActive)
+            return false;
+
+        if (!team.AutoAssignEnabled)
+            return false;
+
+        var timeoutMinutes = team.AutoAssignReassignTimeoutMinutes;
+        if (timeoutMinutes is null or <= 0)
+            return false;
+
+        var utc = DateTimeOffset.UtcNow;
+        if (conversation.LastMessageAt.AddMinutes(timeoutMinutes.Value) > utc)
+            return false;
+
+        return await ReassignToNextAgentExcludingCurrentAsync(
+            conversation,
+            team,
+            tenantIdentifier,
+            conversationId,
+            "Inactivity reassign",
+            cancellationToken);
+    }
+
+    private async Task<bool> ReassignToNextAgentExcludingCurrentAsync(
+        Conversation conversation,
+        Team team,
+        string tenantIdentifier,
+        Guid conversationId,
+        string logLabel,
+        CancellationToken cancellationToken)
+    {
+        var utc = DateTimeOffset.UtcNow;
+        var currentId = conversation.AssignedAgentId!.Value;
+
         var candidates = await GetEligibleAgentsAsync(
             team,
             conversation.InboxId,
@@ -126,7 +186,8 @@ public sealed class ConversationAutoAssignService(
         if (candidates.Count == 0)
         {
             logger.LogInformation(
-                "SLA reassign skipped: no eligible agents besides current. ConversationId {ConversationId} TeamId {TeamId}",
+                "{LogLabel} skipped: no eligible agents besides current. ConversationId {ConversationId} TeamId {TeamId}",
+                logLabel,
                 conversationId,
                 team.Id);
             return false;
@@ -157,7 +218,7 @@ public sealed class ConversationAutoAssignService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to publish collaboration update after SLA reassign.");
+            logger.LogWarning(ex, "Failed to publish collaboration update after {LogLabel}.", logLabel);
         }
 
         return true;

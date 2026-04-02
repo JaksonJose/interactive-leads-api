@@ -34,7 +34,10 @@ public class Team
 
     public int? AutoAssignMaxConversationsPerUser { get; set; }
 
-    /// <summary>Reserved for future reassign-if-no-reply automation.</summary>
+    /// <summary>
+    /// When set (positive), reassigns after the customer's last message is older than this many minutes
+    /// (requires <see cref="AutoAssignEnabled"/> and at least one prior agent reply). Same distribution rules as other auto-assign flows.
+    /// </summary>
     public int? AutoAssignReassignTimeoutMinutes { get; set; }
 
     /// <summary>

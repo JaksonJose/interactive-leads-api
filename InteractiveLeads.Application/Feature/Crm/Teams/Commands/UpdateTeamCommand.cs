@@ -78,7 +78,10 @@ public sealed class UpdateTeamCommandHandler(
             if (request.UpdateTeam.AutoAssignMaxConversationsPerUser.HasValue)
                 team.AutoAssignMaxConversationsPerUser = request.UpdateTeam.AutoAssignMaxConversationsPerUser;
             if (request.UpdateTeam.AutoAssignReassignTimeoutMinutes.HasValue)
-                team.AutoAssignReassignTimeoutMinutes = request.UpdateTeam.AutoAssignReassignTimeoutMinutes;
+            {
+                var m = request.UpdateTeam.AutoAssignReassignTimeoutMinutes.Value;
+                team.AutoAssignReassignTimeoutMinutes = m <= 0 ? null : m;
+            }
             if (request.UpdateTeam.AutoReassignOnFirstResponseSlaExpired.HasValue)
                 team.AutoReassignOnFirstResponseSlaExpired = request.UpdateTeam.AutoReassignOnFirstResponseSlaExpired.Value;
         }

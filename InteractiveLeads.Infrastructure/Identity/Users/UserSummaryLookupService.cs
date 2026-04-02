@@ -10,12 +10,25 @@ public sealed class UserSummaryLookupService(ApplicationDbContext db) : IUserSum
         IReadOnlyCollection<string> userIds,
         CancellationToken ct = default)
     {
-        if (userIds.Count == 0)
+        if (userIds is null || userIds.Count == 0)
             return new Dictionary<string, (string? DisplayName, string? Email)>();
 
+        var guidIds = new List<Guid>(userIds.Count);
+        foreach (var s in userIds)
+        {
+            if (!string.IsNullOrWhiteSpace(s) && Guid.TryParse(s, out var id))
+                guidIds.Add(id);
+        }
+
+        if (guidIds.Count == 0)
+            return new Dictionary<string, (string? DisplayName, string? Email)>();
+
+        // Ignore Finbuckle tenant filters: they can throw when tenant context is missing in some scopes,
+        // and each ApplicationDbContext instance already targets one tenant database.
         var users = await db.Users
             .AsNoTracking()
-            .Where(u => userIds.Contains(u.Id.ToString()))
+            .IgnoreQueryFilters()
+            .Where(u => guidIds.Contains(u.Id))
             .Select(u => new
             {
                 Id = u.Id.ToString(),

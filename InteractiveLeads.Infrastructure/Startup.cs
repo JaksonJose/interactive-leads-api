@@ -206,6 +206,7 @@ namespace InteractiveLeads.Infrastructure
                 services.AddScoped<IConversationAutoAssignService, ConversationAutoAssignService>();
                 services.AddScoped<IConversationSlaService, ConversationSlaService>();
             services.AddHostedService<SlaFirstResponseReassignmentWorker>();
+            services.AddHostedService<CustomerMessageInactivityReassignmentWorker>();
 
             return services;
         }

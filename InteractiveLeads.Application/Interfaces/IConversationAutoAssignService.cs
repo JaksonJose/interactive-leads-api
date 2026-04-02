@@ -21,4 +21,14 @@ public interface IConversationAutoAssignService
         string tenantIdentifier,
         Guid conversationId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reassigns when the customer sent the last message and it is older than the team's configured inactivity
+    /// timeout minutes, after at least one agent reply was recorded. Requires auto-assign. Restarts SLA from UTC now.
+    /// </summary>
+    Task<bool> TryReassignAfterCustomerMessageInactivityAsync(
+        Guid companyId,
+        string tenantIdentifier,
+        Guid conversationId,
+        CancellationToken cancellationToken = default);
 }

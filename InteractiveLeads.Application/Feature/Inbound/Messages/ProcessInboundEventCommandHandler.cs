@@ -24,6 +24,7 @@ public sealed class ProcessInboundEventCommandHandler(
     IIntegrationExternalIdentifierLookupRepository integrationLookupRepository,
     ICrossTenantService crossTenantService,
     IRealtimeService realtimeService,
+    IConversationCollaborationRealtimePublisher collaborationRealtime,
     IMediaProcessingJobPublisher mediaProcessingJobPublisher,
     ILogger<ProcessInboundEventCommandHandler> logger)
     : IApplicationRequestHandler<ProcessInboundEventCommand, IResponse>
@@ -127,6 +128,9 @@ public sealed class ProcessInboundEventCommandHandler(
             await executionStrategy.ExecuteAsync(async () =>
             {
                 await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+
+                RealtimeEvent<ConversationCreatedPayloadDto>? pendingConversationCreated = null;
+                var assignedByAutoAssignOnNewConversation = false;
 
                 var integration = await db.Integrations
                     .SingleOrDefaultAsync(i => i.Id == lookup.IntegrationId, cancellationToken);
@@ -288,6 +292,7 @@ public sealed class ProcessInboundEventCommandHandler(
                         Status = ConversationStatus.Open,
                         LastMessage = string.Empty,
                         LastMessageAt = eventTimestamp,
+                        LastMessageFromCustomer = false,
                         CreatedAt = DateTimeOffset.UtcNow
                     };
 
@@ -297,7 +302,12 @@ public sealed class ProcessInboundEventCommandHandler(
                     try
                     {
                         var autoAssign = sp.GetRequiredService<IConversationAutoAssignService>();
-                        await autoAssign.TryAssignNewConversationAsync(companyId, lookup.TenantId, conversation, cancellationToken);
+                        await autoAssign.TryAssignNewConversationAsync(
+                            companyId,
+                            lookup.TenantId,
+                            conversation,
+                            cancellationToken);
+                        assignedByAutoAssignOnNewConversation = conversation.AssignedAgentId.HasValue;
                     }
                     catch (Exception ex)
                     {
@@ -314,7 +324,8 @@ public sealed class ProcessInboundEventCommandHandler(
                         tenantLogger.LogWarning(ex, "SLA deadline application failed for new conversation {ConversationId}", conversation.Id);
                     }
 
-                    var conversationCreatedEvent = new RealtimeEvent<ConversationCreatedPayloadDto>
+                    // Defer SignalR until after CommitAsync — other HTTP clients must see the conversation row.
+                    pendingConversationCreated = new RealtimeEvent<ConversationCreatedPayloadDto>
                     {
                         Type = "conversation.created",
                         TenantId = lookup.TenantId,
@@ -328,15 +339,6 @@ public sealed class ProcessInboundEventCommandHandler(
                             ContactName = contact.Name ?? string.Empty
                         }
                     };
-
-                    try
-                    {
-                        await realtimeService.SendToInboxAsync(conversation.InboxId.ToString(), conversationCreatedEvent);
-                    }
-                    catch (Exception ex)
-                    {
-                        tenantLogger.LogWarning(ex, "Failed to send conversation.created event via SignalR.");
-                    }
                 }
 
                 var exists = await db.Messages
@@ -397,6 +399,7 @@ public sealed class ProcessInboundEventCommandHandler(
                 conversation.LastMessage = content;
                 if (conversation.LastMessageAt < eventTimestamp)
                     conversation.LastMessageAt = eventTimestamp;
+                conversation.LastMessageFromCustomer = direction == MessageDirection.Inbound;
                 conversation.Status = ConversationStatus.Open;
 
                 try
@@ -450,6 +453,37 @@ public sealed class ProcessInboundEventCommandHandler(
                 }
 
                 await tx.CommitAsync(cancellationToken);
+
+                // Realtime after commit so GET /chat-list-item and other connections see committed rows.
+                if (assignedByAutoAssignOnNewConversation)
+                {
+                    try
+                    {
+                        await collaborationRealtime.PublishCollaborationUpdatedAsync(
+                            conversation,
+                            lookup.TenantId,
+                            cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        tenantLogger.LogWarning(
+                            ex,
+                            "Failed to publish collaboration update after auto-assign (post-commit) for conversation {ConversationId}",
+                            conversation.Id);
+                    }
+                }
+
+                if (pendingConversationCreated is not null)
+                {
+                    try
+                    {
+                        await realtimeService.SendToInboxAsync(conversation.InboxId.ToString(), pendingConversationCreated);
+                    }
+                    catch (Exception ex)
+                    {
+                        tenantLogger.LogWarning(ex, "Failed to send conversation.created event via SignalR.");
+                    }
+                }
 
                 SetSuccess(result, InboundProcessingOutcome.Persisted, "processed");
 
@@ -897,6 +931,7 @@ public sealed class ProcessInboundEventCommandHandler(
         {
             conversation.LastMessageAt = eventTimestamp;
             conversation.LastMessage = lastMessage;
+            conversation.LastMessageFromCustomer = true;
         }
         conversation.Status = ConversationStatus.Open;
 

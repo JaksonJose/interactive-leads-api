@@ -31,6 +31,10 @@ public class ConversationConfiguration : IEntityTypeConfiguration<Conversation>
             .HasColumnType("timestamp with time zone")
             .IsRequired();
 
+        builder.Property(c => c.LastMessageFromCustomer)
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.Property(c => c.CreatedAt)
             .HasColumnType("timestamp with time zone")
             .HasDefaultValueSql("now() at time zone 'utc'")
@@ -106,6 +110,9 @@ public class ConversationConfiguration : IEntityTypeConfiguration<Conversation>
 
         builder.HasIndex(c => c.FirstResponseDueAt)
             .HasDatabaseName("IX_Conversation_FirstResponseDueAt");
+
+        builder.HasIndex(c => new { c.Status, c.HandlingTeamId, c.LastMessageFromCustomer, c.LastMessageAt })
+            .HasDatabaseName("IX_Conversation_InactivityReassign");
 
         builder.HasMany(c => c.Assignments)
             .WithOne(a => a.Conversation)

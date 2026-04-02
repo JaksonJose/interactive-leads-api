@@ -31,6 +31,12 @@ public class Conversation
     public int Priority { get; set; }
     public string LastMessage { get; set; } = string.Empty;
     public DateTimeOffset LastMessageAt { get; set; }
+
+    /// <summary>
+    /// True when the chronologically last message in the thread is inbound (customer); used for inactivity reassign.
+    /// </summary>
+    public bool LastMessageFromCustomer { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public Company Company { get; set; } = default!;
